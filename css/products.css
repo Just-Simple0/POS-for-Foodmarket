@@ -1,0 +1,293 @@
+/* products.css */
+
+/* 상품 리스트 영역 */
+main {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+/* 상품 테이블 스타일 */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+th,
+td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+th {
+  background-color: #1976d2;
+  color: white;
+  font-weight: 600;
+}
+
+tr:hover {
+  background-color: #f1f7ff;
+  cursor: pointer;
+}
+
+/* 상품 등록 폼 스타일 */
+form {
+  margin-top: 2rem;
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+form label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+form input,
+form button {
+  width: 100%;
+}
+
+form button {
+  grid-column: span 2;
+  margin-top: 1rem;
+}
+
+.product-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.product-card {
+  background: #f9f9f9;
+  border: 1px solid #ccc;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  transition: 0.2s ease;
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.product-card .name {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.product-card .barcode {
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+.product-card .price {
+  margin-top: 8px;
+  color: #2c7;
+  font-weight: bold;
+}
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4); /* 공통 그리드 스타일 */
+  .product-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  /* 카드 스타일 */
+  .product-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.15s ease-in-out;
+    cursor: default;
+  }
+
+  .product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  }
+
+  .product-card .name {
+    font-weight: 600;
+    font-size: 1.2rem;
+    color: #333;
+    margin-bottom: 6px;
+  }
+
+  .product-card .price {
+    font-weight: 700;
+    color: #4caf50;
+    margin-bottom: 6px;
+  }
+
+  .product-card .barcode {
+    font-size: 0.9rem;
+    color: #777;
+    margin-bottom: 12px;
+  }
+
+  /* 버튼 스타일 */
+  .product-card button {
+    margin-right: 8px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .product-card .edit {
+    background-color: #1976d2;
+    color: white;
+  }
+
+  .product-card .edit:hover {
+    background-color: #115293;
+  }
+
+  .product-card .delete-btn {
+    background-color: #e53935;
+    color: white;
+  }
+
+  .product-card .delete-btn:hover {
+    background-color: #ab2b27;
+  }
+
+  /* 모달 배경 */
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .modal.hidden {
+    display: none;
+  }
+
+  /* 모달 내용 박스 */
+  .modal-content {
+    background: white;
+    padding: 2.5rem 3rem;
+    border-radius: 16px;
+    width: 420px; /* 넓게 조정 */
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .modal-content h2 {
+    margin-bottom: 1rem;
+    font-weight: 700;
+    font-size: 1.7rem;
+    color: #222;
+  }
+
+  .modal-content label {
+    font-weight: 600;
+    color: #444;
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .modal-content input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.8px solid #ccc;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    transition: border-color 0.3s ease;
+  }
+
+  .modal-content input:focus {
+    outline: none;
+    border-color: #1976d2;
+  }
+
+  /* 버튼 그룹을 오른쪽 정렬, 간격 넓게 */
+  .modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 16px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    padding: 10px 24px;
+    font-size: 1.1rem;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    background-color: #1976d2;
+    color: white;
+    border: none;
+    transition: background-color 0.3s ease;
+  }
+
+  .btn-primary:hover {
+    background-color: #115293;
+  }
+
+  .btn-secondary {
+    background-color: #ddd;
+    color: #444;
+    border: none;
+    transition: background-color 0.3s ease;
+  }
+
+  .btn-secondary:hover {
+    background-color: #bbb;
+  }
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: white;
+  padding: 2rem;
+  border-radius: 10px;
+  min-width: 300px;
+}

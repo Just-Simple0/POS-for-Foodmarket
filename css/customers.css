@@ -1,0 +1,64 @@
+/* customers.css */
+
+/* 고객 관리 페이지 메인 영역 */
+main {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+/* 고객 리스트 테이블 스타일 */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+th,
+td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+th {
+  background-color: #1976d2;
+  color: white;
+  font-weight: 600;
+}
+
+tr:hover {
+  background-color: #f1f7ff;
+  cursor: pointer;
+}
+
+/* 고객 검색 및 등록 폼 스타일 */
+form {
+  margin-top: 2rem;
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+form label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+form input,
+form button {
+  width: 100%;
+}
+
+form button {
+  grid-column: span 2;
+  margin-top: 1rem;
+}

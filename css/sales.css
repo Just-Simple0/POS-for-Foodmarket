@@ -1,68 +1,60 @@
-/* sales.css - 판매 등록 화면 + 고객 확인 화면 스타일 */
+/* sales.css */
 
-.sales-container,
-.customers-container {
-  padding: 2rem;
+/* 판매 등록 페이지 메인 영역 */
+main {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 1rem;
 }
 
-.sales-container h2,
-.customers-container h2 {
-  margin-bottom: 1.5rem;
-}
-
-.sales-form,
-.customer-lookup-form {
-  display: flex;
-  flex-direction: column;
+/* 입력 폼 스타일 */
+form {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
-  max-width: 400px;
 }
 
-.sales-form label,
-.customer-lookup-form label {
-  font-weight: bold;
+/* 라벨 스타일 */
+form label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  display: block;
 }
 
-.sales-form input,
-.customer-lookup-form input,
-.sales-form select,
-.customer-lookup-form select,
-.sales-form button,
-.customer-lookup-form button {
+/* 입력 필드 스타일 */
+form input,
+form select,
+form button {
+  width: 100%;
   padding: 0.5rem;
   font-size: 1rem;
   border: 1px solid #ccc;
-  border-radius: 4px;
+  border-radius: 6px;
+  transition: border-color 0.3s ease;
 }
 
-.sales-form button,
-.customer-lookup-form button {
-  background-color: #28a745;
+form input:focus,
+form select:focus {
+  border-color: #1976d2;
+  outline: none;
+}
+
+/* 버튼 스타일 */
+form button {
+  grid-column: span 2;
+  background-color: #1976d2;
   color: white;
+  font-weight: 600;
   cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  transition: background-color 0.3s ease;
 }
 
-.sales-form button:hover,
-.customer-lookup-form button:hover {
-  background-color: #218838;
-}
-
-.alert-label {
-  font-size: 0.9rem;
-  color: red;
-  margin-top: -0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.customer-info {
-  margin-top: 1rem;
-  padding: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: #f8f9fa;
-}
-
-.customer-info strong {
-  display: block;
-  margin-bottom: 0.25rem;
+form button:hover {
+  background-color: #115293;
 }

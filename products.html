@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>상품 관리</title>
+    <link rel="stylesheet" href="css/common.css" />
+    <link rel="stylesheet" href="css/products.css" />
+    <script type="module" src="js/products.js" defer></script>
+  </head>
+  <body>
+    <h1>상품 등록</h1>
+    <form id="product-form" autocomplete="off">
+      <input type="text" id="product-name" placeholder="상품명" required />
+      <input type="number" id="product-price" placeholder="가격" required />
+      <input type="text" id="product-barcode" placeholder="바코드" required />
+      <button type="submit">등록</button>
+    </form>
+
+    <div id="product-list" class="product-list"></div>
+
+    <!-- 모달 시작 -->
+    <div
+      id="edit-modal"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <div class="modal-content">
+        <h2 id="modal-title">상품 수정</h2>
+        <form id="edit-form" autocomplete="off">
+          <label>
+            상품명
+            <input type="text" id="edit-name" required />
+          </label>
+          <label>
+            가격
+            <input type="number" id="edit-price" required />
+          </label>
+          <label>
+            바코드
+            <input type="text" id="edit-barcode" required />
+          </label>
+          <div class="modal-buttons">
+            <button type="submit" class="btn-primary">저장</button>
+            <button type="button" id="cancel-edit" class="btn-secondary">
+              취소
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <!-- 모달 끝 -->
+  </body>
+</html>

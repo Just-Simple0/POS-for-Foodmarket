@@ -1,54 +1,64 @@
-/* index.css - 로그인 화면 전용 스타일 */
-
-.login-container {
+/* 로그인 페이지 배경과 폰트 */
+body {
+  height: 100vh;
   display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
-  height: 80vh;
+  align-items: center;
+  background: linear-gradient(135deg, #4a90e2, #357abd);
+  font-family: "Noto Sans KR", sans-serif;
+  color: white;
+  margin: 0;
 }
 
-.login-box {
-  background-color: white;
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+/* 로그인 박스 컨테이너 */
+.login-container {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 3rem 4rem;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  width: 320px;
   text-align: center;
 }
 
-.login-box h2 {
-  margin-bottom: 1.5rem;
+/* 제목 */
+.login-container h1 {
+  margin-bottom: 2rem;
+  font-weight: 700;
+  font-size: 2rem;
 }
 
-.login-button {
+/* 구글 로그인 버튼 스타일 */
+.login-btn {
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.login-button button {
-  padding: 0.75rem;
-  font-size: 1rem;
-  border: none;
-  border-radius: 4px;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  color: #444;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+  border: none;
+  transition: background-color 0.3s ease;
+  user-select: none;
+  width: 100%;
 }
 
-.google-btn {
-  background-color: #db4437;
-  color: white;
+.login-btn:hover {
+  background: #f0f0f0;
 }
 
-.google-btn:hover {
-  background-color: #c33c2f;
+/* 구글 아이콘(간단 SVG 또는 이미지) */
+.login-btn svg {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
 }
 
-.naver-btn {
-  background-color: #03c75a;
-  color: white;
-}
-
-.naver-btn:hover {
-  background-color: #02b14d;
+/* 안내 문구 */
+.login-note {
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: #d0d0d0;
 }
