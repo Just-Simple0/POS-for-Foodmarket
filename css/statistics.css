@@ -1,0 +1,55 @@
+/* statistics.css - 일일 통계 화면 스타일 */
+
+.statistics-container {
+  padding: 2rem;
+}
+
+.statistics-container h2 {
+  margin-bottom: 1.5rem;
+}
+
+.statistics-filters {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.statistics-filters input,
+.statistics-filters select {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.statistics-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.statistics-table th,
+.statistics-table td {
+  border: 1px solid #ddd;
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.statistics-table th {
+  background-color: #f1f3f5;
+}
+
+.summary-boxes {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.summary-box {
+  flex: 1;
+  padding: 1rem;
+  background-color: #e9ecef;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: bold;
+}

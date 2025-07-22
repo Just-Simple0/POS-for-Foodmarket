@@ -1,0 +1,59 @@
+/* products.css - 상품 등록 및 수정 화면 스타일 */
+
+.products-container {
+  padding: 2rem;
+}
+
+.products-container h2 {
+  margin-bottom: 1.5rem;
+}
+
+.product-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 400px;
+}
+
+.product-form label {
+  font-weight: bold;
+}
+
+.product-form input,
+.product-form select,
+.product-form button {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.product-form button {
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+}
+
+.product-form button:hover {
+  background-color: #0069d9;
+}
+
+.product-list {
+  margin-top: 2rem;
+}
+
+.product-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.product-list th,
+.product-list td {
+  border: 1px solid #ddd;
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.product-list th {
+  background-color: #f8f9fa;
+}
