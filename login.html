@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>직원 로그인</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 400px;
+        margin: auto;
+        padding: 20px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>직원 로그인</h1>
+    <button id="loginBtn">Google 로그인</button>
+
+    <script>
+      // Firebase 설정 (본인 프로젝트 정보로 변경하세요)
+      const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+      };
+      firebase.initializeApp(firebaseConfig);
+      const auth = firebase.auth();
+      const db = firebase.firestore();
+
+      const loginBtn = document.getElementById("loginBtn");
+
+      loginBtn.onclick = () => {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth
+          .signInWithPopup(provider)
+          .then(async (result) => {
+            const user = result.user;
+            // 로그인한 직원 권한 확인 (예: 관리자, 일반직원)
+            const doc = await db.collection("staff").doc(user.uid).get();
+            if (!doc.exists) {
+              alert("등록된 직원이 아닙니다. 관리자에게 문의하세요.");
+              auth.signOut();
+              return;
+            }
+            const role = doc.data().role || "staff";
+            sessionStorage.setItem("userRole", role);
+            sessionStorage.setItem("userName", user.displayName);
+            sessionStorage.setItem("userId", user.uid);
+            location.href = "dashboard.html";
+          })
+          .catch((error) => {
+            alert("로그인 실패: " + error.message);
+          });
+      };
+    </script>
+  </body>
+</html>
