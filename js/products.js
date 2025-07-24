@@ -1,135 +1,212 @@
 import { db } from "./firebase-config.js";
 import {
   collection,
-  addDoc,
   getDocs,
-  query,
-  where,
+  addDoc,
   deleteDoc,
   updateDoc,
   doc,
+  query,
+  where,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const productsCol = collection(db, "products");
 
-let currentEditId = null;
+let allProducts = [];
+let filteredProducts = [];
+let currentPage = 1;
+let editingProductId = null; // 수정할 상품 ID
+const itemsPerPage = 25;
 
-// 상품 등록
-export async function addProduct(name, price, barcode) {
-  const q = query(productsCol, where("barcode", "==", barcode));
-  const existing = await getDocs(q);
-  if (!existing.empty) {
-    alert("이미 등록된 바코드입니다.");
-    return;
+const productList = document.getElementById("product-list");
+const pagination = document.getElementById("pagination");
+
+// 🔔 토스트 메시지 표시
+function showToast(message, isError = false) {
+  const toast = document.getElementById("toast");
+  toast.innerHTML = message;
+
+  toast.classList.add("show");
+  if (isError) {
+    toast.classList.add("error");
+  } else {
+    toast.classList.remove("error");
   }
-  await addDoc(productsCol, {
-    name,
-    price: Number(price),
-    barcode,
-    createdAt: new Date(),
-  });
-  alert("상품 등록 완료");
-  loadProducts();
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2000);
 }
 
-// 상품 목록 로드 및 렌더링
-export async function loadProducts() {
+// 🔄 상품 전체 불러오기
+async function loadProducts() {
   const snapshot = await getDocs(productsCol);
-  const productList = document.getElementById("product-list");
+  allProducts = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+  applyFiltersAndSort();
+}
+
+// 🔄 필터 및 정렬 적용 후 렌더링
+function applyFiltersAndSort() {
+  const nameFilter = document
+    .getElementById("product-name")
+    .value.trim()
+    .toLowerCase();
+  const barcodeFilter = document.getElementById("product-barcode").value.trim();
+  const sortBy = document.getElementById("sort-select")?.value || "price";
+
+  filteredProducts = allProducts.filter((p) => {
+    const nameMatch = p.name.toLowerCase().includes(nameFilter);
+    const barcodeMatch = barcodeFilter
+      ? p.barcode.includes(barcodeFilter)
+      : true;
+    return nameMatch && barcodeMatch;
+  });
+
+  filteredProducts.sort((a, b) => {
+    if (sortBy === "price") {
+      return a.price - b.price;
+    } else if (sortBy === "name") {
+      return a.name.localeCompare(b.name);
+    } else if (sortBy === "barcode") {
+      return a.barcode.localeCompare(b.barcode);
+    }
+    return 0; // 기본 정렬
+  });
+  currentPage = 1;
+  renderProducts();
+}
+
+// 🧾 상품 목록 렌더링
+function renderProducts() {
   productList.innerHTML = "";
+  pagination.innerHTML = "";
 
-  snapshot.forEach((docSnap) => {
-    const p = docSnap.data();
-    const id = docSnap.id;
+  const start = (currentPage - 1) * itemsPerPage;
+  const currentItems = filteredProducts.slice(start, start + itemsPerPage);
 
+  currentItems.forEach((p) => {
     const card = document.createElement("div");
     card.className = "product-card";
-
     card.innerHTML = `
       <div class="name">${p.name}</div>
-      <div class="price">${p.price.toLocaleString()}원</div>
+      <div class="price">${p.price.toLocaleString()} 포인트</div>
       <div class="barcode">바코드: ${p.barcode}</div>
       <div>
-        <button data-id="${id}" class="edit">수정</button>
-        <button data-id="${id}" class="delete-btn">삭제</button>
+        <button class="edit" data-id="${
+          p.id
+        }"><i class="fas fa-pen"></i> 수정</button>
+        <button class="delete-btn" data-id="${
+          p.id
+        }"><i class="fas fa-trash"></i> 삭제</button>
       </div>
     `;
-
     productList.appendChild(card);
   });
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  for (let i = 1; i <= totalPages; i++) {
+    const btn = document.createElement("button");
+    btn.innerText = i;
+    if (i === currentPage) btn.classList.add("active");
+    btn.addEventListener("click", () => {
+      currentPage = i;
+      renderProducts();
+    });
+    pagination.appendChild(btn);
+  }
 }
 
-// 폼 이벤트 연결 및 초기 로드
-document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("product-form");
-  const modal = document.getElementById("edit-modal");
-  const editForm = document.getElementById("edit-form");
+// 🔍 검색 기능
+document.getElementById("search-btn").addEventListener("click", () => {
+  applyFiltersAndSort();
+});
 
-  form.addEventListener("submit", async (e) => {
+// ♻ 초기화 버튼 (검색 포함)
+document.getElementById("reset-btn").addEventListener("click", async () => {
+  document.getElementById("product-name").value = "";
+  document.getElementById("product-barcode").value = "";
+  document.getElementById("sort-select").value = "price";
+  await loadProducts();
+  showToast(`초기화 완료 <i class='fas fa-check'></i>`);
+});
+
+// ➕ 등록
+document
+  .getElementById("product-form")
+  .addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = document.getElementById("product-name").value.trim();
-    const price = document.getElementById("product-price").value.trim();
+    const price = parseInt(document.getElementById("product-price").value);
     const barcode = document.getElementById("product-barcode").value.trim();
 
-    if (name && price && barcode) {
-      await addProduct(name, price, barcode);
-      form.reset();
+    if (!name || !barcode || isNaN(price) || price <= 0) {
+      showToast("상품명, 바코드는 필수이며 가격은 1 이상이어야 합니다.", true);
+      return;
     }
-  });
 
-  // 상품 목록 내 버튼 이벤트 위임 (수정/삭제)
-  document
-    .getElementById("product-list")
-    .addEventListener("click", async (e) => {
-      if (e.target.classList.contains("delete-btn")) {
-        const id = e.target.dataset.id;
-        if (confirm("정말 삭제하시겠습니까?")) {
-          await deleteDoc(doc(db, "products", id));
-          alert("삭제되었습니다.");
-          loadProducts();
-        }
-      }
-
-      if (e.target.classList.contains("edit")) {
-        currentEditId = e.target.dataset.id;
-        // Firestore에서 해당 상품 데이터 불러오기
-        const snapshot = await getDocs(
-          query(productsCol, where("__name__", "==", currentEditId))
-        );
-        const data = snapshot.docs[0].data();
-
-        document.getElementById("edit-name").value = data.name;
-        document.getElementById("edit-price").value = data.price;
-        document.getElementById("edit-barcode").value = data.barcode;
-
-        modal.classList.remove("hidden");
-      }
-    });
-
-  // 모달 저장 버튼
-  editForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = document.getElementById("edit-name").value.trim();
-    const price = Number(document.getElementById("edit-price").value.trim());
-    const barcode = document.getElementById("edit-barcode").value.trim();
-
-    if (name && price && barcode) {
-      await updateDoc(doc(db, "products", currentEditId), {
-        name,
-        price,
-        barcode,
-      });
-      alert("수정이 완료되었습니다.");
-      modal.classList.add("hidden");
-      loadProducts();
+    // 중복 바코드 검사
+    const duplicate = allProducts.find((p) => p.barcode === barcode);
+    if (duplicate) {
+      showToast("⚠ 이미 등록된 바코드입니다.", true);
+      return;
     }
+
+    await addDoc(productsCol, { name, price, barcode });
+    e.target.reset();
+    await loadProducts();
   });
 
-  // 모달 취소 버튼
-  document.getElementById("cancel-edit").addEventListener("click", () => {
-    modal.classList.add("hidden");
-  });
+// 🗑 삭제
+productList.addEventListener("click", async (e) => {
+  const id = e.target.dataset.id;
+  if (e.target.classList.contains("delete-btn")) {
+    if (confirm("정말 삭제하시겠습니까?")) {
+      await deleteDoc(doc(db, "products", id));
+      await loadProducts();
+    }
+  }
+  if (e.target.classList.contains("edit")) {
+    const product = allProducts.find((p) => p.id === id);
+    if (!product) return;
+    document.getElementById("edit-name").value = product.name;
+    document.getElementById("edit-price").value = product.price;
+    document.getElementById("edit-barcode").value = product.barcode;
 
-  // 페이지 로딩 시 상품 목록 표시
-  loadProducts();
+    editingProductId = id; // 수정할 상품 ID 저장
+    document.getElementById("edit-modal").classList.remove("hidden");
+  }
+});
+
+document.getElementById("edit-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = document.getElementById("edit-name").value.trim();
+  const price = parseInt(document.getElementById("edit-price").value);
+  const barcode = document.getElementById("edit-barcode").value.trim();
+
+  if (!name || !barcode || isNaN(price) || price <= 0) {
+    showToast("수정값을 확인하세요.", true);
+    return;
+  }
+
+  const ref = doc(db, "products", editingProductId);
+  await updateDoc(ref, { name, price, barcode });
+
+  document.getElementById("edit-modal").classList.add("hidden");
+  editingProductId = null; // 수정 완료 후 초기화
+  await loadProducts();
+});
+
+document.getElementById("cancel-btn").addEventListener("click", () => {
+  document.getElementById("edit-modal").classList.add("hidden");
+  editingProductId = null;
+});
+
+// ⏱ 로딩
+document.addEventListener("DOMContentLoaded", loadProducts);
+
+document.getElementById("sort-select").addEventListener("change", () => {
+  applyFiltersAndSort();
 });

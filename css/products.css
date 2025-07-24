@@ -1,293 +1,214 @@
-/* products.css */
-
-/* 상품 리스트 영역 */
-main {
-  max-width: 960px;
-  margin: 2rem auto;
-  padding: 0 1rem;
+body {
+  font-family: "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 20px;
+  background-color: #f9f9f9;
 }
 
-/* 상품 테이블 스타일 */
-table {
+.container {
+  max-width: 1200px;
+  margin: auto;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+form#product-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.form-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
   width: 100%;
-  border-collapse: collapse;
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-width: 800px;
 }
 
-th,
-td {
-  padding: 0.75rem 1rem;
-  text-align: left;
-  border-bottom: 1px solid #eee;
+.form-row input {
+  padding: 10px;
+  font-size: 14px;
+  flex: 1;
+  border: 1px solid #ccc;
+  border-radius: 6px;
 }
 
-th {
-  background-color: #1976d2;
+.form-buttons {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  gap: 10px;
+  max-width: 800px;
+}
+
+.form-buttons button {
+  padding: 10px 16px;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  background-color: #4285f4;
   color: white;
-  font-weight: 600;
-}
-
-tr:hover {
-  background-color: #f1f7ff;
   cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-/* 상품 등록 폼 스타일 */
-form {
-  margin-top: 2rem;
-  background: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-form label {
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-  display: block;
-}
-
-form input,
-form button {
-  width: 100%;
-}
-
-form button {
-  grid-column: span 2;
-  margin-top: 1rem;
+.form-buttons button:hover {
+  background-color: #3367d6;
 }
 
 .product-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  margin-top: 20px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 15px;
 }
 
 .product-card {
-  background: #f9f9f9;
-  border: 1px solid #ccc;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-  transition: 0.2s ease;
-}
-
-.product-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background-color: white;
+  padding: 15px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .product-card .name {
+  font-size: 16px;
   font-weight: bold;
-  font-size: 1.1rem;
+  margin-bottom: 6px;
 }
 
+.product-card .price,
 .product-card .barcode {
-  color: #666;
-  font-size: 0.9rem;
-  margin-top: 4px;
+  font-size: 14px;
+  color: #555;
+  margin-bottom: 4px;
 }
 
-.product-card .price {
+.product-card button {
   margin-top: 8px;
-  color: #2c7;
+  padding: 6px;
+  font-size: 13px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.product-card .edit {
+  background-color: #ff9800;
+  color: white;
+  margin-right: 5px;
+}
+
+.product-card .delete-btn {
+  background-color: #e53935;
+  color: white;
+}
+
+#toast {
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  background-color: #333;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 1000;
+}
+
+#toast.show {
+  opacity: 1;
+}
+
+#toast.error {
+  color: #e53935;
+  background-color: #ffe5e5;
   font-weight: bold;
 }
+
 .modal {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.4); /* 공통 그리드 스타일 */
-  .product-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 16px;
-    margin-top: 20px;
-  }
-
-  /* 카드 스타일 */
-  .product-card {
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    transition: transform 0.15s ease-in-out;
-    cursor: default;
-  }
-
-  .product-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-  }
-
-  .product-card .name {
-    font-weight: 600;
-    font-size: 1.2rem;
-    color: #333;
-    margin-bottom: 6px;
-  }
-
-  .product-card .price {
-    font-weight: 700;
-    color: #4caf50;
-    margin-bottom: 6px;
-  }
-
-  .product-card .barcode {
-    font-size: 0.9rem;
-    color: #777;
-    margin-bottom: 12px;
-  }
-
-  /* 버튼 스타일 */
-  .product-card button {
-    margin-right: 8px;
-    padding: 6px 12px;
-    border: none;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-  }
-
-  .product-card .edit {
-    background-color: #1976d2;
-    color: white;
-  }
-
-  .product-card .edit:hover {
-    background-color: #115293;
-  }
-
-  .product-card .delete-btn {
-    background-color: #e53935;
-    color: white;
-  }
-
-  .product-card .delete-btn:hover {
-    background-color: #ab2b27;
-  }
-
-  /* 모달 배경 */
-  .modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
-
-  .modal.hidden {
-    display: none;
-  }
-
-  /* 모달 내용 박스 */
-  .modal-content {
-    background: white;
-    padding: 2.5rem 3rem;
-    border-radius: 16px;
-    width: 420px; /* 넓게 조정 */
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  .modal-content h2 {
-    margin-bottom: 1rem;
-    font-weight: 700;
-    font-size: 1.7rem;
-    color: #222;
-  }
-
-  .modal-content label {
-    font-weight: 600;
-    color: #444;
-    margin-bottom: 0.5rem;
-    display: block;
-  }
-
-  .modal-content input {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1.8px solid #ccc;
-    border-radius: 10px;
-    font-size: 1.1rem;
-    transition: border-color 0.3s ease;
-  }
-
-  .modal-content input:focus {
-    outline: none;
-    border-color: #1976d2;
-  }
-
-  /* 버튼 그룹을 오른쪽 정렬, 간격 넓게 */
-  .modal-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 16px;
-  }
-
-  .btn-primary,
-  .btn-secondary {
-    padding: 10px 24px;
-    font-size: 1.1rem;
-    border-radius: 10px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .btn-primary {
-    background-color: #1976d2;
-    color: white;
-    border: none;
-    transition: background-color 0.3s ease;
-  }
-
-  .btn-primary:hover {
-    background-color: #115293;
-  }
-
-  .btn-secondary {
-    background-color: #ddd;
-    color: #444;
-    border: none;
-    transition: background-color 0.3s ease;
-  }
-
-  .btn-secondary:hover {
-    background-color: #bbb;
-  }
-
+  background-color: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: center;
   align-items: center;
-}
-
-.modal.hidden {
-  display: none;
+  z-index: 100;
 }
 
 .modal-content {
-  background: white;
-  padding: 2rem;
-  border-radius: 10px;
-  min-width: 300px;
+  background-color: white;
+  padding: 16px 20px;
+  border-radius: 12px;
+  width: 360px;
+  max-width: 90%;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  box-sizing: border-box;
+}
+
+.modal-content h2 {
+  margin: 0 0 16px 0;
+  font-size: 1.4rem;
+  font-weight: bold;
+}
+
+.modal-content input {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-buttons button {
+  padding: 8px 16px;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.hidden {
+  display: none;
+}
+
+.pagination {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.pagination button {
+  background-color: #eee;
+  border: none;
+  padding: 8px 12px;
+  margin: 0 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pagination button.active {
+  background-color: #4285f4;
+  color: white;
 }

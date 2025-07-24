@@ -2,55 +2,68 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>상품 관리</title>
-    <link rel="stylesheet" href="css/common.css" />
     <link rel="stylesheet" href="css/products.css" />
-    <script type="module" src="js/products.js" defer></script>
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
   </head>
   <body>
-    <h1>상품 등록</h1>
-    <form id="product-form" autocomplete="off">
-      <input type="text" id="product-name" placeholder="상품명" required />
-      <input type="number" id="product-price" placeholder="가격" required />
-      <input type="text" id="product-barcode" placeholder="바코드" required />
-      <button type="submit">등록</button>
-    </form>
+    <div class="container">
+      <h1>상품 관리</h1>
 
-    <div id="product-list" class="product-list"></div>
+      <form id="product-form">
+        <div class="form-row">
+          <input type="text" id="product-name" placeholder="상품명" required />
+          <input type="number" id="product-price" placeholder="가격" required />
+          <input
+            type="text"
+            id="product-barcode"
+            placeholder="바코드"
+            required
+          />
+        </div>
+        <div class="form-buttons">
+          <button type="submit"><i class="fas fa-plus"></i> 등록</button>
+          <button type="reset" id="reset-btn">
+            <i class="fas fa-undo"></i> 초기화
+          </button>
+          <button type="button" id="search-btn">
+            <i class="fas fa-search"></i> 검색
+          </button>
+        </div>
+      </form>
 
-    <!-- 모달 시작 -->
-    <div
-      id="edit-modal"
-      class="modal hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-title"
-    >
-      <div class="modal-content">
-        <h2 id="modal-title">상품 수정</h2>
-        <form id="edit-form" autocomplete="off">
-          <label>
-            상품명
-            <input type="text" id="edit-name" required />
-          </label>
-          <label>
-            가격
-            <input type="number" id="edit-price" required />
-          </label>
-          <label>
-            바코드
-            <input type="text" id="edit-barcode" required />
-          </label>
+      <select id="sort-select">
+        <option value="price">가격순</option>
+        <option value="name">이름순</option>
+        <option value="barcode">바코드순</option>
+      </select>
+
+      <div id="product-list" class="product-list"></div>
+      <div id="pagination" class="pagination"></div>
+
+      <div id="toast" class="toast">초기화 완료✅</div>
+
+      <div id="edit-modal" class="modal hidden">
+        <form id="edit-form" class="modal-content">
+          <h2>상품 수정</h2>
+          <input type="text" id="edit-name" required />
+          <input type="number" id="edit-price" required />
+          <input type="text" id="edit-barcode" required />
           <div class="modal-buttons">
-            <button type="submit" class="btn-primary">저장</button>
-            <button type="button" id="cancel-edit" class="btn-secondary">
-              취소
+            <button type="submit"><i class="fas fa-save"></i> 저장</button>
+            <button type="button" id="cancel-btn">
+              <i class="fas fa-times"></i> 취소
             </button>
           </div>
         </form>
       </div>
+
+      <script type="module" src="js/products.js"></script>
     </div>
-    <!-- 모달 끝 -->
   </body>
 </html>
