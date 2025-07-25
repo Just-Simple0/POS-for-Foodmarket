@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>My Page</title>
+    <link rel="stylesheet" href="css/common.css" />
+    <link rel="stylesheet" href="css/mypage.css" />
+    <script type="module" src="js/mypage.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <h1>마이페이지</h1>
+      <nav>
+        <a href="dashboard.html">대시보드</a>
+        <a href="products.html">상품</a>
+        <a href="sales.html">수령</a>
+        <a href="customers.html">고객</a>
+      </nav>
+    </header>
+    <main class="mypage-container">
+      <section class="user-card">
+        <h2>👨‍💼 직원 정보</h2>
+        <p><strong>이름:</strong> <span id="user-name">-</span></p>
+        <p><strong>이메일:</strong> <span id="user-email">-</span></p>
+        <p><strong>최근 로그인:</strong> <span id="user-last-login">-</span></p>
+        <p>
+          <span id="admin-badge" class="admin-badge" style="display: none"
+            >[관리자]</span
+          >
+        </p>
+        <button id="logout-btn">로그아웃</button>
+
+        <section
+          id="admin-settings"
+          class="admin-settings"
+          style="display: none"
+        >
+          <h2>🛠️ 관리자 설정</h2>
+          <ul>
+            <li>✔️ 사용자 계정 관리</li>
+            <li>✔️ 상품 초기화 도구</li>
+            <li>✔️ 시스템 로그 보기</li>
+          </ul>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

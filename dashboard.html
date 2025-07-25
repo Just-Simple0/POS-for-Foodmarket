@@ -4,22 +4,72 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>대시보드</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="css/common.css" />
     <link rel="stylesheet" href="css/dashboard.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/dashboard.js" defer></script>
   </head>
   <body>
-    <header>
-      <h1>POS 대시보드</h1>
-      <nav>
-        <a href="products.html">상품</a>
-        <a href="sales.html">수령</a>
-        <a href="customers.html">고객</a>
-        <a href="statistics.html">통계</a>
-      </nav>
-    </header>
     <main>
-      <p>환영합니다!</p>
+      <div class="card" id="visit-card">
+        <h2><i class="fas fa-user-group"></i> 이용 고객 수</h2>
+        <div class="today-visit-info">
+          <span id="visit-count">-명</span>
+          <div>전일 대비</div>
+          <span id="visit-change">-명 (-%)</span>
+          <canvas id="visit-chart" height="150"></canvas>
+        </div>
+      </div>
+
+      <div class="card" id="item-card">
+        <h2><i class="fas fa-boxes-stacked"></i> 오늘 제공된 물품 수</h2>
+        <div class="today-item-info">
+          <span id="item-total">총 -개</span>
+          <div>전일 대비</div>
+          <div id="item-change">-개 (-%)</div>
+          <ul id="top-items-list"></ul>
+        </div>
+      </div>
+
+      <div class="card" id="recent-product-card">
+        <h2><i class="fas fa-clock-rotate-left"></i> 등록/수정된 상품</h2>
+        <ul id="recent-products-list" class="simple-list"></ul>
+      </div>
+
+      <div class="card" id="expiry-base-card">
+        <h2><i class="fas fa-calendar-xmark"></i> 임박 기준일 안내</h2>
+        <div class="expiry-info">
+          <span>TODAY</span>
+          <div id="today-date">-</div>
+          <span>제과류 / 음료수</span>
+          <div id="expiry-snack-drink" class="expiry-date">-</div>
+          <span>식료품 / 생필품</span>
+          <div id="expiry-food-daily" class="expiry-date">-</div>
+        </div>
+      </div>
     </main>
+
+    <footer>
+      <p>&copy; 2025 POS System by JustSimple. All rights reserved.</p>
+    </footer>
+
+    <script type="module">
+      import { loadHeader } from "./js/components/header.js";
+      loadHeader("DashBoard");
+      // 기존 headerHTML 삽입 이후, active 메뉴 하이라이트
+      const path = window.location.pathname.split("/").pop(); // ex: 'products.html'
+
+      document.querySelectorAll("nav a").forEach((link) => {
+        const href = link.getAttribute("href");
+        if (href === path) {
+          link.classList.add("active");
+        }
+      });
+    </script>
   </body>
 </html>

@@ -6,8 +6,7 @@ import {
   deleteDoc,
   updateDoc,
   doc,
-  query,
-  where,
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const productsCol = collection(db, "products");
@@ -141,6 +140,8 @@ document
     const name = document.getElementById("product-name").value.trim();
     const price = parseInt(document.getElementById("product-price").value);
     const barcode = document.getElementById("product-barcode").value.trim();
+    const createdAt = serverTimestamp();
+    const lastestAt = serverTimestamp();
 
     if (!name || !barcode || isNaN(price) || price <= 0) {
       showToast("상품명, 바코드는 필수이며 가격은 1 이상이어야 합니다.", true);
@@ -154,7 +155,7 @@ document
       return;
     }
 
-    await addDoc(productsCol, { name, price, barcode });
+    await addDoc(productsCol, { name, price, barcode, createdAt, lastestAt  });
     e.target.reset();
     await loadProducts();
   });
@@ -180,11 +181,14 @@ productList.addEventListener("click", async (e) => {
   }
 });
 
+// ✏️ 수정
 document.getElementById("edit-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = document.getElementById("edit-name").value.trim();
   const price = parseInt(document.getElementById("edit-price").value);
   const barcode = document.getElementById("edit-barcode").value.trim();
+  const updatedAt = serverTimestamp();
+  const lastestAt = serverTimestamp();
 
   if (!name || !barcode || isNaN(price) || price <= 0) {
     showToast("수정값을 확인하세요.", true);
@@ -192,7 +196,7 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
   }
 
   const ref = doc(db, "products", editingProductId);
-  await updateDoc(ref, { name, price, barcode });
+  await updateDoc(ref, { name, price, barcode, updatedAt, lastestAt });
 
   document.getElementById("edit-modal").classList.add("hidden");
   editingProductId = null; // 수정 완료 후 초기화
