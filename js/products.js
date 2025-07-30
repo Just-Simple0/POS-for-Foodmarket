@@ -1,4 +1,4 @@
-import { db } from "./firebase-config.js";
+import { db } from "./components/firebase-config.js";
 import {
   collection,
   getDocs,
@@ -71,6 +71,8 @@ function applyFiltersAndSort() {
       return a.name.localeCompare(b.name);
     } else if (sortBy === "barcode") {
       return a.barcode.localeCompare(b.barcode);
+    } else if (sortBy === "date") {
+      return (b.lastestAt?.seconds || 0) - (a.lastestAt?.seconds || 0);
     }
     return 0; // 기본 정렬
   });
@@ -155,7 +157,7 @@ document
       return;
     }
 
-    await addDoc(productsCol, { name, price, barcode, createdAt, lastestAt  });
+    await addDoc(productsCol, { name, price, barcode, createdAt, lastestAt });
     e.target.reset();
     await loadProducts();
   });

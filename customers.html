@@ -2,15 +2,91 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>고객 확인</title>
+    <title>이용자 관리</title>
+    <!-- 공통 parts 삽입 -->
     <link rel="stylesheet" href="css/common.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <!-- SheetUS 삽입 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- firebase parts 삽입 -->
+    <script type="module" src="js/components/firebase-config.js"></script>
+    <!-- 개별 css, js 삽입 -->
     <link rel="stylesheet" href="css/customers.css" />
     <script type="module" src="js/customers.js" defer></script>
   </head>
   <body>
-    <h1>고객 정보 확인</h1>
-    <input type="text" id="search-id" placeholder="고객 ID 입력" />
-    <button id="search-btn">조회</button>
-    <div id="customer-info"></div>
+    <div class="wrapper">
+      <div id="header-container"></div>
+
+      <main class="container">
+        <h2>이용자 조회</h2>
+        <div class="top-bar">
+          <div class="search-bar">
+            <input id="global-search" placeholder="전체 검색 (이름, 주소 등)" />
+
+            <div class="field-search">
+              <select id="field-select">
+                <option value="">필드 선택</option>
+                <option value="id">이용자ID</option>
+                <option value="name">이용자명</option>
+                <option value="birth">생년월일</option>
+                <option value="gender">성별</option>
+                <option value="type">이용자구분</option>
+                <option value="category">이용자분류</option>
+                <option value="address">주소</option>
+                <option value="phone">전화번호</option>
+                <option value="status">상태</option>
+              </select>
+              <input id="field-search" placeholder="선택 필드 검색" />
+            </div>
+          </div>
+
+          <button id="open-modal-btn">엑셀 업로드</button>
+        </div>
+
+        <h2>이용자 목록</h2>
+        <div class="table-wrapper">
+          <table id="customer-table">
+            <thead>
+              <tr>
+                <th data-label="이용자ID">이용자ID</th>
+                <th data-label="이용자명">이용자명</th>
+                <th data-label="생년월일">생년월일</th>
+                <th data-label="성별">성별</th>
+                <th data-label="이용자구분">이용자구분</th>
+                <th data-label="이용자분류">이용자분류</th>
+                <th data-label="주소">주소</th>
+                <th data-label="전화번호">전화번호</th>
+                <th data-label="상태">상태</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div id="pagination" class="pagination"></div>
+      </main>
+
+      <div id="upload-modal" class="modal hidden">
+        <div class="modal-content">
+          <span id="close-modal" class="close">&times;</span>
+          <h2>엑셀 파일 업로드</h2>
+          <input type="file" id="file-upload" accept=".xlsx" />
+          <button id="upload-btn">업로드</button>
+        </div>
+      </div>
+
+      <div id="footer-container"></div>
+    </div>
+
+    <!-- header footer 삽입 -->
+    <script type="module">
+      import { loadHeader, loadFooter } from "./js/components/comp.js";
+      loadHeader("이용자 관리", "header-container");
+      loadFooter("footer-container");
+    </script>
   </body>
 </html>

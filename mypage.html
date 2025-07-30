@@ -3,46 +3,60 @@
   <head>
     <meta charset="UTF-8" />
     <title>My Page</title>
+    <!-- 공통 parts 삽입 -->
     <link rel="stylesheet" href="css/common.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <!-- firebase parts 삽입 -->
+    <script type="module" src="js/components/firebase-config.js"></script>
+    <!-- 개별 css, js 삽입 -->
     <link rel="stylesheet" href="css/mypage.css" />
     <script type="module" src="js/mypage.js" defer></script>
   </head>
   <body>
-    <header>
-      <h1>마이페이지</h1>
-      <nav>
-        <a href="dashboard.html">대시보드</a>
-        <a href="products.html">상품</a>
-        <a href="sales.html">수령</a>
-        <a href="customers.html">고객</a>
-      </nav>
-    </header>
-    <main class="mypage-container">
-      <section class="user-card">
-        <h2>👨‍💼 직원 정보</h2>
-        <p><strong>이름:</strong> <span id="user-name">-</span></p>
-        <p><strong>이메일:</strong> <span id="user-email">-</span></p>
-        <p><strong>최근 로그인:</strong> <span id="user-last-login">-</span></p>
-        <p>
-          <span id="admin-badge" class="admin-badge" style="display: none"
-            >[관리자]</span
-          >
-        </p>
-        <button id="logout-btn">로그아웃</button>
+    <div class="wrapper"> 
+      <div id="header-container"></div>
 
-        <section
-          id="admin-settings"
-          class="admin-settings"
-          style="display: none"
-        >
-          <h2>🛠️ 관리자 설정</h2>
-          <ul>
-            <li>✔️ 사용자 계정 관리</li>
-            <li>✔️ 상품 초기화 도구</li>
-            <li>✔️ 시스템 로그 보기</li>
-          </ul>
+      <main class="mypage-container">
+        <section class="user-card">
+          <h2>👨‍💼 직원 정보</h2>
+          <p><strong>이름:</strong> <span id="user-name">-</span></p>
+          <p><strong>이메일:</strong> <span id="user-email">-</span></p>
+          <p>
+            <strong>최근 로그인:</strong> <span id="user-last-login">-</span>
+          </p>
+          <p>
+            <span id="admin-badge" class="admin-badge" style="display: none"
+              ><i class="fas fa-crown"></i> 관리자</span
+            >
+          </p>
+          <button id="logout-btn">로그아웃</button>
+
+          <section
+            id="admin-settings"
+            class="admin-settings"
+            style="display: none"
+          >
+            <h2>🛠️ 관리자 설정</h2>
+            <ul>
+              <li>✔️ 사용자 계정 관리</li>
+              <li>✔️ 상품 초기화 도구</li>
+              <li>✔️ 시스템 로그 보기</li>
+            </ul>
+          </section>
         </section>
-      </section>
-    </main>
+      </main>
+
+      <div id="footer-container"></div>
+    </div>
+
+    <!-- header footer 삽입 -->
+    <script type="module">
+      import { loadHeader, loadFooter } from "./js/components/comp.js";
+      loadHeader("마이페이지", "header-container");
+      loadFooter("footer-container");
+    </script>
   </body>
 </html>

@@ -1,5 +1,6 @@
 .mypage-container {
   max-width: 600px;
+  width: 100%;
   margin: 3rem auto;
   background: #fff;
   padding: 2rem;
@@ -52,4 +53,49 @@ button#logout-btn {
 .admin-settings li {
   margin-bottom: 0.5rem;
   font-size: 1.05rem;
+}
+
+/* 📱 태블릿 이하 (768px) */
+@media (max-width: 768px) {
+  .mypage-container {
+    max-width: 90%;
+    padding: 1.5rem;
+  }
+
+  .user-card p {
+    font-size: 1rem;
+  }
+
+  .admin-settings li {
+    font-size: 1rem;
+  }
+}
+
+/* 📱 모바일 이하 (480px) */
+@media (max-width: 480px) {
+  .mypage-container {
+    max-width: 95%;
+    padding: 1.2rem;
+  }
+
+  .user-card h2 {
+    font-size: 1.1rem;
+  }
+
+  .user-card p {
+    font-size: 0.95rem;
+  }
+
+  button#logout-btn {
+    width: 100%;
+    font-size: 0.95rem;
+  }
+
+  .admin-settings h2 {
+    font-size: 1rem;
+  }
+
+  .admin-settings li {
+    font-size: 0.95rem;
+  }
 }

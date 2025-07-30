@@ -1,5 +1,5 @@
 // js/login.js
-import { auth } from "./firebase-config.js";
+import { auth } from "./components/firebase-config.js";
 import {
   GoogleAuthProvider,
   signInWithPopup,

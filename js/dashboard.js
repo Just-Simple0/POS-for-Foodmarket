@@ -6,7 +6,7 @@ import {
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-import { db } from "./firebase-config.js";
+import { db } from "./components/firebase-config.js";
 
 async function loadRecentProducts() {
   const productsRef = collection(db, "products");

@@ -1,18 +1,7 @@
-body {
-  font-family: "Segoe UI", sans-serif;
-  margin: 0;
-  padding: 20px;
-  background-color: #f9f9f9;
-}
-
 .container {
   max-width: 1200px;
-  margin: auto;
-}
-
-h1 {
-  text-align: center;
-  margin-bottom: 20px;
+  margin: 60px auto 40px;
+  padding: 0 16px;
 }
 
 form#product-form {
@@ -62,10 +51,22 @@ form#product-form {
   background-color: #3367d6;
 }
 
+#sort-select {
+  display: block;
+  margin: 10px 0 20px 0;
+  font-size: 0.9rem;
+  padding: 0.4rem;
+  width: auto;
+}
+
 .product-list {
   display: grid;
+  flex-wrap: wrap;
   grid-template-columns: repeat(5, 1fr);
   gap: 15px;
+  overflow-y: visible;
+  margin-bottom: 20px;
+  padding-bottom: 6px;
 }
 
 .product-card {
@@ -77,6 +78,7 @@ form#product-form {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  min-width: 220px;
 }
 
 .product-card .name {
@@ -196,11 +198,11 @@ form#product-form {
 
 .pagination {
   text-align: center;
-  margin-top: 30px;
+  margin-top: 40px;
 }
 
 .pagination button {
-  background-color: #eee;
+  background-color: #ccc;
   border: none;
   padding: 8px 12px;
   margin: 0 4px;
@@ -211,4 +213,42 @@ form#product-form {
 .pagination button.active {
   background-color: #4285f4;
   color: white;
+}
+
+/* 반응형 대응 */
+@media (max-width: 1024px) {
+  .product-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .product-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .product-list {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row,
+  .form-buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-row input {
+    width: 100%;
+  }
+
+  #sort-select {
+    width: 100%;
+  }
+
+  .pagination button {
+    padding: 10px;
+    font-size: 16px;
+  }
 }

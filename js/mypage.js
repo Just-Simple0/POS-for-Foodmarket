@@ -1,4 +1,4 @@
-import { auth, db } from "./firebase-config.js";
+import { auth, db } from "./components/firebase-config.js";
 import {
   onAuthStateChanged,
   signOut,
@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     } else {
       // 비로그인 시 리디렉션
-      window.location.href = "index.html";
+      // window.location.href = "index.html";
     }
   });
 });
