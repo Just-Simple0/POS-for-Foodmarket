@@ -10,6 +10,12 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
     />
+    <link
+      rel="stylesheet"
+      as="style"
+      crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
+    />
     <!-- firebase parts 삽입 -->
     <script type="module" src="js/components/firebase-config.js"></script>
     <!-- 개별 css, js 삽입 -->
@@ -70,9 +76,12 @@
         <div id="edit-modal" class="modal hidden">
           <form id="edit-form" class="modal-content">
             <h2>상품 수정</h2>
-            <input type="text" id="edit-name" required />
-            <input type="number" id="edit-price" required />
-            <input type="text" id="edit-barcode" required />
+            <label>상품명<input type="text" id="edit-name" required /></label>
+            <label>가격<input type="number" id="edit-price" required /></label>
+            <label>
+              바코드
+              <input type="text" id="edit-barcode" required />
+            </label>
             <div class="modal-buttons">
               <button type="submit"><i class="fas fa-save"></i> 저장</button>
               <button type="button" id="cancel-btn">

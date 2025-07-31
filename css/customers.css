@@ -1,7 +1,8 @@
 .container {
   padding: 20px;
-  max-width: 1100px;
+  max-width: 100%;
   margin: auto;
+  overflow-x: hidden;
 }
 
 #top-bar {
@@ -23,9 +24,23 @@
   padding: 6px 10px;
 }
 
-.field-search {
+#advanced-search {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+#field-search {
+  flex: 1;
+  min-width: 200px;
   gap: 5px;
+}
+
+#field-select {
+  width: auto;
+  min-width: 100px;
+  max-width: 200px;
 }
 
 #field-select,
@@ -33,10 +48,28 @@
   padding: 6px;
 }
 
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
 .table-wrapper {
   overflow-x: auto;
   width: 100%;
-  min-width: 1060px;
+}
+
+#customer-table {
+  min-width: 100%;
+  width: 1300px;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+#customer-table td:nth-child(6) {
+  text-align: left;
 }
 
 table {
@@ -44,7 +77,6 @@ table {
   min-width: 100%;
   table-layout: auto;
   border-collapse: collapse;
-  margin-top: 20px;
   font-size: 14px;
 }
 
@@ -69,6 +101,16 @@ td {
   white-space: nowrap;
 }
 
+.status-green {
+  color: green;
+  font-weight: bold;
+}
+
+.status-red {
+  color: crimson;
+  font-weight: bold;
+}
+
 .pagination {
   margin-top: 20px;
   text-align: center;
@@ -83,32 +125,161 @@ td {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 999;
-}
-
-.modal.hidden {
-  display: none;
+  z-index: 100;
 }
 
 .modal-content {
-  background: white;
-  padding: 30px;
-  border-radius: 8px;
-  width: 400px;
-  text-align: center;
-  position: relative;
+  background-color: white;
+  padding: 16px 20px;
+  border-radius: 12px;
+  width: 360px;
+  max-width: 90%;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  box-sizing: border-box;
 }
 
-.close {
-  position: absolute;
-  top: 10px;
-  right: 15px;
-  font-size: 20px;
+.modal-content h2 {
+  margin: 0 0 16px 0;
+  font-size: 1.4rem;
+  font-weight: bold;
+}
+
+.modal-content label {
+  font-weight: 600;
+}
+
+.modal-content input {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+}
+
+.modal-content input[type="date"] {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+  width: 100%;
+  appearance: none;
+}
+
+.custom-select {
+  position: relative;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.custom-select .selected,
+.custom-select input {
+  border: 1px solid #ccc;
+  padding: 10px;
+  width: 100%;
+  border-radius: 6px;
   cursor: pointer;
+  background-color: white;
+  box-sizing: border-box;
+}
+
+.custom-select .options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid #ccc;
+  background-color: white;
+  border-radius: 6px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.custom-select .options div {
+  padding: 10px;
+  cursor: pointer;
+}
+
+.custom-select .options div:hover {
+  background-color: #f0f0f0;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.modal-buttons button {
+  padding: 8px 16px;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.modal-buttons button:first-child {
+  background-color: #2d80f7;
+  color: white;
+}
+
+.modal-buttons button:last-child {
+  background-color: #ddd;
+  color: black;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* 태블릿 이하 */
+@media (max-width: 768px) {
+  .search-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  #advanced-search {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #toggle-advanced-search,
+  #open-modal-btn {
+    align-self: flex-end;
+  }
+}
+
+/* 모바일 (폰) */
+@media (max-width: 480px) {
+  #field-select,
+  #field-search {
+    width: 100%;
+  }
+
+  #global-search {
+    width: 100%;
+  }
+
+  #customer-table {
+    font-size: 12px;
+  }
+
+  #pagination {
+    font-size: 14px;
+  }
 }

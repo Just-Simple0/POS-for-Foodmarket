@@ -34,9 +34,9 @@ export function loadHeader(pageTitle = "POS System", containerID = null) {
       <div class="header-bottom">
         <nav class="main-nav">
           <a href="dashboard.html">대시보드</a>
-          <a href="products.html">상품</a>
-          <a href="sales.html">수령</a>
-          <a href="customers.html">고객</a>
+          <a href="provision.html">제공등록</a>
+          <a href="customers.html">이용자 관리</a>
+          <a href="products.html">상품 관리</a>
           <a href="statistics.html">통계</a>
         </nav>
       </div>
