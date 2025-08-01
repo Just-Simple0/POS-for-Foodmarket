@@ -2,7 +2,7 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <title>제공 등록</title>
+    <title>제공등록</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- 공통 parts 삽입 -->
@@ -34,8 +34,7 @@
       <div id="header-container"></div>
 
       <main class="container">
-        <h2>제공 등록</h2>
-
+        <h3>이용자 조회</h3>
         <!-- ✅ 사용자 확인 영역 -->
         <section id="customer-lookup">
           <label for="customer-id">이용자 ID 또는 이름</label>
@@ -53,9 +52,51 @@
 
         <!-- ✅ 상품 선택 영역 -->
         <section id="product-selection" class="hidden">
-          <h3>상품 선택</h3>
-          <div id="product-list">
-            <!-- 동적으로 상품 목록 렌더링 -->
+          <h3>상품 추가</h3>
+
+          <div class="product-input-area">
+            <div class="autocomplete-wrapper">
+              <input
+                type="text"
+                id="barcode-input"
+                placeholder="바코드 또는 상품명 입력"
+              />
+              <div
+                id="autocomplete-list"
+                class="autocomplete-list hidden"
+              ></div>
+            </div>
+            <input
+              type="number"
+              id="quantity-input"
+              placeholder="수량 (기본 1)"
+              min="1"
+              max="30"
+            />
+            <button id="add-product-btn">
+              <i class="fas fa-plus-circle"></i> 추가
+            </button>
+          </div>
+
+          <div class="selected-products">
+            <table id="selected-table">
+              <thead>
+                <tr>
+                  <th>상품명</th>
+                  <th>수량</th>
+                  <th>단가</th>
+                  <th>총가격</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div id="total-summary">
+              총 합계: <span id="total-points">0</span> 포인트
+              <span id="point-warning" class="hidden"
+                >⚠ 포인트 초과 (최대 30)</span
+              >
+            </div>
           </div>
         </section>
 
@@ -73,18 +114,31 @@
     <!-- ✅ 동명이인 선택 모달 -->
     <div id="duplicate-modal" class="modal hidden">
       <div class="modal-content">
-        <h3>이용자 선택</h3>
+        <h2>이용자 선택</h2>
         <ul id="duplicate-list">
           <!-- 동적으로 후보 리스트 삽입 -->
         </ul>
-        <button id="close-duplicate-modal">닫기</button>
+        <div
+          id="selected-info"
+          class="hidden"
+          style="margin-top: 1rem; font-size: 0.9rem"
+        ></div>
+
+        <div class="modal-buttons">
+          <button id="confirm-duplicate">
+            <i class="fas fa-check"></i> 확인
+          </button>
+          <button id="close-duplicate-modal">
+            <i class="fas fa-times"></i> 닫기
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Header/Footer 삽입 -->
     <script type="module">
       import { loadHeader, loadFooter } from "./js/components/comp.js";
-      loadHeader("제공 등록", "header-container");
+      loadHeader("제공등록", "header-container");
       loadFooter("footer-container");
     </script>
   </body>

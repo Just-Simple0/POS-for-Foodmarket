@@ -6,29 +6,23 @@
   margin: 0 auto;
 }
 
-h2 {
-  font-size: 1.8rem;
-  margin-bottom: 1.5rem;
-  text-align: center;
-}
-
-h3 {
+.container h3 {
   font-size: 1.3rem;
   margin-top: 2rem;
   margin-bottom: 1rem;
 }
 
-section {
+.container section {
   margin-bottom: 2rem;
 }
 
-label {
+.container label {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 600;
 }
 
-input[type="text"] {
+.container input[type="text"] {
   padding: 0.6rem 1rem;
   width: 100%;
   border: 1px solid #ccc;
@@ -89,18 +83,147 @@ input[type="text"] {
   font-weight: bold;
 }
 
+.product-input-area {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.product-input-area input {
+  padding: 10px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  flex: 1;
+  min-width: 180px;
+}
+
+.autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+  flex: 1;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  margin-top: 2px;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.autocomplete-list div {
+  padding: 10px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.autocomplete-list div:hover {
+  background-color: #f1f8ff;
+}
+
+.autocomplete-list.hidden {
+  display: none;
+}
+
+.product-input-area {
+  position: relative;
+}
+
+#selected-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.95rem;
+}
+
+#barcode-input {
+  max-width: 220px;
+  flex: none;
+}
+
+#quantity-input {
+  max-width: 60px;
+  flex: none;
+}
+
+.quantity-input {
+  max-width: 50px;
+}
+
+#selected-table th,
+#selected-table td {
+  border: 1px solid #ccc;
+  padding: 8px 10px;
+  text-align: center;
+  total-summary {
+    margin-top: 1rem;
+    font-weight: bold;
+    font-size: 1.1rem;
+  }
+}
+
+#point-warning {
+  color: crimson;
+  font-weight: bold;
+  margin-left: 1rem;
+}
+
 #duplicate-list {
   list-style: none;
   margin-top: 1rem;
   padding: 0;
+  margin-bottom: 10px;
 }
 
 #duplicate-list li {
-  padding: 0.5rem;
+  padding: 0.8rem;
   border-bottom: 1px solid #ddd;
   cursor: pointer;
+  background-color: #fff;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
 }
 
 #duplicate-list li:hover {
-  background-color: #f0f0f0;
+  background-color: #f1f8ff;
+}
+
+#duplicate-list .dup-name {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+#duplicate-list .dup-sub {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+#duplicate-list .duplicate-item.selected {
+  background-color: #e3f2fd;
+  border-radius: 6px;
+  border: 1px solid #90caf9;
+  font-weight: bold;
+}
+
+#selected-info {
+  margin-bottom: 10px;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hidden {
+  display: none;
 }
