@@ -1,60 +1,106 @@
-/* sales.css */
+/* provision.css */
 
-/* 판매 등록 페이지 메인 영역 */
-main {
-  max-width: 960px;
-  margin: 2rem auto;
-  padding: 0 1rem;
+.container {
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
 }
 
-/* 입력 폼 스타일 */
-form {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+h2 {
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
 }
 
-/* 라벨 스타일 */
-form label {
-  font-weight: 600;
-  margin-bottom: 0.25rem;
+h3 {
+  font-size: 1.3rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+section {
+  margin-bottom: 2rem;
+}
+
+label {
   display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
 }
 
-/* 입력 필드 스타일 */
-form input,
-form select,
-form button {
+input[type="text"] {
+  padding: 0.6rem 1rem;
   width: 100%;
-  padding: 0.5rem;
-  font-size: 1rem;
   border: 1px solid #ccc;
   border-radius: 6px;
-  transition: border-color 0.3s ease;
+  margin-bottom: 1rem;
+  font-size: 1rem;
 }
 
-form input:focus,
-form select:focus {
-  border-color: #1976d2;
-  outline: none;
+#lookup-btn,
+#submit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0.5rem;
 }
 
-/* 버튼 스타일 */
-form button {
-  grid-column: span 2;
-  background-color: #1976d2;
-  color: white;
-  font-weight: 600;
+#customer-info {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+#product-list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.product-item {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  background-color: #fff;
   cursor: pointer;
-  border: none;
-  border-radius: 6px;
-  transition: background-color 0.3s ease;
+  transition: all 0.2s ease;
 }
 
-form button:hover {
-  background-color: #115293;
+.product-item:hover {
+  background-color: #e3f2fd;
+}
+
+.product-item.selected {
+  background-color: #1976d2;
+  color: #fff;
+  border-color: #1976d2;
+  font-weight: bold;
+}
+
+#submit-btn {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+#duplicate-list {
+  list-style: none;
+  margin-top: 1rem;
+  padding: 0;
+}
+
+#duplicate-list li {
+  padding: 0.5rem;
+  border-bottom: 1px solid #ddd;
+  cursor: pointer;
+}
+
+#duplicate-list li:hover {
+  background-color: #f0f0f0;
 }

@@ -1,8 +1,10 @@
+<!DOCTYPE html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
+    <title>제공 등록</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>상품 수령</title>
+
     <!-- 공통 parts 삽입 -->
     <link rel="stylesheet" href="css/common.css" />
     <link
@@ -15,20 +17,75 @@
       crossorigin
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
-    <!-- firebase parts 삽입 -->
+
+    <!-- SheetUS 삽입 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- Firebase parts 삽입 -->
     <script type="module" src="js/components/firebase-config.js"></script>
+
     <!-- 개별 css, js 삽입 -->
     <link rel="stylesheet" href="css/provision.css" />
     <script type="module" src="js/provision.js" defer></script>
   </head>
+
   <body>
-    <h1>상품 수령</h1>
-    <form id="sale-form">
-      <input type="text" placeholder="고객 ID" id="customer-id" required />
-      <input type="text" placeholder="바코드" id="barcode" required />
-      <button type="submit">수령 처리</button>
-    </form>
-    <p id="warning-label"></p>
-    <p>누적 포인트: <span id="point-label">0</span></p>
+    <div class="wrapper">
+      <div id="header-container"></div>
+
+      <main class="container">
+        <h2>제공 등록</h2>
+
+        <!-- ✅ 사용자 확인 영역 -->
+        <section id="customer-lookup">
+          <label for="customer-id">이용자 ID 또는 이름</label>
+          <input
+            type="text"
+            id="customer-id"
+            placeholder="예: 10001 또는 홍길동"
+          />
+          <button id="lookup-btn"><i class="fas fa-search"></i> 조회</button>
+
+          <div id="customer-info" class="hidden">
+            <!-- 조회된 고객 정보 -->
+          </div>
+        </section>
+
+        <!-- ✅ 상품 선택 영역 -->
+        <section id="product-selection" class="hidden">
+          <h3>상품 선택</h3>
+          <div id="product-list">
+            <!-- 동적으로 상품 목록 렌더링 -->
+          </div>
+        </section>
+
+        <!-- ✅ 제출 버튼 -->
+        <section id="submit-section" class="hidden">
+          <button id="submit-btn">
+            <i class="fas fa-check-circle"></i> 제공 등록 완료
+          </button>
+        </section>
+      </main>
+
+      <div id="footer-container"></div>
+    </div>
+
+    <!-- ✅ 동명이인 선택 모달 -->
+    <div id="duplicate-modal" class="modal hidden">
+      <div class="modal-content">
+        <h3>이용자 선택</h3>
+        <ul id="duplicate-list">
+          <!-- 동적으로 후보 리스트 삽입 -->
+        </ul>
+        <button id="close-duplicate-modal">닫기</button>
+      </div>
+    </div>
+
+    <!-- Header/Footer 삽입 -->
+    <script type="module">
+      import { loadHeader, loadFooter } from "./js/components/comp.js";
+      loadHeader("제공 등록", "header-container");
+      loadFooter("footer-container");
+    </script>
   </body>
 </html>

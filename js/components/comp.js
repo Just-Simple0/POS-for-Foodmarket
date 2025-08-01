@@ -87,6 +87,14 @@ export function loadHeader(pageTitle = "POS System", containerID = null) {
       link.classList.add("active");
     }
   });
+
+  // ✅ Toast 요소 자동 삽입
+  if (!document.getElementById("toast")) {
+    const toastDiv = document.createElement("div");
+    toastDiv.id = "toast";
+    toastDiv.className = "toast";
+    document.body.appendChild(toastDiv);
+  }
 }
 
 export function loadFooter(containerID = null) {
@@ -102,4 +110,27 @@ export function loadFooter(containerID = null) {
     ? document.getElementById(containerID)
     : document.body;
   container.insertAdjacentHTML("beforeend", footerHTML);
+}
+
+// 🔔 공통 토스트 메시지 함수
+let toastTimeout;
+
+export function showToast(message, isError = false) {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+
+  toast.innerHTML = message;
+  toast.classList.add("show");
+
+  if (isError) {
+    toast.classList.add("error");
+  } else {
+    toast.classList.remove("error");
+  }
+
+  // 기존 타이머 제거 (중복 제거 핵심!)
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2000);
 }

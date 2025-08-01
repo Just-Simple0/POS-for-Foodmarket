@@ -7,6 +7,7 @@ import {
   query,
   Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { showToast } from "./components/comp.js";
 
 // 🔍 검색용 메모리 저장
 let customerData = [];
@@ -17,6 +18,7 @@ const itemPerPage = 50;
 let displaydData = [];
 let currentSort = { field: null, direction: "asc" };
 
+//엑셀 업로드 모달 열기 / 닫기
 document.getElementById("open-modal-btn").addEventListener("click", () => {
   document.getElementById("upload-modal").classList.remove("hidden");
 });
@@ -25,24 +27,38 @@ document.getElementById("close-upload-modal").addEventListener("click", () => {
   document.getElementById("upload-modal").classList.add("hidden");
 });
 
-document.getElementById("upload-btn").addEventListener("click", async () => {
+document.getElementById("upload-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
   const input = document.getElementById("file-upload");
-  if (!input.files.length) return alert("파일을 선택하세요.");
+  if (!input.files.length) return showToast("파일을 선택하세요.", true);
 
-  const reader = new FileReader();
-  reader.onload = async function (e) {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: "array" });
+  try {
+    const reader = new FileReader();
+    reader.onload = async function (e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
 
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet);
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
 
-    await uploadToFirestore(rows);
-    document.getElementById("upload-modal").classList.add("hidden");
-    loadCustomers();
-    alert("업로드 완료!");
-  };
-  reader.readAsArrayBuffer(input.files[0]);
+        await uploadToFirestore(rows);
+
+        showToast("업로드 완료!");
+        document.getElementById("upload-modal").classList.add("hidden");
+        input.value = ""; // input 초기화
+        loadCustomers();
+      } catch (err) {
+        console.error("파일 처리 중 오류:", err);
+        showToast("파일 처리 중 오류가 발생했습니다.", true);
+      }
+    };
+    reader.readAsArrayBuffer(input.files[0]);
+  } catch (err) {
+    console.error("파일 업로드 실패:", err);
+    showToast("파일 업로드 중 오류가 발생했습니다.", true);
+  }
 });
 
 async function uploadToFirestore(data) {
@@ -274,7 +290,6 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
 document.getElementById("close-edit-modal")?.addEventListener("click", () => {
   document.getElementById("edit-modal").classList.add("hidden");
 });
-
 
 function updateSortIcons() {
   const ths = document.querySelectorAll("#customer-table thead th");

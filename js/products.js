@@ -8,6 +8,7 @@ import {
   doc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { showToast } from "./components/comp.js";
 
 const productsCol = collection(db, "products");
 
@@ -19,23 +20,6 @@ const itemsPerPage = 25;
 
 const productList = document.getElementById("product-list");
 const pagination = document.getElementById("pagination");
-
-// 🔔 토스트 메시지 표시
-function showToast(message, isError = false) {
-  const toast = document.getElementById("toast");
-  toast.innerHTML = message;
-
-  toast.classList.add("show");
-  if (isError) {
-    toast.classList.add("error");
-  } else {
-    toast.classList.remove("error");
-  }
-
-  setTimeout(() => {
-    toast.classList.remove("show");
-  }, 2000);
-}
 
 // 🔄 상품 전체 불러오기
 async function loadProducts() {

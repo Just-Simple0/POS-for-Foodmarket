@@ -1,58 +1,160 @@
-// js/sales.js
-import { db } from "./firebase-config.js";
+import { db } from "./components/firebase-config.js";
 import {
   collection,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  doc,
   getDoc,
-  updateDoc,
+  getDocs,
+  doc,
+  addDoc,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { showToast } from "./components/comp.js";
 
-const salesCol = collection(db, "sales");
-const customersCol = collection(db, "customers");
-const productsCol = collection(db, "products");
+const lookupInput = document.getElementById("customer-id");
+const lookupBtn = document.getElementById("lookup-btn");
+const customerInfoDiv = document.getElementById("customer-info");
+const productSection = document.getElementById("product-selection");
+const submitSection = document.getElementById("submit-section");
+const submitBtn = document.getElementById("submit-btn");
 
-// 바코드로 상품 조회
-export async function getProductByBarcode(barcode) {
-  const q = query(productsCol, where("barcode", "==", barcode));
-  const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
-  return snapshot.docs[0].data();
-}
+let selectedCustomer = null;
+let selectedProducts = new Set();
 
-// 고객 정보 조회
-export async function getCustomer(id) {
-  const docRef = doc(db, "customers", id);
-  const docSnap = await getDoc(docRef);
-  return docSnap.exists() ? docSnap.data() : null;
-}
+// 🔍 이용자 조회
+lookupBtn.addEventListener("click", async () => {
+  const keyword = lookupInput.value.trim();
+  if (!keyword) return showToast("이용자 ID 또는 이름을 입력하세요.", true);
 
-// 고객 포인트 업데이트 및 제한 확인
-export async function updateCustomerPoints(id, pointsToAdd) {
-  const customerRef = doc(db, "customers", id);
-  const customer = await getCustomer(id);
-  if (!customer) throw new Error("고객 정보 없음");
+  try {
+    const snapshot = await getDocs(collection(db, "customers"));
+    const matches = snapshot.docs.filter((doc) => {
+      const data = doc.data();
+      return doc.id === keyword || data.name?.includes(keyword);
+    });
 
-  const newPoints = (customer.pointsUsed || 0) + pointsToAdd;
-  if (newPoints > 30) {
-    return false; // 제한 초과
+    if (matches.length === 0) {
+      return showToast("해당 이용자를 찾을 수 없습니다.", true);
+    } else if (matches.length === 1) {
+      selectedCustomer = { id: matches[0].id, ...matches[0].data() };
+      renderCustomerInfo();
+      productSection.classList.remove("hidden");
+      submitSection.classList.remove("hidden");
+    } else {
+      showDuplicateSelection(matches);
+    }
+
+    await loadProducts();
+    productSection.classList.remove("hidden");
+    submitSection.classList.remove("hidden");
+  } catch (err) {
+    console.error(err);
+    showToast("이용자 조회 중 오류 발생", true);
   }
+});
 
-  await updateDoc(customerRef, { pointsUsed: newPoints });
-  return true;
+// 고객 정보 렌더링
+function renderCustomerInfo() {
+  customerInfoDiv.innerHTML = `
+      <strong>이용자명:</strong> ${selectedCustomer.name}<br>
+      <strong>생년월일:</strong> ${selectedCustomer.birth}<br>
+      <strong>상태:</strong> ${selectedCustomer.status}<br>
+      <strong>주소:</strong> ${selectedCustomer.address}<br>
+      <strong>전화번호:</strong> ${selectedCustomer.phone}
+    `;
+  customerInfoDiv.classList.remove("hidden");
 }
 
-// 판매 기록 등록
-export async function registerSale(customerId, customerName, product) {
-  await addDoc(salesCol, {
-    customerId,
-    customerName,
-    productName: product.name,
-    price: product.price,
-    barcode: product.barcode,
-    createdAt: new Date(),
+// 동명이인 처리하기
+const duplicateModal = document.getElementById("duplicate-modal");
+const duplicateList = document.getElementById("duplicate-list");
+const closeDuplicateModal = document.getElementById("close-duplicate-modal");
+
+closeDuplicateModal.addEventListener("click", () => {
+  duplicateModal.classList.add("hidden");
+});
+
+function showDuplicateSelection(matches) {
+  duplicateList.innerHTML = "";
+
+  matches.forEach((docSnap) => {
+    const data = docSnap.data();
+    const li = document.createElement("li");
+    li.textContent = `${data.name} | ${data.birth || "생년월일 없음"} | ${
+      data.phone || "전화번호 없음"
+    }`;
+    li.addEventListener("click", () => {
+      selectedCustomer = { id: docSnap.id, ...data };
+      renderCustomerInfo();
+      duplicateModal.classList.add("hidden");
+      productSection.classList.remove("hidden");
+      submitSection.classList.remove("hidden");
+    });
+    duplicateList.appendChild(li);
   });
+
+  duplicateModal.classList.remove("hidden");
+}
+
+// 📦 상품 불러오기
+async function loadProducts() {
+  const listEl = document.getElementById("product-list");
+  listEl.innerHTML = "";
+
+  try {
+    const snapshot = await getDocs(collection(db, "products"));
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const card = document.createElement("div");
+      card.className = "product-item";
+      card.textContent = `${data.name}`;
+      card.dataset.id = doc.id;
+
+      card.addEventListener("click", () => {
+        if (selectedProducts.has(doc.id)) {
+          selectedProducts.delete(doc.id);
+          card.classList.remove("selected");
+        } else {
+          selectedProducts.add(doc.id);
+          card.classList.add("selected");
+        }
+      });
+
+      listEl.appendChild(card);
+    });
+  } catch (err) {
+    console.error(err);
+    showToast("상품 불러오기 실패", true);
+  }
+}
+
+// ✅ 제공 등록 제출
+submitBtn.addEventListener("click", async () => {
+  if (!selectedCustomer || selectedProducts.size === 0)
+    return showToast("이용자와 상품을 모두 선택하세요.", true);
+
+  try {
+    const ref = collection(db, "provisions");
+    const data = {
+      customerId: selectedCustomer.id,
+      customerName: selectedCustomer.name,
+      products: Array.from(selectedProducts),
+      timestamp: Timestamp.now(),
+    };
+
+    await addDoc(ref, data);
+    showToast("제공 등록이 완료되었습니다.");
+    resetForm();
+  } catch (err) {
+    console.error(err);
+    showToast("제공 등록 실패", true);
+  }
+});
+
+function resetForm() {
+  lookupInput.value = "";
+  customerInfoDiv.classList.add("hidden");
+  productSection.classList.add("hidden");
+  submitSection.classList.add("hidden");
+  customerInfoDiv.innerHTML = "";
+  selectedCustomer = null;
+  selectedProducts.clear();
 }
