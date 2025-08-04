@@ -2,7 +2,8 @@
 
 .container {
   padding: 2rem;
-  max-width: 800px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -27,7 +28,6 @@
   width: 100%;
   border: 1px solid #ccc;
   border-radius: 6px;
-  margin-bottom: 1rem;
   font-size: 1rem;
 }
 
@@ -96,7 +96,6 @@
   border: 1px solid #ccc;
   border-radius: 6px;
   flex: 1;
-  min-width: 180px;
 }
 
 .autocomplete-wrapper {
@@ -145,18 +144,59 @@
   font-size: 0.95rem;
 }
 
-#barcode-input {
-  max-width: 220px;
-  flex: none;
+#selected-table td:first-child {
+  text-align: left;
+  padding-left: 12px;
+}
+
+/* 수량 열 td 자체에 너비 제한 */
+#selected-table td:nth-child(2),
+#selected-table th:nth-child(2) {
+  width: 110px; /* 또는 100px, 조절 가능 */
+  text-align: center;
+}
+
+/* 버튼과 인풋 크기 조절 */
+.quantity-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.quantity-wrapper button {
+  width: 24px;
+  height: 24px;
+  font-size: 0.9rem;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background-color: #ddd;
+  color: #333;
+  cursor: pointer;
+}
+
+.quantity-wrapper input.quantity-input {
+  max-width: 50px;
+  height: 24px;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* 모든 브라우저에서 number 화살표 제거 */
+.quantity-wrapper input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield; /* Firefox */
+}
+
+.quantity-wrapper input[type="number"]::-webkit-outer-spin-button,
+.quantity-wrapper input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 #quantity-input {
-  max-width: 60px;
-  flex: none;
-}
-
-.quantity-input {
-  max-width: 50px;
+  max-width: 150px;
 }
 
 #selected-table th,
@@ -169,6 +209,40 @@
     font-weight: bold;
     font-size: 1.1rem;
   }
+}
+
+#product-action-buttons button {
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #f9f9f9;
+  color: #333;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+#product-action-buttons button:hover {
+  background-color: #e0e0e0;
+}
+
+/* ✅ 전체 초기화 버튼만 강조 */
+button#clear-all-btn {
+  background-color: #fbe9e7;
+  border-color: #f44336;
+  color: #d32f2f;
+  font-weight: bold;
+}
+
+button#clear-all-btn:hover {
+  background-color: #ef9a9a;
+  color: white;
+}
+
+#product-action-buttons button:hover {
+  opacity: 0.9;
 }
 
 #point-warning {

@@ -15,6 +15,10 @@ const customerInfoDiv = document.getElementById("customer-info");
 const productSection = document.getElementById("product-selection");
 const submitSection = document.getElementById("submit-section");
 const submitBtn = document.getElementById("submit-btn");
+const undoBtn = document.getElementById("undo-btn");
+const redoBtn = document.getElementById("redo-btn");
+const resetProductsBtn = document.getElementById("clear-products-btn");
+const resetAllBtn = document.getElementById("clear-all-btn");
 
 let selectedCustomer = null;
 let selectedItems = [];
@@ -160,6 +164,59 @@ async function loadAllProductsOnce() {
 }
 loadAllProductsOnce();
 
+let undoStack = [];
+let redoStack = [];
+
+undoBtn.addEventListener("click", () => {
+  if (undoStack.length > 0) {
+    redoStack.push([...selectedItems.map((item) => ({ ...item }))]);
+    selectedItems = undoStack.pop();
+    renderSelectedList();
+  } else {
+    showToast("되돌릴 작업이 없습니다.", true);
+  }
+});
+
+redoBtn.addEventListener("click", () => {
+  if (redoStack.length > 0) {
+    undoStack.push([...selectedItems.map((item) => ({ ...item }))]);
+    selectedItems = redoStack.pop();
+    renderSelectedList();
+  } else {
+    showToast("다시 실행할 작업이 없습니다.", true);
+  }
+});
+
+resetProductsBtn.addEventListener("click", () => {
+  if (selectedItems.length === 0)
+    return showToast("초기화할 물품이 없습니다.", true);
+
+  undoStack.push([...selectedItems.map((item) => ({ ...item }))]);
+  redoStack = [];
+  selectedItems = [];
+  renderSelectedList();
+  showToast("물품 목록이 초기화되었습니다.");
+});
+
+resetAllBtn.addEventListener("click", () => {
+  if (confirm("정말 전체 초기화하시겠습니까?")) {
+    resetForm(); // 고객/상품 전체 초기화
+    undoStack = [];
+    redoStack = [];
+    showToast("전체 초기화 완료");
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.key === "z" && !e.shiftKey) {
+    e.preventDefault();
+    undoBtn.click();
+  } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "z") {
+    e.preventDefault();
+    redoBtn.click();
+  }
+});
+
 const barcodeInput = document.getElementById("barcode-input");
 const quantityInput = document.getElementById("quantity-input");
 const addProductBtn = document.getElementById("add-product-btn");
@@ -195,6 +252,9 @@ addProductBtn.addEventListener("click", async () => {
   if (!input) return showToast("바코드 또는 상품명을 입력하세요.", true);
 
   try {
+    undoStack.push([...selectedItems.map((item) => ({ ...item }))]);
+    redoStack = [];
+
     const match = allProducts.find((p) => {
       return p.id === input || p.name?.includes(input) || p.barcode === input;
     });
@@ -221,6 +281,14 @@ addProductBtn.addEventListener("click", async () => {
   } catch (err) {
     console.error(err);
     showToast("상품 검색 중 오류", true);
+  }
+});
+
+quantityInput.addEventListener("input", () => {
+  let val = parseInt(quantityInput.value, 10);
+  if (val > 30) {
+    quantityInput.value = 30;
+    showToast("수량은 최대 30까지만 입력할 수 있습니다.");
   }
 });
 
@@ -277,7 +345,11 @@ function renderSelectedList() {
     tr.innerHTML = `
       <td>${item.name}</td>
       <td>
-        <input type="number" min="1" max="30" value="${item.quantity}" data-idx="${idx}" class="quantity-input" />
+        <div class="quantity-wrapper">
+        <button class="decrease-btn" data-idx="${idx}">−</button>
+        <input type="number" name="quantity-${idx}" min="1" max="30" value="${item.quantity}" data-idx="${idx}" class="quantity-input" />
+        <button class="increase-btn" data-idx="${idx}">+</button>
+        </div>
       </td>
       <td>${item.price}</td>
       <td>${totalPrice}</td>
@@ -292,11 +364,55 @@ function renderSelectedList() {
   calculateTotal();
 }
 
-selectedTableBody.addEventListener("input", (e) => {
+document.querySelector("#selected-table tbody").addEventListener(
+  "blur",
+  (e) => {
+    if (e.target.classList.contains("quantity-input")) {
+      let val = parseInt(e.target.value, 10);
+
+      if (isNaN(val) || val < 1) {
+        e.target.value = 1;
+        showToast("수량은 1 이상이어야 합니다.");
+      } else if (val > 30) {
+        e.target.value = 30;
+        showToast("수량은 최대 30까지만 가능합니다.");
+      }
+    }
+  },
+  true
+); // ← true로 설정해야 '이벤트 캡처링'이 동작해서 위임 가능
+
+selectedTableBody.addEventListener("click", (e) => {
+  const idx = e.target.dataset.idx;
+
+  // 수량 증가
+  if (e.target.classList.contains("increase-btn")) {
+    selectedItems[idx].quantity = Math.min(selectedItems[idx].quantity + 1, 30);
+    renderSelectedList();
+  }
+
+  // 수량 감소
+  if (e.target.classList.contains("decrease-btn")) {
+    selectedItems[idx].quantity = Math.max(selectedItems[idx].quantity - 1, 1);
+    renderSelectedList();
+  }
+
+  // 삭제
+  if (e.target.closest(".remove-btn")) {
+    const removeIdx = Number(e.target.closest(".remove-btn").dataset.idx);
+    selectedItems.splice(removeIdx, 1);
+    renderSelectedList();
+  }
+});
+
+selectedTableBody.addEventListener("change", (e) => {
   if (e.target.classList.contains("quantity-input")) {
+    undoStack.push([...selectedItems.map((item) => ({ ...item }))]);
+    redoStack = [];
+
     const idx = e.target.dataset.idx;
     const val = parseInt(e.target.value);
-    if (val >= 1) {
+    if (val >= 1 && val <= 30) {
       selectedItems[idx].quantity = val;
       renderSelectedList();
     }
