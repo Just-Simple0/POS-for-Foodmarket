@@ -1,4 +1,4 @@
-import { db } from "./components/firebase-config.js";
+import { db, auth } from "./components/firebase-config.js";
 import {
   collection,
   getDoc,
@@ -6,7 +6,9 @@ import {
   doc,
   addDoc,
   Timestamp,
+  updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { showToast } from "./components/comp.js";
 
 const lookupInput = document.getElementById("customer-id");
@@ -19,6 +21,7 @@ const undoBtn = document.getElementById("undo-btn");
 const redoBtn = document.getElementById("redo-btn");
 const resetProductsBtn = document.getElementById("clear-products-btn");
 const resetAllBtn = document.getElementById("clear-all-btn");
+const currentUser = auth.currentUser;
 
 let selectedCustomer = null;
 let selectedItems = [];
@@ -199,7 +202,7 @@ resetProductsBtn.addEventListener("click", () => {
 });
 
 resetAllBtn.addEventListener("click", () => {
-  if (confirm("정말 전체 초기화하시겠습니까?")) {
+  if (confirm("전체 초기화하시겠습니까?")) {
     resetForm(); // 고객/상품 전체 초기화
     undoStack = [];
     redoStack = [];
@@ -453,17 +456,51 @@ submitBtn.addEventListener("click", async () => {
   );
   if (total > 30) return showToast("포인트가 초과되었습니다.", true);
 
+  // ✅ 현재 로그인한 사용자 확인
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    showToast("로그인된 사용자를 확인할 수 없습니다.", true);
+    return;
+  }
+
+  const now = new Date();
+  const year =
+    now.getMonth() + 1 < 3 ? now.getFullYear() - 1 : now.getFullYear();
+  const periodKey = `${String(year).slice(2)}-${String(year + 1).slice(2)}`; // 예: 24-25
+  const visitDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
+
   try {
+    // ✅ 1. 제공 기록 등록
     const ref = collection(db, "provisions");
-    const data = {
+    const provisionData = {
       customerId: selectedCustomer.id,
       customerName: selectedCustomer.name,
+      customerBirth: selectedCustomer.birth,
       items: selectedItems,
       total,
       timestamp: Timestamp.now(),
+      handledBy: currentUser.email,
     };
+    await addDoc(ref, provisionData);
 
-    await addDoc(ref, data);
+    // ✅ 2. 고객 문서에 방문일자 누적
+    const customerRef = doc(db, "customers", selectedCustomer.id);
+    const customerSnap = await getDoc(customerRef);
+    const prevVisits = customerSnap.data()?.visits || {};
+
+    if (!prevVisits[periodKey]) {
+      prevVisits[periodKey] = [];
+    }
+
+    // 중복 방지
+    if (!prevVisits[periodKey].includes(visitDate)) {
+      prevVisits[periodKey].push(visitDate);
+    }
+
+    await updateDoc(customerRef, {
+      visits: prevVisits,
+    });
+
     showToast("제공 등록 완료!");
     resetForm();
   } catch (err) {
