@@ -1,23 +1,102 @@
+<!DOCTYPE html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>일일 통계</title>
+    <title>통계</title>
+    <!-- Chart.js 삽입 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 공통 parts 삽입 -->
     <link rel="stylesheet" href="css/common.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      as="style"
+      crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
+    />
+    <!-- firebase parts 삽입 -->
+    <script type="module" src="js/components/firebase-config.js"></script>
+    <!-- 개별 css, js 삽입 -->
+    <link rel="stylesheet" href="css/statistics.css" />
     <script type="module" src="js/statistics.js" defer></script>
   </head>
   <body>
-    <h1>일일 수령 통계</h1>
-    <table id="stat-table">
-      <thead>
-        <tr>
-          <th>고객 ID</th>
-          <th>상품명</th>
-          <th>수령일시</th>
-          <th>포인트</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    <div id="header-container"></div>
+    <main class="container">
+      <h1>통계 및 제공 이력</h1>
+
+      <!-- 상단 카드 통계 -->
+      <section class="stat-cards">
+        <div class="card" id="daily-visitors">
+          <h3>일일 방문 인원</h3>
+          <p class="value">0명</p>
+          <p class="change"></p>
+        </div>
+        <div class="card" id="daily-items">
+          <h3>일일 제공 물품 수</h3>
+          <p class="value">0개</p>
+          <p class="change"></p>
+        </div>
+        <div class="card" id="monthly-visitors">
+          <h3>월간 방문 인원</h3>
+          <p class="value">0명</p>
+        </div>
+      </section>
+
+      <!-- 물품 제공 내역 -->
+      <section class="history-section">
+        <h2>물품 제공 내역</h2>
+        <div class="filter-row">
+          <label for="provision-filter">기간:</label>
+          <select id="provision-filter">
+            <option value="daily">일일</option>
+            <option value="monthly">월간</option>
+            <option value="yearly">연간</option>
+          </select>
+
+          <select id="year-range-select" class="hidden"></select>
+        </div>
+        <table id="provision-table">
+          <thead>
+            <tr>
+              <th>제공일</th>
+              <th>고객명</th>
+              <th>생년월일</th>
+              <th>가져간 품목</th>
+              <th>처리자</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <!-- 고객별 방문일자 -->
+      <section class="history-section">
+        <h2>고객별 방문 일자 (상태: 지원)</h2>
+        <table id="visit-table">
+          <thead>
+            <tr>
+              <th>고객명</th>
+              <th>생년월일</th>
+              <th>방문 일자 목록</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </main>
+
+    <div id="footer-container"></div>
+
+    <!-- header footer 삽입 -->
+    <script type="module">
+      import { loadHeader, loadFooter } from "./js/components/comp.js";
+      loadHeader("통계", "header-container");
+      loadFooter("footer-container");
+    </script>
   </body>
 </html>
