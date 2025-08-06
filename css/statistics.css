@@ -6,6 +6,10 @@
   box-sizing: border-box;
 }
 
+.container h2 {
+  margin-bottom: 1rem;
+}
+
 .hidden {
   display: none;
 }
@@ -74,18 +78,29 @@
 }
 
 /* 필터 영역 */
+/* 필터 섹션 전체 레이아웃 */
 .filter-row {
-  margin: 10px 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 12px;
+  margin: 20px 0;
+  font-size: 14px;
 }
 
+/* 각 label + select 세트 */
+.filter-row label {
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+/* select 박스 기본 스타일 */
 .filter-row select {
   padding: 6px 10px;
-  font-size: 1rem;
-  border-radius: 6px;
   border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #fff;
+  font-size: 14px;
 }
 
 /* 표 스타일 */
@@ -106,4 +121,57 @@
 .history-section th {
   background-color: #f5f5f5;
   font-weight: bold;
+}
+
+/* 고객별 방문 일자 테이블 */
+.visit-log-section {
+  grid-column: span 2;
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 2rem;
+}
+
+.visit-log-section h2 {
+  font-size: 1.4rem;
+  color: #1976d2;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+#visit-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+#visit-log-table thead th {
+  background-color: #f5f5f5;
+  padding: 0.8rem;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+#visit-log-table tbody td {
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid #eee;
+}
+
+#visit-log-table tbody tr:hover {
+  background-color: #f9f9f9;
+}
+
+/* 반응형 대응 */
+@media (max-width: 768px) {
+  .filter-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .filter-row select {
+    width: 100%;
+  }
 }

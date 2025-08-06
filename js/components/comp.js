@@ -9,11 +9,11 @@ import {
   getDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-export function loadHeader(pageTitle = "POS System", containerID = null) {
+export function loadHeader(containerID = null) {
   const headerHTML = `
     <header>
       <div class="header-top">
-        <h1 id="page-title">${pageTitle}</h1>
+        <h1 id="page-title">POS System</h1>
         <div class="user-info">
           <span id="user-name-header">
           <i class="fas fa-circle-user"></i> 직원</span>
