@@ -10,14 +10,11 @@ import {
   Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-document.addEventListener("DOMContentLoaded", async () => {
-  generateYearOptions();
-  toggleView(document.getElementById("view-type").value);
-  await renderTopStatistics();
-  calculateMonthlyVisitRate();
-  loadProvisionHistory("daily");
-  await loadVisitLogTable(getCurrentPeriodKey());
-});
+let provisionData = [];
+let visitData = [];
+let provisionCurrentPage = 1;
+let visitCurrentPage = 1;
+let itemsPerPage = 20;
 
 function getCurrentPeriodKey(date = new Date()) {
   const year = date.getFullYear();
@@ -26,6 +23,79 @@ function getCurrentPeriodKey(date = new Date()) {
   let endYear = startYear + 1;
   return `${String(startYear).slice(2)}-${String(endYear).slice(2)}`;
 }
+document.addEventListener("DOMContentLoaded", async () => {
+  generateYearOptions();
+  await renderTopStatistics();
+  calculateMonthlyVisitRate();
+  await loadProvisionHistory("daily");
+  await loadVisitLogTable(getCurrentPeriodKey());
+
+  const btnProvision = document.getElementById("btn-provision");
+  const btnVisit = document.getElementById("btn-visit");
+  const periodFilter = document.getElementById("period-filter");
+  const yearSelect = document.getElementById("year-range-select");
+  const provisionSection = document.getElementById("provision-section");
+  const visitSection = document.getElementById("visit-log-section");
+  const itemCountSelect = document.getElementById("item-count-select");
+  const searchProvision = document.getElementById("search-provision");
+  const searchVisit = document.getElementById("search-visit");
+
+  btnProvision.addEventListener("click", () => {
+    btnProvision.classList.add("active");
+    btnVisit.classList.remove("active");
+    provisionSection.classList.remove("hidden");
+    visitSection.classList.add("hidden");
+    periodFilter.classList.remove("hidden");
+    if (periodFilter.value === "yearly") {
+      yearSelect.classList.remove("hidden");
+      loadProvisionHistory("yearly", yearSelect.value);
+    } else {
+      yearSelect.classList.add("hidden");
+      loadProvisionHistory(periodFilter.value);
+    }
+  });
+
+  btnVisit.addEventListener("click", () => {
+    btnProvision.classList.remove("active");
+    btnVisit.classList.add("active");
+    provisionSection.classList.add("hidden");
+    visitSection.classList.remove("hidden");
+    periodFilter.classList.add("hidden");
+    yearSelect.classList.remove("hidden");
+    loadVisitLogTable(yearSelect.value);
+  });
+
+  periodFilter.addEventListener("change", (e) => {
+    const value = e.target.value;
+    if (value === "yearly") {
+      yearSelect.classList.remove("hidden");
+      loadProvisionHistory("yearly", yearSelect.value);
+    } else {
+      yearSelect.classList.add("hidden");
+      loadProvisionHistory(value);
+    }
+  });
+
+  yearSelect.addEventListener("change", (e) => {
+    if (btnProvision.classList.contains("active")) {
+      loadProvisionHistory("yearly", e.target.value);
+    } else {
+      loadVisitLogTable(e.target.value);
+    }
+  });
+
+  itemCountSelect.addEventListener("change", (e) => {
+    itemsPerPage = parseInt(e.target.value);
+    if (btnProvision.classList.contains("active")) {
+      renderProvisionTable();
+    } else {
+      renderVisitTable();
+    }
+  });
+
+  searchProvision.addEventListener("input", renderProvisionTable);
+  searchVisit.addEventListener("input", renderVisitTable);
+});
 
 async function renderTopStatistics() {
   const today = new Date();
@@ -152,46 +222,8 @@ async function calculateMonthlyVisitRate() {
   if (card) card.appendChild(rateEl);
 }
 
-function toggleView(viewType) {
-  const provisionSection = document.getElementById("provision-section");
-  const visitSection = document.getElementById("visit-log-section");
-  const periodFilter = document.getElementById("period-filter");
-  const yearSelect = document.getElementById("year-range-select");
-
-  if (viewType === "provision") {
-    provisionSection.classList.remove("hidden");
-    visitSection.classList.add("hidden");
-    periodFilter.classList.remove("hidden");
-
-    const selectedPeriod = periodFilter.value;
-    if (selectedPeriod === "yearly") {
-      yearSelect.classList.remove("hidden");
-      loadProvisionHistory("yearly", yearSelect.value);
-    } else {
-      yearSelect.classList.add("hidden");
-      loadProvisionHistory(selectedPeriod);
-    }
-  } else if (viewType === "visit") {
-    provisionSection.classList.add("hidden");
-    visitSection.classList.remove("hidden");
-    periodFilter.classList.add("hidden");
-    yearSelect.classList.remove("hidden");
-
-    loadVisitLogTable(yearSelect.value);
-  }
-}
-
-function formatDate(date) {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 async function loadProvisionHistory(period = "daily", yearRange = null) {
-  const tableBody = document.querySelector("#provision-table tbody");
-  tableBody.innerHTML = "";
-
+  provisionData = [];
   const today = new Date();
   let startDate;
   let endDate = new Date();
@@ -199,7 +231,6 @@ async function loadProvisionHistory(period = "daily", yearRange = null) {
   if (period === "daily") {
     startDate = new Date(today);
     startDate.setHours(0, 0, 0, 0);
-    endDate = new Date(today);
     endDate.setHours(23, 59, 59, 999);
   } else if (period === "monthly") {
     startDate = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -208,31 +239,160 @@ async function loadProvisionHistory(period = "daily", yearRange = null) {
     const [startY, endY] = yearRange.split("-").map((v) => parseInt(v));
     startDate = new Date(`20${startY}-03-01T00:00:00`);
     endDate = new Date(`20${endY}-03-01T00:00:00`);
-  } else {
-    return;
-  }
+  } else return;
 
-  const q = query(collection(db, "provisions"));
-  const snapshot = await getDocs(q);
-
+  const snapshot = await getDocs(query(collection(db, "provisions")));
   snapshot.forEach((doc) => {
     const data = doc.data();
     const ts = data.timestamp?.toDate?.();
     if (!ts || ts < startDate || ts >= endDate) return;
-    const formattedDate = formatDate(ts);
-    const itemsText = data.items
-      .map((item) => `${item.name} (${item.quantity})`)
-      .join(", ");
+    provisionData.push({
+      date: formatDate(ts),
+      name: data.customerName,
+      birth: data.customerBirth,
+      items: data.items.map((i) => `${i.name} (${i.quantity})`).join(", "),
+      handler: data.handledBy,
+    });
+  });
+
+  // timestamp 기준 정렬
+  provisionData.sort((a, b) => new Date(b.date) - new Date(a.date));
+  provisionCurrentPage = 1;
+  renderProvisionTable();
+}
+
+function renderProvisionTable() {
+  const tbody = document.querySelector("#provision-table tbody");
+  const keyword = document
+    .getElementById("search-provision")
+    .value.trim()
+    .toLowerCase();
+  tbody.innerHTML = "";
+
+  const filtered = provisionData.filter((row) =>
+    Object.values(row).some((v) => v.toLowerCase().includes(keyword))
+  );
+
+  const start = (provisionCurrentPage - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  const pageItems = filtered.slice(start, end);
+
+  pageItems.forEach((row) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${formattedDate}</td>
-      <td>${data.customerName}</td>
-      <td>${data.customerBirth}</td>
-      <td>${itemsText}</td>
-      <td>${data.handledBy}</td>
+      <td>${row.date}</td>
+      <td>${row.name}</td>
+      <td>${row.birth}</td>
+      <td>${row.items}</td>
+      <td>${row.handler}</td>
     `;
-    tableBody.appendChild(tr);
+    tbody.appendChild(tr);
   });
+
+  updatePagination("provision", filtered.length, provisionCurrentPage);
+}
+
+async function loadVisitLogTable(periodKey) {
+  visitData = [];
+  const customersSnap = await getDocs(collection(db, "customers"));
+  customersSnap.forEach((doc) => {
+    const data = doc.data();
+    if (data.status !== "지원") return;
+    const visits = data.visits?.[periodKey];
+    if (!Array.isArray(visits) || visits.length === 0) return;
+    visitData.push({
+      name: data.name,
+      birth: data.birth,
+      dates: visits.slice().sort().join(", "),
+    });
+  });
+
+  // 이름 기준 정렬
+  visitData.sort((a, b) => a.name.localeCompare(b.name));
+  visitCurrentPage = 1;
+  renderVisitTable();
+}
+
+function renderVisitTable() {
+  const tbody = document.querySelector("#visit-log-table tbody");
+  const keyword = document
+    .getElementById("search-visit")
+    .value.trim()
+    .toLowerCase();
+  tbody.innerHTML = "";
+
+  const filtered = visitData.filter((row) =>
+    Object.values(row).some((v) => v.toLowerCase().includes(keyword))
+  );
+
+  const start = (visitCurrentPage - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  const pageItems = filtered.slice(start, end);
+
+  pageItems.forEach((row) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${row.name}</td>
+      <td>${row.birth}</td>
+      <td>${row.dates}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  updatePagination("visit", filtered.length, visitCurrentPage);
+}
+
+function updatePagination(type, totalItems, currentPage) {
+  const container = document.getElementById(`${type}-pagination`);
+  container.innerHTML = "";
+
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+  const prevBtn = document.createElement("button");
+  prevBtn.textContent = "이전";
+  prevBtn.disabled = currentPage === 1;
+  prevBtn.addEventListener("click", () => {
+    if (type === "provision") {
+      provisionCurrentPage--;
+      renderProvisionTable();
+    } else {
+      visitCurrentPage--;
+      renderVisitTable();
+    }
+  });
+
+  const nextBtn = document.createElement("button");
+  nextBtn.textContent = "다음";
+  nextBtn.disabled = currentPage === totalPages;
+  nextBtn.addEventListener("click", () => {
+    if (type === "provision") {
+      provisionCurrentPage++;
+      renderProvisionTable();
+    } else {
+      visitCurrentPage++;
+      renderVisitTable();
+    }
+  });
+
+  const info = document.createElement("span");
+  info.innerHTML = ` <input type="number" min="1" max="${totalPages}" value="${currentPage}" style="width:40px"> / ${totalPages} 페이지 `;
+  const input = info.querySelector("input");
+  input.addEventListener("change", (e) => {
+    let val = parseInt(e.target.value);
+    if (val >= 1 && val <= totalPages) {
+      if (type === "provision") {
+        provisionCurrentPage = val;
+        renderProvisionTable();
+      } else {
+        visitCurrentPage = val;
+        renderVisitTable();
+      }
+    }
+  });
+
+  container.appendChild(prevBtn);
+  container.appendChild(info);
+  container.appendChild(nextBtn);
 }
 
 function generateYearOptions() {
@@ -251,52 +411,9 @@ function generateYearOptions() {
   }
 }
 
-document.getElementById("view-type").addEventListener("change", (e) => {
-  toggleView(e.target.value);
-});
-
-document.getElementById("period-filter").addEventListener("change", (e) => {
-  const value = e.target.value;
-  const yearSelect = document.getElementById("year-range-select");
-  if (value === "yearly") {
-    yearSelect.classList.remove("hidden");
-    loadProvisionHistory("yearly", yearSelect.value);
-  } else {
-    yearSelect.classList.add("hidden");
-    loadProvisionHistory(value);
-  }
-});
-
-document.getElementById("year-range-select").addEventListener("change", (e) => {
-  const viewType = document.getElementById("view-type").value;
-  if (viewType === "provision") {
-    loadProvisionHistory("yearly", e.target.value);
-  } else {
-    loadVisitLogTable(e.target.value);
-  }
-});
-
-async function loadVisitLogTable(periodKey) {
-  const tbody = document.querySelector("#visit-log-table tbody");
-  tbody.innerHTML = "";
-
-  const customersSnap = await getDocs(collection(db, "customers"));
-  customersSnap.forEach((doc) => {
-    const data = doc.data();
-    if (data.status !== "지원") return;
-    const visits = data.visits?.[periodKey];
-    if (!Array.isArray(visits) || visits.length === 0) return;
-    const sortedDates = visits.slice().sort();
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${data.name}</td>
-      <td>${data.birth}</td>
-      <td>${sortedDates.join(", ")}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-function setupVisitTable() {
-  // 방문 테이블 초기화 필요 시 구현
+function formatDate(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }

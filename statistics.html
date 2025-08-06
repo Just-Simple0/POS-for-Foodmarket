@@ -47,16 +47,14 @@
         </div>
       </section>
 
-      <!-- 물품 제공 내역 -->
-      <section class="history-section">
-        <h2>Log 조회</h2>
-        <div class="filter-row">
-          <label for="view-type">조회 유형:</label>
-          <select id="view-type">
-            <option value="provision">물품 제공 내역</option>
-            <option value="visit">고객별 방문 일자</option>
-          </select>
+      <div class="view-toggle">
+        <button id="btn-provision" class="active">물품 제공 내역</button>
+        <button id="btn-visit">이용자별 방문 일자</button>
+      </div>
 
+      <!-- 🔽 기간 선택 필터 -->
+      <div class="filter-row">
+        <div class="date-container">
           <label for="period-filter">기간:</label>
           <select id="period-filter">
             <option value="daily">일일</option>
@@ -64,38 +62,54 @@
             <option value="yearly">연간</option>
           </select>
 
+          <!-- 연간 선택 시 표시됨 -->
           <select id="year-range-select" class="hidden"></select>
         </div>
 
-        <div id="provision-section">
-          <table id="provision-table">
-            <thead>
-              <tr>
-                <th>제공일</th>
-                <th>고객명</th>
-                <th>생년월일</th>
-                <th>가져간 품목</th>
-                <th>처리자</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+        <div class="item-count-container">
+          <label for="item-count-select">표시 수:</label>
+          <select id="item-count-select">
+            <option value="10">10개</option>
+            <option value="20" selected>20개</option>
+            <option value="50">50개</option>
+            <option value="100">100개</option>
+          </select>
         </div>
+      </div>
 
-        <!-- 고객별 방문일자 -->
-        <div id="visit-log-section">
-          <table id="visit-log-table">
-            <thead>
-              <tr>
-                <th>이용자명</th>
-                <th>생년월일</th>
-                <th>방문 일자</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
+      <!-- 🧾 물품 제공 테이블 -->
+      <div id="provision-section">
+        <input type="text" id="search-provision" placeholder="검색" />
+        <table id="provision-table">
+          <thead>
+            <tr>
+              <th>제공일</th>
+              <th>고객명</th>
+              <th>생년월일</th>
+              <th>가져간 품목</th>
+              <th>처리자</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div id="provision-pagination" class="pagination"></div>
+      </div>
+
+      <!-- 🧾 방문 일자 테이블 -->
+      <div id="visit-log-section" class="hidden">
+        <input type="text" id="search-visit" placeholder="검색" />
+        <table id="visit-log-table">
+          <thead>
+            <tr>
+              <th>고객명</th>
+              <th>생년월일</th>
+              <th>방문일자</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div id="visit-pagination" class="pagination"></div>
+      </div>
     </main>
 
     <div id="footer-container"></div>
