@@ -12,7 +12,7 @@
 }
 
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 /* 카드 묶음 영역 */
@@ -62,13 +62,7 @@
   color: red;
 }
 
-.sub-info {
-  font-size: 0.95rem;
-  margin-top: 0.4rem;
-  font-weight: bold;
-}
-
-/* 제공 내역 / 방문 내역 공통 섹션 */
+/* 테이블 구역 토글 버튼 */
 .view-toggle {
   display: flex;
   justify-content: center;
@@ -98,82 +92,173 @@
   color: #000;
 }
 
-/* 필터 영역 */
-/* 필터 섹션 전체 레이아웃 */
+/* 날짜 필터 */
+.filters-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 .filter-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
 
-/* 각 label + select 세트 */
 .filter-row label {
   font-weight: bold;
   white-space: nowrap;
   margin-right: 4px;
 }
 
-/* select 박스 기본 스타일 */
-.filter-row select {
-  width: auto;
-  min-width: 100px;
-  padding: 0.4rem 0.6rem;
+/* 📅 날짜 범위 입력창 */
+#date-range {
+  font-family: "Pretendard", sans-serif;
+  font-size: 14px;
+  padding: 6px 12px;
   border: 1px solid #ccc;
   border-radius: 6px;
+  width: 200px;
+  color: #333;
   background-color: #fff;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* 📆 달력 전체 박스 */
+.flatpickr-calendar {
+  font-family: "Pretendard", sans-serif;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  border: none;
+  overflow: hidden;
+  z-index: 9999;
+}
+
+/* 📆 상단 월/년 헤더 */
+.flatpickr-months {
+  background-color: #f5f5f5;
+  display: flex;
+  flex-direction: row-reverse;
+  padding: 6px 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.flatpickr-current-month {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* 🗓️ 요일 헤더 */
+.flatpickr-weekdays {
+  background-color: #f9f9f9;
+  font-weight: 600;
+  color: #555;
+}
+
+/* 📅 날짜 셀 */
+.flatpickr-day {
+  border-radius: 6px;
+  transition: all 0.2s ease-in-out;
+}
+
+.flatpickr-day:hover {
+  background-color: #f0f4ff;
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+  background-color: #4b7bec;
+  color: white;
+  border-radius: 6px;
+}
+
+.flatpickr-day.inRange {
+  background-color: #dbe9ff;
+}
+
+/* 🔍 전체 검색 & 고급 검색 감싸는 바 */
+.table-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+
+/* 전체 검색 바 영역 */
+.search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 전체 검색 input */
+#global-search {
+  flex: 1;
+  padding: 8px 12px;
   font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+/* 고급 검색 영역 */
+#advanced-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* 고급 검색 select */
+#field-select {
+  width: auto;
+  padding: 8px 10px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+/* 고급 검색 input */
+#field-search {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+/* 정확한 검색 체크박스 라벨 */
+.search-bar label {
+  font-weight: bold;
+  white-space: nowrap;
+  margin-right: 4px;
 }
 
 .table-controls {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin: 12px 0;
-  flex-wrap: wrap;
-  gap: 12px;
+  margin-bottom: 20px;
 }
 
-.table-controls input[type="text"],
-.table-controls select {
-  padding: 6px 10px;
-  font-size: 14px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-/* 고객별 방문 일자 테이블 */
-.visit-log-section {
-  grid-column: span 2;
-  background: white;
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-top: 2rem;
-}
-
-.visit-log-section h2 {
-  font-size: 1.4rem;
-  color: #1976d2;
-  margin-bottom: 1rem;
+.item-count-container {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 5px;
+  white-space: nowrap;
 }
 
+/* 테이블 통일 스타일 */
 #provision-table,
 #visit-log-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.95rem;
-}
-
-#provision-table td:not(:nth-child(4)),
-#provision-table th:not(:nth-child(4)) {
-  white-space: nowrap;
+  background-color: white;
+  border-radius: 8px;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 #provision-table thead th,
@@ -188,6 +273,10 @@
 #visit-log-table tbody td {
   padding: 0.6rem 0.8rem;
   border-bottom: 1px solid #eee;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #provision-table tbody tr:hover,
@@ -195,6 +284,7 @@
   background-color: #f9f9f9;
 }
 
+/* pagination 스타일 */
 .pagination {
   margin-top: 20px;
   display: flex;
@@ -238,5 +328,18 @@
 
   .filter-row select {
     width: 100%;
+  }
+
+  .table-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  #date-range,
+  #global-search,
+  #field-search,
+  #field-select {
+    width: 100%;
+    max-width: 100%;
   }
 }
