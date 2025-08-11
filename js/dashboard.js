@@ -4,6 +4,8 @@ import {
   orderBy,
   limit,
   getDocs,
+  where,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 import { db } from "./components/firebase-config.js";
@@ -31,44 +33,99 @@ async function loadRecentProducts() {
   });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  // 임의 데이터
-  const visitData = [
-    { date: "2025-07-10", count: 15 },
-    { date: "2025-07-11", count: 20 },
-    { date: "2025-07-14", count: 21 },
-    { date: "2025-07-15", count: 19 },
-    { date: "2025-07-16", count: 23 },
-    { date: "2025-07-17", count: 18 },
-    { date: "2025-07-18", count: 27 },
-    { date: "2025-07-19", count: 0 },
-    { date: "2025-07-22", count: 28 },
-    { date: "2025-07-23", count: 32 }, // 어제
-    { date: "2025-07-24", count: 30 }, // 오늘
-  ];
-  const todayItems = [
-    { name: "초코우유", count: 18 },
-    { name: "콜라", count: 15 },
-    { name: "사이다", count: 10 },
-    { name: "과자", count: 8 },
-    { name: "햄버거", count: 7 },
-  ];
-  const yesterdayItems = [
-    { name: "초코우유", quantity: 15 },
-    { name: "사과", quantity: 12 },
-    { name: "샌드위치", quantity: 9 },
-    { name: "바나나", quantity: 5 },
-    { name: "우유", quantity: 12 },
-  ];
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadDashboardData();
+  loadRecentProducts();
+  setExpiryInfo();
+});
 
-  // 오늘 방문한 고객 수와 최근 10일간의 방문 데이터 처리
-  const recentData = visitData.slice(-10);
+async function loadDashboardData() {
+  try {
+    const {
+      visitData,
+      todayItemsMap,
+      todayItemsTotal,
+      yesterdayItemsTotal,
+    } = await fetchProvisionStats();
 
-  const labels = recentData.map((d) => d.date.slice(5)); // MM-DD
-  const counts = recentData.map((d) => d.count);
+    renderVisitSection(visitData);
+    renderItemSection(todayItemsMap, todayItemsTotal, yesterdayItemsTotal);
+  } catch (err) {
+    console.error(err);
+    renderVisitSection([]);
+    renderItemSection({}, 0, 0);
+  }
+}
 
-  const todayCustomer = recentData[recentData.length - 1];
-  const yesterdayCustomer = recentData[recentData.length - 2];
+async function fetchProvisionStats() {
+  const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - 9);
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(today);
+  endDate.setHours(23, 59, 59, 999);
+
+  const todayStr = today.toISOString().slice(0, 10);
+  const yDate = new Date(today);
+  yDate.setDate(yDate.getDate() - 1);
+  const yesterdayStr = yDate.toISOString().slice(0, 10);
+
+  const countsByDate = {};
+  const todayItemsMap = {};
+  let yesterdayItemsTotal = 0;
+
+  try {
+    const snapshot = await getDocs(
+      query(
+        collection(db, "provisions"),
+        where("timestamp", ">=", Timestamp.fromDate(startDate)),
+        where("timestamp", "<=", Timestamp.fromDate(endDate))
+      )
+    );
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const dateObj = data.timestamp?.toDate?.();
+      const dateStr = dateObj.toISOString().slice(0, 10);
+      countsByDate[dateStr] = (countsByDate[dateStr] || 0) + 1;
+
+      if (dateStr === todayStr) {
+        (data.items || []).forEach((item) => {
+          todayItemsMap[item.name] =
+            (todayItemsMap[item.name] || 0) + (item.quantity || 0);
+        });
+      } else if (dateStr === yesterdayStr) {
+        (data.items || []).forEach((item) => {
+          yesterdayItemsTotal += item.quantity || 0;
+        });
+      }
+    });
+  } catch (err) {
+    console.error(err);
+  }
+
+  const visitData = [];
+  for (let i = 0; i < 10; i++) {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
+    const ds = d.toISOString().slice(0, 10);
+    visitData.push({ date: ds, count: countsByDate[ds] || 0 });
+  }
+
+  const todayItemsTotal = Object.values(todayItemsMap).reduce(
+    (sum, v) => sum + v,
+    0
+  );
+
+  return { visitData, todayItemsMap, todayItemsTotal, yesterdayItemsTotal };
+}
+
+function renderVisitSection(visitData) {
+  const labels = visitData.map((d) => d.date.slice(5));
+  const counts = visitData.map((d) => d.count);
+
+  const todayCustomer = visitData[visitData.length - 1] || { count: 0 };
+  const yesterdayCustomer = visitData[visitData.length - 2] || { count: 0 };
 
   const customerDiff = todayCustomer.count - yesterdayCustomer.count;
   const customerRate =
@@ -76,7 +133,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ? ((customerDiff / yesterdayCustomer.count) * 100).toFixed(1)
       : "0";
 
-  // HTML 요소에 값 반영
   const visitCountEl = document.getElementById("visit-count");
   const visitChangeEl = document.getElementById("visit-change");
 
@@ -97,7 +153,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 차트 렌더링
   const ctx = document.getElementById("visit-chart");
   if (ctx) {
     new Chart(ctx, {
@@ -127,15 +182,9 @@ document.addEventListener("DOMContentLoaded", () => {
       },
     });
   }
+}
 
-  // 오늘 제공된 물품 정보 처리
-
-  //총 수량 계산
-  const todayItemsTotal = todayItems.reduce((sum, item) => sum + item.count, 0);
-  const yesterdayItemsTotal = yesterdayItems.reduce(
-    (sum, item) => sum + item.quantity,
-    0
-  );
+function renderItemSection(todayItemsMap, todayItemsTotal, yesterdayItemsTotal) {
   const itemDiff = todayItemsTotal - yesterdayItemsTotal;
   const itemRate =
     yesterdayItemsTotal > 0
@@ -145,7 +194,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const itemCountEl = document.getElementById("item-total");
   const itemChangeEl = document.getElementById("item-change");
 
-  // 렌더링
   if (itemCountEl) itemCountEl.textContent = `총 ${todayItemsTotal}개`;
   if (itemChangeEl) {
     if (itemDiff > 0) {
@@ -161,27 +209,34 @@ document.addEventListener("DOMContentLoaded", () => {
       itemChangeEl.className = "";
     }
   }
-  // 수량 내림차순 정렬 후 상위 3개 추출
-  const topThree = [...todayItems]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3);
 
-  // 리스트 렌더링
   const topList = document.getElementById("top-items-list");
-  topList.innerHTML = ""; // 기존 내용 초기화
-  const medals = ["🥇", "🥈", "🥉"];
-  topThree.forEach((item, index) => {
-    const li = document.createElement("li");
-    li.innerHTML = `<span class="medal">${medals[index]}</span> ${item.name} (${item.count}개)`;
-    topList.appendChild(li);
-  });
+  if (topList) {
+    topList.innerHTML = "";
+    const entries = Object.entries(todayItemsMap).map(([name, count]) => ({
+      name,
+      count,
+    }));
+    const topThree = entries.sort((a, b) => b.count - a.count).slice(0, 3);
+    const medals = ["🥇", "🥈", "🥉"];
+    if (topThree.length === 0) {
+      const li = document.createElement("li");
+      li.textContent = "데이터 없음";
+      topList.appendChild(li);
+    } else {
+      topThree.forEach((item, index) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<span class="medal">${medals[index]}</span> ${item.name} (${item.count}개)`;
+        topList.appendChild(li);
+      });
+    }
+  }
+}
 
-  // 🔄 최신 상품 불러오기
-  loadRecentProducts();
-
+function setExpiryInfo() {
   function formatDate(dataObj) {
     const yyyy = dataObj.getFullYear();
-    const mm = String(dataObj.getMonth() + 1).padStart(2, "0"); // 월은 0부터 시작
+    const mm = String(dataObj.getMonth() + 1).padStart(2, "0");
     const dd = String(dataObj.getDate()).padStart(2, "0");
     return `${yyyy}.${mm}.${dd}`;
   }
@@ -190,14 +245,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const todayStr = formatDate(today);
 
   const snackDrinkDate = new Date(today);
-  snackDrinkDate.setDate(snackDrinkDate.getDate() + 20); // 20일 후
+  snackDrinkDate.setDate(snackDrinkDate.getDate() + 20);
 
   const foodDailyDate = new Date(today);
-  foodDailyDate.setDate(foodDailyDate.getDate() + 30); // 30일 후
+  foodDailyDate.setDate(foodDailyDate.getDate() + 30);
 
   document.getElementById("today-date").textContent = todayStr;
   document.getElementById("expiry-snack-drink").textContent =
     formatDate(snackDrinkDate);
   document.getElementById("expiry-food-daily").textContent =
     formatDate(foodDailyDate);
-});
+}
