@@ -1,3 +1,5 @@
+// statistics.js
+
 import { db, auth } from "./components/firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -41,95 +43,78 @@ function normalize(str) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // 🔄 날짜 선택기 설정
-  const dateInputEl = document.getElementById("date-range");
+  // 🔄 Daterangepicker.js 설정
+  const startDateInput = $("#start-date-input");
+  const endDateInput = $("#end-date-input");
 
-  // Lightpick 초기화 (달력 UI)
-  const picker = new Lightpick({
-    field: dateInputEl,
-    singleDate: false,
-    onSelect: (start, end) => {
-      let formattedValue = "";
-      if (start && end) {
-        formattedValue = `${start.format("YYYY.MM.DD")} - ${end.format(
-          "YYYY.MM.DD"
-        )}`;
-        loadProvisionHistoryByRange(start.toDate(), end.toDate());
-      }
-      dateInputEl.value = formattedValue;
+  const today = moment();
+  const startOfToday = today.clone().startOf("day");
+  const startOfLastWeek = today.clone().subtract(6, "days").startOf("day");
+  const startOfLastMonth = today.clone().subtract(1, "month").startOf("day");
+  const startOfLast3Months = today.clone().subtract(3, "months").startOf("day");
+  const startOfLast6Months = today.clone().subtract(6, "months").startOf("day");
+  const startOfLastYear = today.clone().subtract(1, "year").startOf("day");
+  // Daterangepicker 초기화
+  $("#start-date-input, #end-date-input").daterangepicker({
+    locale: {
+      format: "YYYY.MM.DD",
+      separator: " ~ ",
+      applyLabel: "확인",
+      cancelLabel: "취소",
+      fromLabel: "From",
+      toLabel: "To",
+      customRangeLabel: "직접 선택",
+      weekLabel: "W",
+      daysOfWeek: ["일", "월", "화", "수", "목", "금", "토"],
+      monthNames: [
+        "1월",
+        "2월",
+        "3월",
+        "4월",
+        "5월",
+        "6월",
+        "7월",
+        "8월",
+        "9월",
+        "10월",
+        "11월",
+        "12월",
+      ],
+      firstDay: 1,
     },
+    ranges: {
+      오늘: [startOfToday, startOfToday],
+      "1주일": [startOfLastWeek, today],
+      "1개월": [startOfLastMonth, today],
+      "3개월": [startOfLast3Months, today],
+      "6개월": [startOfLast6Months, today],
+      "1년": [startOfLastYear, today],
+    },
+    startDate: today,
+    endDate: today,
+    autoUpdateInput: false,
+    alwaysShowCalendars: true,
   });
 
-  // 페이지 로드 시, 오늘 날짜로 초기화
-  const today = new Date();
-  picker.setStartDate(today);
-  picker.setEndDate(today);
-  picker.gotoDate(today);
-
-  // --- 키보드 입력 로직을 다시 수정합니다. ---
-  dateInputEl.addEventListener("input", (e) => {
-    // 입력된 값에서 숫자만 남깁니다.
-    const numericValue = e.target.value.replace(/\D/g, "");
-    let formattedValue = "";
-
-    if (numericValue.length <= 8) {
-      // 단일 날짜 포맷팅
-      formattedValue = numericValue.substring(0, 4);
-      if (numericValue.length >= 5)
-        formattedValue += `.${numericValue.substring(4, 6)}`;
-      if (numericValue.length >= 7)
-        formattedValue += `.${numericValue.substring(6, 8)}`;
-    } else {
-      // 날짜 범위 포맷팅
-      const startDatePart = numericValue.substring(0, 8);
-      const endDatePart = numericValue.substring(8, 16);
-
-      formattedValue = `${startDatePart.substring(
-        0,
-        4
-      )}.${startDatePart.substring(4, 6)}.${startDatePart.substring(6, 8)}`;
-
-      if (endDatePart) {
-        formattedValue += ` - ${endDatePart.substring(
-          0,
-          4
-        )}.${endDatePart.substring(4, 6)}.${endDatePart.substring(6, 8)}`;
-      }
+  // 날짜 선택 후 확인 버튼을 눌렀을 때 실행될 이벤트
+  $("#start-date-input, #end-date-input").on(
+    "apply.daterangepicker",
+    function (ev, picker) {
+      startDateInput.val(picker.startDate.format("YYYY.MM.DD"));
+      endDateInput.val(picker.endDate.format("YYYY.MM.DD"));
+      loadProvisionHistoryByRange(
+        picker.startDate.toDate(),
+        picker.endDate.toDate()
+      );
     }
+  );
 
-    // Lightpick의 setDateRangeFromDigits 함수를 사용하여 입력값을 처리 (존재하지 않는 가상의 함수)
-    // 실제로는 Lightpick의 API를 사용하여 날짜를 설정하는 방식으로 동작하도록 수정
+  // 페이지 로드 시 초기 날짜 설정
+  startDateInput.val(today.format("YYYY.MM.DD"));
+  endDateInput.val(today.format("YYYY.MM.DD"));
 
-    e.target.value = formattedValue;
-
-    // 이 코드를 추가하여 커서 위치를 유지합니다.
-    const cursorPosition = e.target.selectionStart;
-    e.target.setSelectionRange(cursorPosition, cursorPosition);
-  });
-
-  dateInputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      const value = e.target.value;
-      const parts = value.split(" - ").map((s) => s.trim());
-
-      if (parts.length === 2) {
-        const startDate = moment(parts[0], "YYYY.MM.DD");
-        const endDate = moment(parts[1], "YYYY.MM.DD");
-        if (startDate.isValid() && endDate.isValid()) {
-          picker.setDateRange(startDate.toDate(), endDate.toDate());
-          return;
-        }
-      } else if (parts.length === 1) {
-        const date = moment(parts[0], "YYYY.MM.DD");
-        if (date.isValid()) {
-          picker.setDate(date.toDate());
-          return;
-        }
-      }
-
-      showToast("올바른 날짜 형식을 입력해주세요", "error");
-    }
-  });
+  // 초기 데이터 로드 (오늘 날짜로)
+  await loadProvisionHistoryByRange(today.toDate(), today.toDate());
 
   await renderTopStatistics();
   calculateMonthlyVisitRate();
@@ -207,7 +192,6 @@ function filterAndRender() {
 
   const dataset = activeSection === "provision" ? provisionData : visitData;
 
-  // 이 부분은 그대로 두되, 날짜 필터링 로직은 loadProvisionHistoryByRange로 이동
   const filtered = dataset.filter((item) => {
     const values = Object.values(item).map(normalize);
 

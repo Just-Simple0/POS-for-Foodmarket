@@ -98,6 +98,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  position: relative;
 }
 
 .filter-row {
@@ -126,57 +127,91 @@
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-/* 📆 달력 전체 박스 */
-.flatpickr-calendar {
+/* daterangepicker.js 컨테이너 */
+.daterangepicker {
   font-family: "Pretendard", sans-serif;
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
   border: none;
   overflow: hidden;
-  z-index: 9999;
 }
 
-/* 📆 상단 월/년 헤더 */
-.flatpickr-months {
-  background-color: #f5f5f5;
-  display: flex;
-  flex-direction: row-reverse;
-  padding: 6px 0;
-  border-bottom: 1px solid #ddd;
+/* 상단 날짜 및 버튼 영역 */
+.daterangepicker .drp-calendar,
+.daterangepicker .ranges {
+  border-color: #eee;
 }
 
-.flatpickr-current-month {
+/* 헤더 (월/년도) */
+.daterangepicker .drp-calendar .calendar-table th {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.daterangepicker .drp-calendar .month {
+  font-weight: 600;
   font-size: 16px;
-  font-weight: 600;
+  color: #333;
+}
+.daterangepicker .drp-calendar .prev,
+.daterangepicker .drp-calendar .next {
+  color: #666;
+}
+.daterangepicker .drp-calendar .prev:hover,
+.daterangepicker .drp-calendar .next:hover {
+  background-color: #f0f0f0;
 }
 
-/* 🗓️ 요일 헤더 */
-.flatpickr-weekdays {
-  background-color: #f9f9f9;
-  font-weight: 600;
+/* 요일 헤더 */
+.daterangepicker .drp-calendar th.weekday {
   color: #555;
+  font-weight: bold;
+}
+.daterangepicker .drp-calendar th.weekday.weekend {
+  color: #d9534f; /* 주말(일요일) 색상 */
 }
 
-/* 📅 날짜 셀 */
-.flatpickr-day {
+/* 날짜 셀 */
+.daterangepicker .drp-calendar .day {
   border-radius: 6px;
-  transition: all 0.2s ease-in-out;
+  transition: background-color 0.2s;
+  height: 32px;
+  line-height: 32px;
 }
-
-.flatpickr-day:hover {
+.daterangepicker .drp-calendar .day.available:hover {
   background-color: #f0f4ff;
 }
 
-.flatpickr-day.selected,
-.flatpickr-day.startRange,
-.flatpickr-day.endRange {
-  background-color: #4b7bec;
+/* 날짜 셀 (선택/범위) */
+.daterangepicker .drp-calendar .day.active,
+.daterangepicker .drp-calendar .day.in-range {
+  background-color: #d6eaff; /* 범위 내 날짜 색상 */
+  color: #000;
+}
+.daterangepicker .drp-calendar .day.in-range.start-date,
+.daterangepicker .drp-calendar .day.in-range.end-date,
+.daterangepicker .drp-calendar .day.in-range.active {
+  background-color: #007bff; /* 선택된 날짜 색상 */
   color: white;
-  border-radius: 6px;
 }
 
-.flatpickr-day.inRange {
-  background-color: #dbe9ff;
+/* '오늘', '1개월' 등 프리셋 버튼 영역 */
+.daterangepicker .ranges {
+  padding: 10px;
+  border-right: 1px solid #eee;
+}
+.daterangepicker .ranges ul li {
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+.daterangepicker .ranges ul li:hover {
+  background-color: #f0f0f0;
+}
+.daterangepicker .ranges ul li.active {
+  background-color: #007bff;
+  color: white;
 }
 
 /* 🔍 전체 검색 & 고급 검색 감싸는 바 */
