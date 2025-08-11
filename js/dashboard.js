@@ -45,11 +45,11 @@ async function loadDashboardData() {
       visitData,
       todayItemsMap,
       todayItemsTotal,
-      yesterdayItemsTotal,
+      prevItemsTotal,
     } = await fetchProvisionStats();
 
     renderVisitSection(visitData);
-    renderItemSection(todayItemsMap, todayItemsTotal, yesterdayItemsTotal);
+    renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal);
   } catch (err) {
     console.error(err);
     renderVisitSection([]);
@@ -66,13 +66,9 @@ async function fetchProvisionStats() {
   endDate.setHours(23, 59, 59, 999);
 
   const todayStr = today.toISOString().slice(0, 10);
-  const yDate = new Date(today);
-  yDate.setDate(yDate.getDate() - 1);
-  const yesterdayStr = yDate.toISOString().slice(0, 10);
-
   const countsByDate = {};
   const todayItemsMap = {};
-  let yesterdayItemsTotal = 0;
+  const itemsTotalsByDate = {};
 
   try {
     const snapshot = await getDocs(
@@ -89,16 +85,16 @@ async function fetchProvisionStats() {
       const dateStr = dateObj.toISOString().slice(0, 10);
       countsByDate[dateStr] = (countsByDate[dateStr] || 0) + 1;
 
-      if (dateStr === todayStr) {
-        (data.items || []).forEach((item) => {
+      let dayTotal = 0;
+      (data.items || []).forEach((item) => {
+        const qty = item.quantity || 0;
+        dayTotal += qty;
+        if (dateStr === todayStr) {
           todayItemsMap[item.name] =
-            (todayItemsMap[item.name] || 0) + (item.quantity || 0);
-        });
-      } else if (dateStr === yesterdayStr) {
-        (data.items || []).forEach((item) => {
-          yesterdayItemsTotal += item.quantity || 0;
-        });
-      }
+            (todayItemsMap[item.name] || 0) + qty;
+        }
+      });
+      itemsTotalsByDate[dateStr] = (itemsTotalsByDate[dateStr] || 0) + dayTotal;
     });
   } catch (err) {
     console.error(err);
@@ -112,12 +108,19 @@ async function fetchProvisionStats() {
     visitData.push({ date: ds, count: countsByDate[ds] || 0 });
   }
 
-  const todayItemsTotal = Object.values(todayItemsMap).reduce(
-    (sum, v) => sum + v,
-    0
-  );
+  const todayItemsTotal = itemsTotalsByDate[todayStr] || 0;
+  let prevItemsTotal = 0;
+  for (let i = 1; i < 10; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const ds = d.toISOString().slice(0, 10);
+    if ((itemsTotalsByDate[ds] || 0) > 0) {
+      prevItemsTotal = itemsTotalsByDate[ds];
+      break;
+    }
+  }
 
-  return { visitData, todayItemsMap, todayItemsTotal, yesterdayItemsTotal };
+  return { visitData, todayItemsMap, todayItemsTotal, prevItemsTotal };
 }
 
 function renderVisitSection(visitData) {
@@ -125,12 +128,18 @@ function renderVisitSection(visitData) {
   const counts = visitData.map((d) => d.count);
 
   const todayCustomer = visitData[visitData.length - 1] || { count: 0 };
-  const yesterdayCustomer = visitData[visitData.length - 2] || { count: 0 };
+  let prevCustomer = { count: 0 };
+  for (let i = visitData.length - 2; i >= 0; i--) {
+    if (visitData[i].count > 0) {
+      prevCustomer = visitData[i];
+      break;
+    }
+  }
 
-  const customerDiff = todayCustomer.count - yesterdayCustomer.count;
+  const customerDiff = todayCustomer.count - prevCustomer.count;
   const customerRate =
-    yesterdayCustomer.count > 0
-      ? ((customerDiff / yesterdayCustomer.count) * 100).toFixed(1)
+    prevCustomer.count > 0
+      ? ((customerDiff / prevCustomer.count) * 100).toFixed(1)
       : "0";
 
   const visitCountEl = document.getElementById("visit-count");
@@ -184,11 +193,11 @@ function renderVisitSection(visitData) {
   }
 }
 
-function renderItemSection(todayItemsMap, todayItemsTotal, yesterdayItemsTotal) {
-  const itemDiff = todayItemsTotal - yesterdayItemsTotal;
+function renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal) {
+  const itemDiff = todayItemsTotal - prevItemsTotal;
   const itemRate =
-    yesterdayItemsTotal > 0
-      ? ((itemDiff / yesterdayItemsTotal) * 100).toFixed(1)
+    prevItemsTotal > 0
+      ? ((itemDiff / prevItemsTotal) * 100).toFixed(1)
       : "0";
 
   const itemCountEl = document.getElementById("item-total");
