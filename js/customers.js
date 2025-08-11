@@ -386,5 +386,17 @@ document
   .getElementById("field-search")
   .addEventListener("input", filterAndRender);
 
-// 초기 로딩
-loadCustomers();
+// 초기 로딩 및 검색 필드 포커스
+document.addEventListener("DOMContentLoaded", () => {
+  const searchInput = document.getElementById("global-search");
+  if (searchInput) {
+    searchInput.focus();
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        filterAndRender();
+      }
+    });
+  }
+  loadCustomers();
+});

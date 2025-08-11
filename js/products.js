@@ -195,7 +195,19 @@ document.getElementById("cancel-btn").addEventListener("click", () => {
 });
 
 // ⏱ 로딩
-document.addEventListener("DOMContentLoaded", loadProducts);
+document.addEventListener("DOMContentLoaded", () => {
+  const searchInput = document.getElementById("global-search");
+  if (searchInput) {
+    searchInput.focus();
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        document.getElementById("search-btn")?.click();
+      }
+    });
+  }
+  loadProducts();
+});
 
 document.getElementById("sort-select").addEventListener("change", () => {
   applyFiltersAndSort();
