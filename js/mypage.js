@@ -10,6 +10,16 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 document.addEventListener("DOMContentLoaded", () => {
+  const searchInput = document.getElementById("global-search");
+  if (searchInput) {
+    searchInput.focus();
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        document.getElementById("search-btn")?.click();
+      }
+    });
+  }
   const nameEl = document.getElementById("user-name");
   const emailEl = document.getElementById("user-email");
   const loginEl = document.getElementById("user-last-login");

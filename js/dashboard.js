@@ -34,6 +34,16 @@ async function loadRecentProducts() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const searchInput = document.getElementById("global-search");
+  if (searchInput) {
+    searchInput.focus();
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        document.getElementById("search-btn")?.click();
+      }
+    });
+  }
   await loadDashboardData();
   loadRecentProducts();
   setExpiryInfo();
