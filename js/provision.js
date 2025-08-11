@@ -58,15 +58,29 @@ lookupBtn.addEventListener("click", async () => {
       return showToast("해당 이용자를 찾을 수 없습니다.", true);
     } else if (matches.length === 1) {
       selectedCustomer = { id: matches[0].id, ...matches[0].data() };
+
+      const now = new Date();
+      const currentMonth = now.toISOString().slice(0, 7);
+      const year =
+        now.getMonth() + 1 < 3 ? now.getFullYear() - 1 : now.getFullYear();
+      const periodKey = `${String(year).slice(2)}-${String(year + 1).slice(2)}`;
+      const alreadyVisited = selectedCustomer.visits?.[periodKey]?.some((v) =>
+        v.startsWith(currentMonth)
+      );
+
       renderCustomerInfo();
-      productSection.classList.remove("hidden");
-      submitSection.classList.remove("hidden");
+
+      if (alreadyVisited) {
+        showToast("이미 방문한 대상자입니다", true);
+        productSection.classList.add("hidden");
+        submitSection.classList.add("hidden");
+      } else {
+        productSection.classList.remove("hidden");
+        submitSection.classList.remove("hidden");
+      }
     } else {
       showDuplicateSelection(matches);
     }
-
-    productSection.classList.remove("hidden");
-    submitSection.classList.remove("hidden");
   } catch (err) {
     console.error(err);
     showToast("이용자 조회 중 오류 발생", true);
@@ -150,10 +164,27 @@ document.getElementById("confirm-duplicate").addEventListener("click", () => {
   if (!selectedCandidate) return showToast("이용자를 선택하세요.", true);
 
   selectedCustomer = selectedCandidate;
+
+  const now = new Date();
+  const currentMonth = now.toISOString().slice(0, 7);
+  const year =
+    now.getMonth() + 1 < 3 ? now.getFullYear() - 1 : now.getFullYear();
+  const periodKey = `${String(year).slice(2)}-${String(year + 1).slice(2)}`;
+  const alreadyVisited = selectedCustomer.visits?.[periodKey]?.some((v) =>
+    v.startsWith(currentMonth)
+  );
+
   renderCustomerInfo();
   duplicateModal.classList.add("hidden");
-  productSection.classList.remove("hidden");
-  submitSection.classList.remove("hidden");
+
+  if (alreadyVisited) {
+    showToast("이미 방문한 대상자입니다", true);
+    productSection.classList.add("hidden");
+    submitSection.classList.add("hidden");
+  } else {
+    productSection.classList.remove("hidden");
+    submitSection.classList.remove("hidden");
+  }
 });
 
 async function loadAllProductsOnce() {
