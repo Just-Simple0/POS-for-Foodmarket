@@ -17,6 +17,9 @@
       href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"
     />
 
+    <!-- SheetJS 삽입 -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
     <!-- 공통 parts 삽입 -->
     <link rel="stylesheet" href="css/common.css" />
     <link
@@ -63,6 +66,7 @@
       <div class="view-toggle">
         <button id="btn-provision" class="active">물품 제공 내역</button>
         <button id="btn-visit">이용자별 방문 일자</button>
+        <button id="btn-life">생명사랑 제공 현황</button>
       </div>
 
       <!-- 🔍 검색 + 날짜 필터 -->
@@ -87,7 +91,7 @@
       </div>
 
       <div class="filters-wrapper">
-        <div class="filter-row">
+        <div id="filter-provision" class="filter-row">
           <label for="start-date-input">조회 기간:</label>
           <input
             type="text"
@@ -102,9 +106,22 @@
           />
         </div>
 
-        <div class="filter-row">
-          <label for="quarter-filter">분기:</label>
-          <input type="text" id="quarter-filter" placeholder="YYYY-Qn" />
+        <div id="filter-visit" class="filter-row hidden">
+          <label for="fiscal-year-select">조회기간: </label>
+          <select id="fiscal-year-select"></select>
+        </div>
+
+        <div id="filter-life" class="filter-row hidden">
+          <label for="life-year-select">조회연도: </label>
+          <select id="life-year-select"></select>
+
+          <label for="life-quarter-select">분기: </label>
+          <select id="life-quarter-select">
+            <option value="Q1">1분기</option>
+            <option value="Q2">2분기</option>
+            <option value="Q3">3분기</option>
+            <option value="Q4">4분기</option>
+          </select>
         </div>
 
         <div class="item-count-container">
@@ -120,6 +137,9 @@
 
       <!-- 🧾 물품 제공 테이블 -->
       <div id="provision-section">
+        <button id="export-provision">
+          <i class="fas fa-file-excel"></i> Excel 다운로드
+        </button>
         <table id="provision-table">
           <thead>
             <tr>
@@ -127,7 +147,6 @@
               <th>고객명</th>
               <th>생년월일</th>
               <th>가져간 품목</th>
-              <th>Life-Love</th>
               <th>처리자</th>
             </tr>
           </thead>
@@ -138,6 +157,9 @@
 
       <!-- 🧾 방문 일자 테이블 -->
       <div id="visit-log-section" class="hidden">
+        <button id="export-visit">
+          <i class="fas fa-file-excel"></i> Excel 다운로드
+        </button>
         <table id="visit-log-table">
           <thead>
             <tr>
@@ -149,6 +171,25 @@
           <tbody></tbody>
         </table>
         <div id="visit-pagination" class="pagination"></div>
+      </div>
+
+      <div id="life-section" class="hidden">
+        <button id="export-life">
+          <i class="fas fa-file-excel"></i> Excel 다운로드
+        </button>
+        <table id="life-table">
+          <thead>
+            <tr>
+              <th>성명</th>
+              <th>생년월일</th>
+              <th>성별</th>
+              <th>이용자구분</th>
+              <th>이용자분류</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div id="life-pagination" class="pagination"></div>
       </div>
     </main>
 

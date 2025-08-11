@@ -287,7 +287,8 @@
 
 /* 테이블 통일 스타일 */
 #provision-table,
-#visit-log-table {
+#visit-log-table,
+#life-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.95rem;
@@ -297,7 +298,8 @@
 }
 
 #provision-table thead th,
-#visit-log-table thead th {
+#visit-log-table thead th,
+#life-table thead th {
   background-color: #f5f5f5;
   padding: 0.8rem;
   text-align: center;
@@ -305,7 +307,8 @@
 }
 
 #provision-table tbody td,
-#visit-log-table tbody td {
+#visit-log-table tbody td,
+#life-table tbody td {
   padding: 0.6rem 0.8rem;
   border-bottom: 1px solid #eee;
   text-align: center;
@@ -315,7 +318,8 @@
 }
 
 #provision-table tbody tr:hover,
-#visit-log-table tbody tr:hover {
+#visit-log-table tbody tr:hover,
+#life-table tbody tr:hover {
   background-color: #f9f9f9;
 }
 

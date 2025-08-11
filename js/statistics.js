@@ -1,24 +1,38 @@
-// statistics.js
+// statistics.js (finalized)
 
-import { db, auth } from "./components/firebase-config.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { db } from "./components/firebase-config.js";
 import {
   collection,
   getDocs,
   query,
   where,
   Timestamp,
+  documentId,
+  orderBy,
+  startAfter,
+  startAt,
+  limit,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { showToast } from "./components/comp.js";
-import { filterProvisionsByQuarter } from "./utils/lifelove.js";
 
+/* =====================================================
+ * State
+ * ===================================================== */
 let allProvisionData = [];
 let provisionData = [];
 let visitData = [];
+let lifeData = [];
 let provisionCurrentPage = 1;
 let visitCurrentPage = 1;
+let lifeCurrentPage = 1;
 let itemsPerPage = 20;
 
+/* Life fallback (dev only). In production, keep false to avoid full scans */
+const LIFE_DEBUG_FALLBACK = false;
+
+/* =====================================================
+ * Utils
+ * ===================================================== */
 function formatDate(dateObj) {
   const yyyy = dateObj.getFullYear();
   const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
@@ -34,7 +48,15 @@ function getCurrentPeriodKey(date = new Date()) {
   return `${String(startYear).slice(2)}-${String(endYear).slice(2)}`;
 }
 
-// ✅ 문자열 정규화
+function getCurrentQuarter() {
+  const m = new Date().getMonth() + 1;
+  if (m <= 3) return "Q1";
+  if (m <= 6) return "Q2";
+  if (m <= 9) return "Q3";
+  return "Q4";
+}
+
+// 문자열 정규화 (통합 검색용)
 function normalize(str) {
   return (
     str
@@ -44,15 +66,78 @@ function normalize(str) {
   );
 }
 
+function getFiscalPeriodKeys(n = 6) {
+  const out = [];
+  const today = new Date();
+
+  for (let i = 0; i < n; i++) {
+    const year = today.getFullYear() - i;
+    const startYear = today.getMonth() + 1 >= 3 ? year : year - 1;
+    const endYear = startYear + 1;
+    out.push(`${String(startYear).slice(2)}-${String(endYear).slice(2)}`);
+  }
+  return [...new Set(out)];
+}
+
+function populateLifeYears() {
+  const sel = document.getElementById("life-year-select");
+  if (!sel) return;
+  sel.innerHTML = "";
+
+  const current = new Date().getFullYear();
+
+  for (let y = current; y >= current - 5; y--) {
+    const opt = document.createElement("option");
+    opt.value = String(y);
+    opt.textContent = String(y);
+    sel.appendChild(opt);
+  }
+}
+
+// Debounce for search
+function debounce(fn, ms = 220) {
+  let t;
+  return (...a) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...a), ms);
+  };
+}
+
+// Simple loading indicator toggler (add .loading CSS in your stylesheet)
+function setLoading(sectionId, on) {
+  const el = document.getElementById(sectionId);
+  if (!el) return;
+  el.classList.toggle("loading", !!on);
+}
+
+/* =====================================================
+ * Provision: server-side pagination (cursor)
+ * ===================================================== */
+let provCursor = {
+  startTs: null,
+  endTs: null,
+  lastDoc: null,
+  prevStack: [],
+  serverMode: false,
+};
+
+function isProvisionClientFilteringOn() {
+  const g = document.getElementById("global-search")?.value?.trim();
+  const field = document.getElementById("field-select")?.value;
+  const fv = document.getElementById("field-search")?.value?.trim();
+  const advOpen = !document
+    .getElementById("advanced-search")
+    ?.classList?.contains("hidden");
+  return g || (field && fv) || advOpen;
+}
+
+/* =====================================================
+ * DOM Ready
+ * ===================================================== */
 document.addEventListener("DOMContentLoaded", async () => {
-  // 🔄 Daterangepicker.js 설정
+  // Daterangepicker.js 설정
   const startDateInput = $("#start-date-input");
   const endDateInput = $("#end-date-input");
-  const quarterFilter = document.getElementById("quarter-filter");
-  quarterFilter.addEventListener("input", () => {
-    applyQuarterFilter();
-    filterAndRender();
-  });
 
   const today = moment();
   const startOfToday = today.clone().startOf("day");
@@ -61,7 +146,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const startOfLast3Months = today.clone().subtract(3, "months").startOf("day");
   const startOfLast6Months = today.clone().subtract(6, "months").startOf("day");
   const startOfLastYear = today.clone().subtract(1, "year").startOf("day");
-  // Daterangepicker 초기화
+
   $("#start-date-input, #end-date-input").daterangepicker({
     locale: {
       format: "YYYY.MM.DD",
@@ -103,7 +188,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     alwaysShowCalendars: true,
   });
 
-  // 날짜 선택 후 확인 버튼을 눌렀을 때 실행될 이벤트
   $("#start-date-input, #end-date-input").on(
     "apply.daterangepicker",
     function (ev, picker) {
@@ -116,117 +200,220 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   );
 
-  // 페이지 로드 시 초기 날짜 설정
+  // 초기 날짜 값
   startDateInput.val(today.format("YYYY.MM.DD"));
   endDateInput.val(today.format("YYYY.MM.DD"));
 
-  // 초기 데이터 로드 (오늘 날짜로)
+  // 초기 데이터 로드(오늘)
   await loadProvisionHistoryByRange(today.toDate(), today.toDate());
-
   await renderTopStatistics();
   calculateMonthlyVisitRate();
   await loadVisitLogTable(getCurrentPeriodKey());
 
-  // 🔁 토글 버튼
+  // 탭/필터
   const btnProvision = document.getElementById("btn-provision");
   const btnVisit = document.getElementById("btn-visit");
+  const btnLife = document.getElementById("btn-life");
+
   const provisionSection = document.getElementById("provision-section");
   const visitSection = document.getElementById("visit-log-section");
+  const lifeSection = document.getElementById("life-section");
+
+  const filterProvision = document.getElementById("filter-provision");
+  const filterVisit = document.getElementById("filter-visit");
+  const filterLife = document.getElementById("filter-life");
+
+  const fiscalSel = document.getElementById("fiscal-year-select");
+  const lifeYearSel = document.getElementById("life-year-select");
+  const lifeQuarterSel = document.getElementById("life-quarter-select");
+
+  // 회계연도 옵션
+  if (fiscalSel) {
+    fiscalSel.innerHTML = "";
+    getFiscalPeriodKeys(6).forEach((k) => {
+      const o = document.createElement("option");
+      o.value = k;
+      o.textContent = k;
+      fiscalSel.appendChild(o);
+    });
+  }
+  // 생명사랑 연도 옵션
+  populateLifeYears();
+
+  function showTab(which) {
+    btnProvision?.classList.toggle("active", which === "provision");
+    btnVisit?.classList.toggle("active", which === "visit");
+    btnLife?.classList.toggle("active", which === "life");
+
+    provisionSection?.classList.toggle("hidden", which !== "provision");
+    visitSection?.classList.toggle("hidden", which !== "visit");
+    lifeSection?.classList.toggle("hidden", which !== "life");
+
+    filterProvision?.classList.toggle("hidden", which !== "provision");
+    filterVisit?.classList.toggle("hidden", which !== "visit");
+    filterLife?.classList.toggle("hidden", which !== "life");
+  }
+
+  showTab("provision");
+
+  btnProvision?.addEventListener("click", () => showTab("provision"));
+  btnVisit?.addEventListener("click", () => {
+    showTab("visit");
+    loadVisitLogTable(fiscalSel?.value || getCurrentPeriodKey());
+  });
+  btnLife?.addEventListener("click", async () => {
+    showTab("life");
+    await loadLifeTable(lifeYearSel?.value, lifeQuarterSel?.value);
+  });
+
+  fiscalSel?.addEventListener("change", () => {
+    if (btnVisit?.classList.contains("active"))
+      loadVisitLogTable(fiscalSel.value);
+  });
+  lifeYearSel?.addEventListener("change", () => {
+    if (btnLife?.classList.contains("active"))
+      loadLifeTable(lifeYearSel.value, lifeQuarterSel.value);
+  });
+  lifeQuarterSel?.addEventListener("change", () => {
+    if (btnLife?.classList.contains("active"))
+      loadLifeTable(lifeYearSel.value, lifeQuarterSel.value);
+  });
+
+  if (lifeYearSel && lifeQuarterSel) {
+    lifeYearSel.value = String(new Date().getFullYear());
+    lifeQuarterSel.value = getCurrentQuarter();
+  }
+
   const itemCountSelect = document.getElementById("item-count-select");
-
-  btnProvision.addEventListener("click", () => {
-    btnProvision.classList.add("active");
-    btnVisit.classList.remove("active");
-    provisionSection.classList.remove("hidden");
-    visitSection.classList.add("hidden");
-  });
-
-  btnVisit.addEventListener("click", () => {
-    btnProvision.classList.remove("active");
-    btnVisit.classList.add("active");
-    provisionSection.classList.add("hidden");
-    visitSection.classList.remove("hidden");
-    loadVisitLogTable(getCurrentPeriodKey());
-  });
-
-  // 항목 수 변경
-  itemCountSelect.addEventListener("change", (e) => {
+  itemCountSelect?.addEventListener("change", (e) => {
     itemsPerPage = parseInt(e.target.value);
-    if (btnProvision.classList.contains("active")) {
+    if (btnProvision?.classList.contains("active")) {
       renderProvisionTable();
-    } else {
+    } else if (btnVisit?.classList.contains("active")) {
       renderVisitTable();
+    } else {
+      renderLifeTable();
     }
   });
 
-  // 🔍 검색 이벤트 등록
+  // 검색 디바운스
+  const debouncedFilter = debounce(filterAndRender, 220);
   document
     .getElementById("global-search")
-    .addEventListener("input", filterAndRender);
+    ?.addEventListener("input", debouncedFilter);
   document
     .getElementById("exact-match")
-    .addEventListener("change", filterAndRender);
+    ?.addEventListener("change", filterAndRender);
   document
     .getElementById("field-select")
-    .addEventListener("change", filterAndRender);
+    ?.addEventListener("change", filterAndRender);
   document
     .getElementById("field-search")
-    .addEventListener("input", filterAndRender);
+    ?.addEventListener("input", debouncedFilter);
   document
     .getElementById("toggle-advanced-search")
-    .addEventListener("click", () => {
+    ?.addEventListener("click", () => {
       const adv = document.getElementById("advanced-search");
-      adv.classList.toggle("hidden");
+      adv?.classList.toggle("hidden");
       document.getElementById("toggle-advanced-search").textContent =
-        adv.classList.contains("hidden") ? "고급 검색 열기" : "고급 검색 닫기";
+        adv?.classList.contains("hidden") ? "고급 검색 열기" : "고급 검색 닫기";
     });
+
+  // XLSX export buttons (data → xlsx)
+  document.getElementById("export-provision")?.addEventListener("click", () => {
+    exportRowsXLSX(
+      provisionData,
+      [
+        ["제공일", "date"],
+        ["고객명", "name"],
+        ["생년월일", "birth"],
+        ["가져간 품목", "items"],
+        ["처리자", "handler"],
+      ],
+      "물품_제공_내역.xlsx"
+    );
+  });
+  document.getElementById("export-visit")?.addEventListener("click", () => {
+    exportRowsXLSX(
+      visitData,
+      [
+        ["고객명", "name"],
+        ["생년월일", "birth"],
+        ["방문일자", "dates"],
+      ],
+      "이용자별_방문_일자.xlsx"
+    );
+  });
+  document.getElementById("export-life")?.addEventListener("click", () => {
+    exportRowsXLSX(
+      lifeData,
+      [
+        ["이름", "name"],
+        ["생년월일", "birth"],
+        ["성별", "gender"],
+        ["이용자구분", "userType"],
+        ["이용자분류", "userClass"],
+      ],
+      "생명사랑_제공_현황.xlsx"
+    );
+  });
 });
 
-// 🔄 통합 검색 및 필드별 검색 필터
+/* =====================================================
+ * Filter + render
+ * ===================================================== */
 function filterAndRender() {
   const globalKeyword = normalize(
-    document.getElementById("global-search").value
+    document.getElementById("global-search")?.value
   );
-  const field = document.getElementById("field-select").value;
-  const fieldValue = normalize(document.getElementById("field-search").value);
-  const exactMatch = document.getElementById("exact-match").checked;
+  const field = document.getElementById("field-select")?.value;
+  const fieldValue = normalize(document.getElementById("field-search")?.value);
+  const exactMatch = document.getElementById("exact-match")?.checked;
 
-  const activeSection = document
-    .getElementById("btn-provision")
-    .classList.contains("active")
-    ? "provision"
-    : "visit";
+  let activeSection = "provision";
+  if (document.getElementById("btn-visit")?.classList.contains("active"))
+    activeSection = "visit";
+  if (document.getElementById("btn-life")?.classList.contains("active"))
+    activeSection = "life";
 
-  const dataset = activeSection === "provision" ? provisionData : visitData;
+  const dataset =
+    activeSection === "provision"
+      ? provisionData
+      : activeSection === "visit"
+      ? visitData
+      : lifeData;
 
   const filtered = dataset.filter((item) => {
     const values = Object.values(item).map(normalize);
-
     const matchesGlobal =
       !globalKeyword ||
       values.some((v) =>
         exactMatch ? v === globalKeyword : v.includes(globalKeyword)
       );
-
     const matchesField =
       !field ||
       !fieldValue ||
       (exactMatch
         ? normalize(item[field]) === fieldValue
         : normalize(item[field]).includes(fieldValue));
-
     return matchesGlobal && matchesField;
   });
 
   if (activeSection === "provision") {
     provisionCurrentPage = 1;
     renderProvisionTable(filtered);
-  } else {
+  } else if (activeSection === "visit") {
     visitCurrentPage = 1;
     renderVisitTable(filtered);
+  } else {
+    lifeCurrentPage = 1;
+    renderLifeTable(filtered);
   }
 }
 
+/* =====================================================
+ * Top cards
+ * ===================================================== */
 async function renderTopStatistics() {
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -240,21 +427,24 @@ async function renderTopStatistics() {
   let todayVisit = 0,
     yesterdayVisit = 0,
     monthlyVisit = 0;
-
-  const customersSnap = await getDocs(collection(db, "customers"));
-  customersSnap.forEach((doc) => {
-    const data = doc.data();
-    if (data.status !== "지원") return;
-    const visits = data.visits?.[periodKey] || [];
-    if (visits.includes(todayStr)) todayVisit++;
-    if (visits.includes(yesterdayStr)) yesterdayVisit++;
-    if (visits.some((v) => v.startsWith(currentYearMonth))) monthlyVisit++;
-  });
+  try {
+    const customersSnap = await getDocs(
+      query(collection(db, "customers"), where("status", "==", "지원"))
+    );
+    customersSnap.forEach((doc) => {
+      const data = doc.data();
+      const visits = data.visits?.[periodKey] || [];
+      if (visits.includes(todayStr)) todayVisit++;
+      if (visits.includes(yesterdayStr)) yesterdayVisit++;
+      if (visits.some((v) => v.startsWith(currentYearMonth))) monthlyVisit++;
+    });
+  } catch (e) {
+    console.error(e);
+  }
 
   updateCard("#daily-visitors", todayVisit, yesterdayVisit, "명");
-  document.querySelector(
-    "#monthly-visitors .value"
-  ).textContent = `${monthlyVisit}명`;
+  const mv = document.querySelector("#monthly-visitors .value");
+  if (mv) mv.textContent = `${monthlyVisit}명`;
 
   const todayStart = Timestamp.fromDate(new Date(todayStr + "T00:00:00"));
   const todayEnd = Timestamp.fromDate(new Date(todayStr + "T23:59:59"));
@@ -264,37 +454,46 @@ async function renderTopStatistics() {
   let todayItems = 0,
     yesterdayItems = 0;
 
-  const todaySnap = await getDocs(
-    query(
-      collection(db, "provisions"),
-      where("timestamp", ">=", todayStart),
-      where("timestamp", "<=", todayEnd)
-    )
-  );
-  todaySnap.forEach((doc) => {
-    const data = doc.data();
-    (data.items || []).forEach((item) => (todayItems += item.quantity));
-  });
+  try {
+    const todaySnap = await getDocs(
+      query(
+        collection(db, "provisions"),
+        where("timestamp", ">=", todayStart),
+        where("timestamp", "<=", todayEnd)
+      )
+    );
+    todaySnap.forEach((doc) => {
+      const data = doc.data();
+      (data.items || []).forEach(
+        (item) => (todayItems += Number(item.quantity || 0))
+      );
+    });
 
-  const ySnap = await getDocs(
-    query(
-      collection(db, "provisions"),
-      where("timestamp", ">=", yStart),
-      where("timestamp", "<=", yEnd)
-    )
-  );
-  ySnap.forEach((doc) => {
-    const data = doc.data();
-    (data.items || []).forEach((item) => (yesterdayItems += item.quantity));
-  });
+    const ySnap = await getDocs(
+      query(
+        collection(db, "provisions"),
+        where("timestamp", ">=", yStart),
+        where("timestamp", "<=", yEnd)
+      )
+    );
+    ySnap.forEach((doc) => {
+      const data = doc.data();
+      (data.items || []).forEach(
+        (item) => (yesterdayItems += Number(item.quantity || 0))
+      );
+    });
+  } catch (e) {
+    console.error(e);
+  }
 
   updateCard("#daily-items", todayItems, yesterdayItems, "개");
 }
 
 function updateCard(selector, todayVal, yesterVal, unit = "") {
   const card = document.querySelector(selector);
+  if (!card) return;
   const valueEl = card.querySelector(".value");
-  valueEl.textContent = `${todayVal}${unit}`;
+  if (valueEl) valueEl.textContent = `${todayVal}${unit}`;
   const diff = todayVal - yesterVal;
   const percent = yesterVal > 0 ? ((diff / yesterVal) * 100).toFixed(1) : "0";
   let text = "",
@@ -320,112 +519,329 @@ function updateCard(selector, todayVal, yesterVal, unit = "") {
 }
 
 async function calculateMonthlyVisitRate() {
-  const customersRef = collection(db, "customers");
-  const snapshot = await getDocs(customersRef);
-  const now = new Date();
-  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}`;
-  const periodKey = getCurrentPeriodKey(now);
-  let supportCustomerCount = 0,
-    visitedThisMonthCount = 0;
+  try {
+    const snapshot = await getDocs(
+      query(collection(db, "customers"), where("status", "==", "지원"))
+    );
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(
+      now.getMonth() + 1
+    ).padStart(2, "0")}`;
+    const periodKey = getCurrentPeriodKey(now);
+    let supportCustomerCount = 0,
+      visitedThisMonthCount = 0;
 
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    if (data.status !== "지원") return;
-    supportCustomerCount++;
-    const visits = data.visits?.[periodKey];
-    if (!Array.isArray(visits)) return;
-    if (visits.some((dateStr) => dateStr.startsWith(thisMonth)))
-      visitedThisMonthCount++;
-  });
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      supportCustomerCount++;
+      const visits = data.visits?.[periodKey];
+      if (!Array.isArray(visits)) return;
+      if (visits.some((dateStr) => dateStr.startsWith(thisMonth)))
+        visitedThisMonthCount++;
+    });
 
-  const rate =
-    supportCustomerCount > 0
-      ? ((visitedThisMonthCount / supportCustomerCount) * 100).toFixed(1)
-      : "0";
-  const rateEl = document.createElement("p");
-  rateEl.className = "sub-info";
-  rateEl.innerHTML = `<i class="fas fa-chart-pie"></i> 방문률: ${rate}%`;
-  const card = document.getElementById("monthly-visitors");
-  if (card) card.appendChild(rateEl);
+    const rate =
+      supportCustomerCount > 0
+        ? ((visitedThisMonthCount / supportCustomerCount) * 100).toFixed(1)
+        : "0";
+    const rateEl = document.createElement("p");
+    rateEl.className = "sub-info";
+    rateEl.innerHTML = `<i class="fas fa-chart-pie"></i> 방문률: ${rate}%`;
+    const card = document.getElementById("monthly-visitors");
+    if (card) card.appendChild(rateEl);
+  } catch (e) {
+    console.error(e);
+  }
 }
 
-// 🔄 물품 제공 내역 불러오기 (범위)
+/* =====================================================
+ * Customers batched fetch for Life tab
+ * ===================================================== */
+async function fetchCustomersByIdsBatched(ids) {
+  const out = {};
+  const chunks = [];
+  const arr = Array.from(new Set(ids)).filter(Boolean);
+
+  for (let i = 0; i < arr.length; i += 10) chunks.push(arr.slice(i, i + 10));
+
+  for (const batch of chunks) {
+    const snap = await getDocs(
+      query(collection(db, "customers"), where(documentId(), "in", batch))
+    );
+    snap.forEach((doc) => (out[doc.id] = doc.data()));
+  }
+  return out;
+}
+
+/* =====================================================
+ * Provision: Load by range (server pagination aware)
+ * ===================================================== */
 async function loadProvisionHistoryByRange(startDate, endDate) {
   allProvisionData = [];
   provisionData = [];
 
-  // ✅ 시간 범위 보정
+  // 범위 보정
   const start = new Date(startDate);
   start.setHours(0, 0, 0, 0);
   const end = new Date(endDate);
   end.setHours(23, 59, 59, 999);
 
-  const startTimestamp = Timestamp.fromDate(start);
-  const endTimestamp = Timestamp.fromDate(end);
+  provCursor.startTs = Timestamp.fromDate(start);
+  provCursor.endTs = Timestamp.fromDate(end);
 
-  const q = query(
-    collection(db, "provisions"),
-    where("timestamp", ">=", startTimestamp),
-    where("timestamp", "<=", endTimestamp)
+  // 클라 필터가 꺼져있으면 서버 페이지네이션ON
+  provCursor.serverMode = !isProvisionClientFilteringOn();
+  provCursor.lastDoc = null;
+  provCursor.prevStack = [];
+
+  console.log(
+    "[Provision] range:",
+    start,
+    "~",
+    end,
+    "serverMode:",
+    provCursor.serverMode
   );
 
-  console.log("Loading provisions from", start, "to", end);
+  try {
+    setLoading("provision-section", true);
+    if (provCursor.serverMode) {
+      await loadProvisionPage("init");
+    } else {
+      const qy = query(
+        collection(db, "provisions"),
+        where("timestamp", ">=", provCursor.startTs),
+        where("timestamp", "<=", provCursor.endTs)
+      );
+      const snapshot = await getDocs(qy);
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        allProvisionData.push({
+          date: formatDate(data.timestamp.toDate()),
+          name: data.customerName,
+          birth: data.customerBirth,
+          items: (data.items || [])
+            .map((i) => `${i.name} (${i.quantity})`)
+            .join(", "),
+          handler: data.handledBy,
+          lifelove: data.lifelove ? "O" : "",
+          quarterKey: data.quarterKey,
+        });
+      });
+      allProvisionData.sort((a, b) => new Date(b.date) - new Date(a.date));
+      provisionData = allProvisionData.slice();
+      provisionCurrentPage = 1;
+      filterAndRender();
+    }
+  } catch (e) {
+    console.error(e);
+    showToast?.("제공 내역을 불러오지 못했습니다.");
+  } finally {
+    setLoading("provision-section", false);
+  }
+}
 
-  const snapshot = await getDocs(q);
+// Cursor page loader
+async function loadProvisionPage(direction) {
+  const base = [
+    where("timestamp", ">=", provCursor.startTs),
+    where("timestamp", "<=", provCursor.endTs),
+  ];
 
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    allProvisionData.push({
-      date: formatDate(data.timestamp.toDate()),
-      name: data.customerName,
-      birth: data.customerBirth,
-      items: data.items.map((i) => `${i.name} (${i.quantity})`).join(", "),
-      handler: data.handledBy,
-      lifelove: data.lifelove ? "O" : "",
-      quarterKey: data.quarterKey,
+  let qy;
+  if (direction === "init") {
+    qy = query(
+      collection(db, "provisions"),
+      ...base,
+      orderBy("timestamp", "desc"),
+      limit(itemsPerPage)
+    );
+    provCursor.prevStack = [];
+  } else if (direction === "next" && provCursor.lastDoc) {
+    provCursor.prevStack.push(provCursor.lastDoc);
+    qy = query(
+      collection(db, "provisions"),
+      ...base,
+      orderBy("timestamp", "desc"),
+      startAfter(provCursor.lastDoc),
+      limit(itemsPerPage)
+    );
+  } else if (direction === "prev") {
+    const prevCursor = provCursor.prevStack.pop();
+    if (!prevCursor) return;
+    qy = query(
+      collection(db, "provisions"),
+      ...base,
+      orderBy("timestamp", "desc"),
+      startAt(prevCursor),
+      limit(itemsPerPage)
+    );
+  } else {
+    return;
+  }
+
+  try {
+    setLoading("provision-section", true);
+    const snap = await getDocs(qy);
+    const rows = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      rows.push({
+        date: formatDate(data.timestamp.toDate()),
+        name: data.customerName,
+        birth: data.customerBirth,
+        items: (data.items || [])
+          .map((i) => `${i.name} (${i.quantity})`)
+          .join(", "),
+        handler: data.handledBy,
+        lifelove: data.lifelove ? "O" : "",
+        quarterKey: data.quarterKey,
+      });
     });
-  });
-
-  allProvisionData.sort((a, b) => new Date(b.date) - new Date(a.date));
-  applyQuarterFilter();
-  provisionCurrentPage = 1;
-  filterAndRender();
+    provisionData = rows;
+    provisionCurrentPage = 1;
+    provCursor.lastDoc = snap.docs[snap.docs.length - 1] || null;
+    renderProvisionTable(provisionData);
+    updateProvisionPagerButtons(
+      !!provCursor.prevStack.length,
+      !!provCursor.lastDoc
+    );
+  } catch (e) {
+    console.error(e);
+    showToast?.("제공 내역(페이지)을 불러오지 못했습니다.");
+  } finally {
+    setLoading("provision-section", false);
+  }
 }
 
-function applyQuarterFilter() {
-  const quarterKey = document
-    .getElementById("quarter-filter")
-    .value.trim();
-  provisionData = filterProvisionsByQuarter(allProvisionData, quarterKey);
+function updateProvisionPagerButtons(hasPrev, hasNext) {
+  const box = document.getElementById("provision-pagination");
+  if (!box) return;
+  const btns = box.querySelectorAll("button");
+  const [prevBtn, , nextBtn] = btns; // prev, (info span), next
+  if (prevBtn) prevBtn.disabled = !hasPrev;
+  if (nextBtn) nextBtn.disabled = !hasNext;
 }
 
-// 🔄 고객별 방문 로그 불러오기
+/* =====================================================
+ * Visit
+ * ===================================================== */
 async function loadVisitLogTable(periodKey) {
-  visitData = [];
-  const snapshot = await getDocs(collection(db, "customers"));
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    if (data.status !== "지원") return;
-    const visits = data.visits?.[periodKey];
-    if (!Array.isArray(visits) || visits.length === 0) return;
-    visitData.push({
-      name: data.name,
-      birth: data.birth,
-      dates: visits.slice().sort().join(", "),
+  try {
+    setLoading("visit-log-section", true);
+    visitData = [];
+    const snapshot = await getDocs(
+      query(collection(db, "customers"), where("status", "==", "지원"))
+    );
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const visits = data.visits?.[periodKey];
+      if (!Array.isArray(visits) || visits.length === 0) return;
+      visitData.push({
+        name: data.name,
+        birth: data.birth,
+        dates: visits.slice().sort().join(", "),
+      });
     });
-  });
-
-  visitData.sort((a, b) => a.name.localeCompare(b.name));
-  visitCurrentPage = 1;
-  filterAndRender();
+    visitData.sort((a, b) => a.name.localeCompare(b.name));
+    visitCurrentPage = 1;
+    filterAndRender();
+  } catch (e) {
+    console.error(e);
+    showToast?.("방문 일자를 불러오지 못했습니다.");
+  } finally {
+    setLoading("visit-log-section", false);
+  }
 }
 
-// 📋 테이블 렌더링 (Provision)
+/* =====================================================
+ * Life (lifelove)
+ * ===================================================== */
+function buildQuarterKey(year, q) {
+  return `${String(year).trim()}-${String(q).trim()}`;
+}
+
+function quarterFromTimestamp(ts) {
+  const m = ts.getMonth() + 1;
+  if (m <= 3) return "Q1";
+  if (m <= 6) return "Q2";
+  if (m <= 9) return "Q3";
+  return "Q4";
+}
+
+async function loadLifeTable(year, q) {
+  lifeData = [];
+  if (!year || !q) return;
+
+  const quarterKey = buildQuarterKey(year, q);
+
+  let provRows = [];
+  try {
+    const q1 = query(
+      collection(db, "provisions"),
+      where("lifelove", "==", true),
+      where("quarterKey", "==", quarterKey)
+    );
+    const snap1 = await getDocs(q1);
+    snap1.forEach((doc) => provRows.push(doc.data()));
+    console.debug(
+      "[Life][1] compound where count:",
+      provRows.length,
+      "key:",
+      quarterKey
+    );
+  } catch (err) {
+    console.warn("[Life][1] compound where error (index?)", err);
+  }
+
+  if (LIFE_DEBUG_FALLBACK && provRows.length === 0) {
+    const allProvSnap = await getDocs(collection(db, "provisions"));
+    const all = [];
+    allProvSnap.forEach((doc) => all.push(doc.data()));
+    const keyTrim = quarterKey.trim();
+    provRows = all.filter(
+      (d) =>
+        (d.lifelove === true || d.lifelove === "true") &&
+        typeof d.quarterKey === "string" &&
+        d.quarterKey.trim() === keyTrim
+    );
+    console.debug("[Life][3] fallback full-scan:", provRows.length);
+  }
+
+  const needIds = provRows.map((p) => p.customerId).filter(Boolean);
+  const customerMap = await fetchCustomersByIdsBatched(needIds);
+
+  lifeData = provRows.map((p) => {
+    const c = p.customerId ? customerMap[p.customerId] : null;
+    return {
+      name: c?.name ?? p.customerName ?? "",
+      birth: c?.birth ?? p.customerBirth ?? "",
+      gender: c?.gender ?? "",
+      userType: c?.type ?? "",
+      userClass: c?.category ?? "",
+    };
+  });
+
+  lifeData.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  lifeCurrentPage = 1;
+  renderLifeTable();
+
+  console.debug(
+    "[Life][final] quarterKey:",
+    quarterKey,
+    "prov:",
+    provRows.length,
+    "rendered:",
+    lifeData.length
+  );
+}
+
+/* =====================================================
+ * Renderers
+ * ===================================================== */
 function renderProvisionTable(data = provisionData) {
   const tbody = document.querySelector("#provision-table tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
   const start = (provisionCurrentPage - 1) * itemsPerPage;
   const end = start + itemsPerPage;
@@ -438,18 +854,26 @@ function renderProvisionTable(data = provisionData) {
       <td>${row.name}</td>
       <td>${row.birth}</td>
       <td>${row.items}</td>
-      <td>${row.lifelove}</td>
       <td>${row.handler}</td>
     `;
     tbody.appendChild(tr);
   });
 
-  updatePagination("provision", data.length, provisionCurrentPage);
+  // 서버 페이지네이션 모드면 버튼만 토글, 아닌 경우 기존 페이지네이션
+  if (provCursor.serverMode) {
+    updatePagination("provision", itemsPerPage, 1);
+    updateProvisionPagerButtons(
+      !!provCursor.prevStack.length,
+      !!provCursor.lastDoc
+    );
+  } else {
+    updatePagination("provision", data.length, provisionCurrentPage);
+  }
 }
 
-// 📋 테이블 렌더링 (Visit)
 function renderVisitTable(data = visitData) {
   const tbody = document.querySelector("#visit-log-table tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
   const start = (visitCurrentPage - 1) * itemsPerPage;
   const end = start + itemsPerPage;
@@ -468,55 +892,121 @@ function renderVisitTable(data = visitData) {
   updatePagination("visit", data.length, visitCurrentPage);
 }
 
-// 🔢 페이지네이션 UI 생성
+function renderLifeTable(data = lifeData) {
+  const tbody = document.querySelector("#life-table tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const start = (lifeCurrentPage - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  const pageItems = data.slice(start, end);
+
+  pageItems.forEach((row) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${row.name}</td>
+      <td>${row.birth}</td>
+      <td>${row.gender}</td>
+      <td>${row.userType}</td>
+      <td>${row.userClass}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  updatePagination("life", data.length, lifeCurrentPage);
+}
+
+/* =====================================================
+ * Export (data → xlsx)
+ * ===================================================== */
+function exportRowsXLSX(rows, headerMap, filename) {
+  const data = rows.map((r) => {
+    const o = {};
+    headerMap.forEach(([label, key]) => (o[label] = r[key] ?? ""));
+    return o;
+  });
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+  XLSX.writeFile(wb, filename);
+}
+
+/* =====================================================
+ * Pagination UI
+ * ===================================================== */
 function updatePagination(type, totalItems, currentPage) {
   const container = document.getElementById(`${type}-pagination`);
+  if (!container) return;
   container.innerHTML = "";
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+  const serverMode = type === "provision" && provCursor.serverMode;
+  const totalPages = serverMode ? 1 : Math.ceil(totalItems / itemsPerPage) || 1;
 
   const prevBtn = document.createElement("button");
   prevBtn.textContent = "이전";
-  prevBtn.disabled = currentPage === 1;
+  prevBtn.disabled = serverMode
+    ? !provCursor.prevStack.length
+    : currentPage === 1;
   prevBtn.addEventListener("click", () => {
     if (type === "provision") {
-      provisionCurrentPage--;
-      renderProvisionTable();
-    } else {
+      if (serverMode) {
+        loadProvisionPage("prev");
+      } else {
+        provisionCurrentPage--;
+        renderProvisionTable();
+      }
+    } else if (type === "visit") {
       visitCurrentPage--;
       renderVisitTable();
+    } else {
+      lifeCurrentPage--;
+      renderLifeTable();
     }
   });
 
   const nextBtn = document.createElement("button");
   nextBtn.textContent = "다음";
-  nextBtn.disabled = currentPage === totalPages;
+  nextBtn.disabled = serverMode
+    ? !provCursor.lastDoc
+    : currentPage === totalPages;
   nextBtn.addEventListener("click", () => {
     if (type === "provision") {
-      provisionCurrentPage++;
-      renderProvisionTable();
-    } else {
+      if (serverMode) {
+        loadProvisionPage("next");
+      } else {
+        provisionCurrentPage++;
+        renderProvisionTable();
+      }
+    } else if (type === "visit") {
       visitCurrentPage++;
       renderVisitTable();
+    } else {
+      lifeCurrentPage++;
+      renderLifeTable();
     }
   });
 
   const info = document.createElement("span");
-  info.innerHTML = `
-    <input type="number" min="1" max="${totalPages}" value="${currentPage}" style="width:40px"> / ${totalPages} 페이지
-  `;
+  info.innerHTML = serverMode
+    ? `서버 페이지네이션`
+    : `<input type="number" min="1" max="${totalPages}" value="${currentPage}" style="width:40px"> / ${totalPages} 페이지`;
   const input = info.querySelector("input");
-  input.addEventListener("change", (e) => {
-    let val = parseInt(e.target.value);
-    if (val >= 1 && val <= totalPages) {
-      if (type === "provision") {
-        provisionCurrentPage = val;
-        renderProvisionTable();
-      } else {
-        visitCurrentPage = val;
-        renderVisitTable();
+  if (input) {
+    input.addEventListener("change", (e) => {
+      let val = parseInt(e.target.value);
+      if (val >= 1 && val <= totalPages) {
+        if (type === "provision") {
+          provisionCurrentPage = val;
+          renderProvisionTable();
+        } else if (type === "visit") {
+          visitCurrentPage = val;
+          renderVisitTable();
+        } else {
+          lifeCurrentPage = val;
+          renderLifeTable();
+        }
       }
-    }
-  });
+    });
+  }
 
   container.appendChild(prevBtn);
   container.appendChild(info);
