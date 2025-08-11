@@ -223,8 +223,8 @@ main {
   background-color: white;
   padding: 16px 20px;
   border-radius: 12px;
-  width: 360px;
-  max-width: 90%;
+  width: 90%;
+  max-width: 400px;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
   box-sizing: border-box;
 }

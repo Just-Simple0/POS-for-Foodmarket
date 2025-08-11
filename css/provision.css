@@ -137,8 +137,13 @@
   position: relative;
 }
 
+.selected-products {
+  overflow-x: auto;
+}
+
 #selected-table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
   margin-top: 10px;
   font-size: 0.95rem;
@@ -152,7 +157,7 @@
 /* 수량 열 td 자체에 너비 제한 */
 #selected-table td:nth-child(2),
 #selected-table th:nth-child(2) {
-  width: 110px; /* 또는 100px, 조절 가능 */
+  min-width: 80px;
   text-align: center;
 }
 
@@ -204,11 +209,12 @@
   border: 1px solid #ccc;
   padding: 8px 10px;
   text-align: center;
-  total-summary {
-    margin-top: 1rem;
-    font-weight: bold;
-    font-size: 1.1rem;
-  }
+}
+
+#total-summary {
+  margin-top: 1rem;
+  font-weight: bold;
+  font-size: 1.1rem;
 }
 
 #product-action-buttons button {
@@ -300,4 +306,24 @@ button:disabled {
 
 .hidden {
   display: none;
+}
+
+@media (max-width: 768px) {
+  #selected-table th:nth-child(3),
+  #selected-table td:nth-child(3),
+  #selected-table th:nth-child(4),
+  #selected-table td:nth-child(4) {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .product-input-area {
+    flex-direction: column;
+  }
+
+  #selected-table th:nth-child(5),
+  #selected-table td:nth-child(5) {
+    display: none;
+  }
 }

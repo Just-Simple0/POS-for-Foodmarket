@@ -62,8 +62,8 @@
 }
 
 #customer-table {
-  min-width: 100%;
-  width: 1300px;
+  width: 100%;
+  min-width: 800px;
   border-collapse: collapse;
   table-layout: auto;
 }
@@ -193,6 +193,17 @@ td {
   #open-modal-btn {
     align-self: flex-end;
   }
+
+  #customer-table th:nth-child(6),
+  #customer-table td:nth-child(6),
+  #customer-table th:nth-child(7),
+  #customer-table td:nth-child(7),
+  #customer-table th:nth-child(8),
+  #customer-table td:nth-child(8),
+  #customer-table th:nth-child(9),
+  #customer-table td:nth-child(9) {
+    display: none;
+  }
 }
 
 /* 모바일 (폰) */
@@ -212,5 +223,12 @@ td {
 
   #pagination {
     font-size: 14px;
+  }
+
+  #customer-table th:nth-child(3),
+  #customer-table td:nth-child(3),
+  #customer-table th:nth-child(4),
+  #customer-table td:nth-child(4) {
+    display: none;
   }
 }
