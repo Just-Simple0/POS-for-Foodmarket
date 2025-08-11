@@ -10,6 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { showToast } from "./components/comp.js";
+import { getQuarterKey, updateCustomerLifeLove } from "./utils/lifelove.js";
 
 const lookupInput = document.getElementById("customer-id");
 const lookupBtn = document.getElementById("lookup-btn");
@@ -21,6 +22,7 @@ const undoBtn = document.getElementById("undo-btn");
 const redoBtn = document.getElementById("redo-btn");
 const resetProductsBtn = document.getElementById("clear-products-btn");
 const resetAllBtn = document.getElementById("clear-all-btn");
+const lifeloveCheckbox = document.getElementById("lifelove-checkbox");
 const currentUser = auth.currentUser;
 
 let selectedCustomer = null;
@@ -499,6 +501,8 @@ submitBtn.addEventListener("click", async () => {
     now.getMonth() + 1 < 3 ? now.getFullYear() - 1 : now.getFullYear();
   const periodKey = `${String(year).slice(2)}-${String(year + 1).slice(2)}`; // 예: 24-25
   const visitDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  const quarterKey = getQuarterKey(now);
+  const lifelove = lifeloveCheckbox.checked;
 
   try {
     // ✅ 1. 제공 기록 등록
@@ -511,6 +515,8 @@ submitBtn.addEventListener("click", async () => {
       total,
       timestamp: Timestamp.now(),
       handledBy: currentUser.email,
+      lifelove,
+      quarterKey,
     };
     await addDoc(ref, provisionData);
 
@@ -518,6 +524,7 @@ submitBtn.addEventListener("click", async () => {
     const customerRef = doc(db, "customers", selectedCustomer.id);
     const customerSnap = await getDoc(customerRef);
     const prevVisits = customerSnap.data()?.visits || {};
+    const prevLifeLove = customerSnap.data()?.lifelove || {};
 
     if (!prevVisits[periodKey]) {
       prevVisits[periodKey] = [];
@@ -528,8 +535,15 @@ submitBtn.addEventListener("click", async () => {
       prevVisits[periodKey].push(visitDate);
     }
 
+    const updatedLifeLove = updateCustomerLifeLove(
+      prevLifeLove,
+      quarterKey,
+      lifelove
+    );
+
     await updateDoc(customerRef, {
       visits: prevVisits,
+      lifelove: updatedLifeLove,
     });
 
     showToast("제공 등록 완료!");
@@ -549,4 +563,5 @@ function resetForm() {
   selectedCustomer = null;
   selectedItems = [];
   renderSelectedList();
+  lifeloveCheckbox.checked = false;
 }
