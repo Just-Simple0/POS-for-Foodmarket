@@ -10,7 +10,9 @@ import {
   Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { showToast } from "./components/comp.js";
+import { filterProvisionsByQuarter } from "./utils/lifelove.js";
 
+let allProvisionData = [];
 let provisionData = [];
 let visitData = [];
 let provisionCurrentPage = 1;
@@ -46,6 +48,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 🔄 Daterangepicker.js 설정
   const startDateInput = $("#start-date-input");
   const endDateInput = $("#end-date-input");
+  const quarterFilter = document.getElementById("quarter-filter");
+  quarterFilter.addEventListener("input", () => {
+    applyQuarterFilter();
+    filterAndRender();
+  });
 
   const today = moment();
   const startOfToday = today.clone().startOf("day");
@@ -347,6 +354,7 @@ async function calculateMonthlyVisitRate() {
 
 // 🔄 물품 제공 내역 불러오기 (범위)
 async function loadProvisionHistoryByRange(startDate, endDate) {
+  allProvisionData = [];
   provisionData = [];
 
   // ✅ 시간 범위 보정
@@ -370,18 +378,28 @@ async function loadProvisionHistoryByRange(startDate, endDate) {
 
   snapshot.forEach((doc) => {
     const data = doc.data();
-    provisionData.push({
+    allProvisionData.push({
       date: formatDate(data.timestamp.toDate()),
       name: data.customerName,
       birth: data.customerBirth,
       items: data.items.map((i) => `${i.name} (${i.quantity})`).join(", "),
       handler: data.handledBy,
+      lifelove: data.lifelove ? "O" : "",
+      quarterKey: data.quarterKey,
     });
   });
 
-  provisionData.sort((a, b) => new Date(b.date) - new Date(a.date));
+  allProvisionData.sort((a, b) => new Date(b.date) - new Date(a.date));
+  applyQuarterFilter();
   provisionCurrentPage = 1;
   filterAndRender();
+}
+
+function applyQuarterFilter() {
+  const quarterKey = document
+    .getElementById("quarter-filter")
+    .value.trim();
+  provisionData = filterProvisionsByQuarter(allProvisionData, quarterKey);
 }
 
 // 🔄 고객별 방문 로그 불러오기
@@ -420,6 +438,7 @@ function renderProvisionTable(data = provisionData) {
       <td>${row.name}</td>
       <td>${row.birth}</td>
       <td>${row.items}</td>
+      <td>${row.lifelove}</td>
       <td>${row.handler}</td>
     `;
     tbody.appendChild(tr);
