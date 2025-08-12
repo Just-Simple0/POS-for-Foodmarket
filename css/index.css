@@ -1,12 +1,24 @@
-/* 로그인 페이지 배경과 폰트 */
+/* 로그인 페이지 배경과 폰트: Pretendard로 통일 */
+:root {
+  --bg-start: #4a90e2;
+  --bg-end: #357abd;
+}
+
+html,
 body {
-  height: 100vh;
+  height: 100%;
+}
+body {
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
   background: linear-gradient(135deg, #4a90e2, #357abd);
-  font-family: "Noto Sans KR", sans-serif;
-  color: white;
+  font-family: "Pretendard Variable", Pretendard, -apple-system,
+    BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI",
+    "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  color: #fff;
   margin: 0;
 }
 
@@ -16,31 +28,34 @@ body {
   padding: 3rem 4rem;
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  width: 320px;
+  width: min(360px, 92vw);
   text-align: center;
+  backdrop-filter: blur(4px);
 }
 
 /* 제목 */
 .login-container h1 {
   margin-bottom: 2rem;
-  font-weight: 700;
-  font-size: 2rem;
+  font-weight: 800;
+  font-size: 1.9rem;
+  letter-spacing: -0.01em;
 }
 
 /* 구글 로그인 버튼 스타일 */
 .login-btn {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   background: white;
   color: #444;
-  border-radius: 6px;
-  padding: 0.75rem 1rem;
-  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  font-weight: 700;
   cursor: pointer;
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
   border: none;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.2s ease, transform 0.05s ease;
   user-select: none;
   width: 100%;
 }
@@ -48,17 +63,156 @@ body {
 .login-btn:hover {
   background: #f0f0f0;
 }
+.login-btn:active {
+  transform: translateY(1px);
+}
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
-/* 구글 아이콘(간단 SVG 또는 이미지) */
 .login-btn svg {
   width: 20px;
   height: 20px;
-  margin-right: 8px;
+  margin-right: 10px;
 }
 
-/* 안내 문구 */
-.login-note {
-  margin-top: 1.5rem;
+/* 로딩 스피너 (버튼 안쪽) */
+.spinner {
+  display: none;
+  width: 16px;
+  height: 16px;
+  margin-left: 10px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: #999;
+  border-right-color: #999;
+  animation: spin 0.8s linear infinite;
+}
+.login-btn.loading .spinner {
+  display: inline-block;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 안내/에러 문구 */
+.login-error {
+  margin-top: 0.6rem;
   font-size: 0.9rem;
-  color: #d0d0d0;
+  color: #ffdedb;
+  font-weight: 600;
+  min-height: 1.2em;
+}
+.login-btn.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+.login-btn .spinner {
+  display: none;
+  width: 16px;
+  height: 16px;
+  margin-left: 10px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: #999;
+  border-right-color: #999;
+  animation: spin 0.8s linear infinite;
+}
+.login-btn.loading .spinner {
+  display: inline-block;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 폼 */
+.email-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.email-form input {
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+}
+.helper-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+.text-btn {
+  background: transparent;
+  border: none;
+  color: #e6eef9;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+}
+.text-btn:hover {
+  text-decoration: underline;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+  color: #e6eef9;
+  opacity: 0.9;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.social-buttons {
+  display: grid;
+  gap: 10px;
+}
+.login-btn.social.google {
+  background: #fff;
+  color: #444;
+}
+.login-btn.social.kakao {
+  background: #fee500;
+  color: #000;
+}
+.login-btn.social.naver {
+  background: #03c75a;
+  color: #fff;
+}
+
+/* 접근성용 숨김 레이블 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* 작은 화면 대응 */
+@media (max-width: 480px) {
+  .login-container {
+    padding: 2.2rem 1.6rem;
+  }
+  .login-container h1 {
+    font-size: 1.6rem;
+  }
 }

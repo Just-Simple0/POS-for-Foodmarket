@@ -1,36 +1,24 @@
-/* provision.css */
-
+/* 페이지 전용: 컨테이너 폭만 */
 .container {
-  padding: 2rem;
-  width: 100%;
   max-width: 1200px;
-  margin: 0 auto;
 }
 
+/* 섹션/타이틀 */
 .container h3 {
   font-size: 1.3rem;
   margin-top: 2rem;
   margin-bottom: 1rem;
 }
-
 .container section {
   margin-bottom: 2rem;
 }
-
 .container label {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 600;
 }
 
-.container input[type="text"] {
-  padding: 0.6rem 1rem;
-  width: 100%;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 1rem;
-}
-
+/* 입력/버튼(공통 입력 기본 적용됨, 여기선 레이아웃만) */
 #lookup-btn,
 #submit-btn {
   display: inline-flex;
@@ -39,6 +27,7 @@
   margin-top: 0.5rem;
 }
 
+/* 고객 정보 카드 */
 #customer-info {
   margin-top: 1rem;
   padding: 1rem;
@@ -49,48 +38,14 @@
   line-height: 1.5;
 }
 
-#product-list {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-}
-
-.product-item {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 10px;
-  text-align: center;
-  background-color: #fff;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.product-item:hover {
-  background-color: #e3f2fd;
-}
-
-.product-item.selected {
-  background-color: #1976d2;
-  color: #fff;
-  border-color: #1976d2;
-  font-weight: bold;
-}
-
-
-#submit-btn {
-  width: 100%;
-  padding: 1rem;
-  font-size: 1.1rem;
-  font-weight: bold;
-}
-
+/* 자동완성/상품 입력 영역 */
 .product-input-area {
   display: flex;
   gap: 10px;
   margin-bottom: 1rem;
   flex-wrap: wrap;
+  position: relative;
 }
-
 .product-input-area input {
   padding: 10px;
   font-size: 1rem;
@@ -104,14 +59,13 @@
   width: 100%;
   flex: 1;
 }
-
 .autocomplete-list {
   position: absolute;
   top: 100%;
   left: 0;
   width: 100%;
   margin-top: 2px;
-  background: white;
+  background: #fff;
   border: 1px solid #ccc;
   border-radius: 6px;
   max-height: 200px;
@@ -119,29 +73,19 @@
   z-index: 1000;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
-
 .autocomplete-list div {
   padding: 10px;
   cursor: pointer;
   transition: background-color 0.2s;
 }
-
 .autocomplete-list div:hover {
   background-color: #f1f8ff;
 }
 
-.autocomplete-list.hidden {
-  display: none;
-}
-
-.product-input-area {
-  position: relative;
-}
-
+/* 선택 상품 테이블 */
 .selected-products {
   overflow-x: auto;
 }
-
 #selected-table {
   width: 100%;
   min-width: 600px;
@@ -149,27 +93,25 @@
   margin-top: 10px;
   font-size: 0.95rem;
 }
-
 #selected-table td:first-child {
   text-align: left;
   padding-left: 12px;
 }
 
-/* 수량 열 td 자체에 너비 제한 */
+/* 수량 열 너비 */
 #selected-table td:nth-child(2),
 #selected-table th:nth-child(2) {
   min-width: 80px;
   text-align: center;
 }
 
-/* 버튼과 인풋 크기 조절 */
+/* 수량 컨트롤 */
 .quantity-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
 }
-
 .quantity-wrapper button {
   width: 24px;
   height: 24px;
@@ -181,20 +123,16 @@
   color: #333;
   cursor: pointer;
 }
-
 .quantity-wrapper input.quantity-input {
   max-width: 50px;
   height: 24px;
   font-size: 0.9rem;
   text-align: center;
 }
-
-/* 모든 브라우저에서 number 화살표 제거 */
 .quantity-wrapper input[type="number"] {
   appearance: textfield;
-  -moz-appearance: textfield; /* Firefox */
+  -moz-appearance: textfield;
 }
-
 .quantity-wrapper input[type="number"]::-webkit-outer-spin-button,
 .quantity-wrapper input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -212,12 +150,12 @@
   text-align: center;
 }
 
+/* 합계/버튼 */
 #total-summary {
   margin-top: 1rem;
   font-weight: bold;
   font-size: 1.1rem;
 }
-
 #product-action-buttons button {
   padding: 8px 14px;
   font-size: 0.9rem;
@@ -230,24 +168,19 @@
   transition: all 0.2s ease;
   box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.05);
 }
-
 #product-action-buttons button:hover {
   background-color: #e0e0e0;
 }
-
-/* ✅ 전체 초기화 버튼만 강조 */
 button#clear-all-btn {
   background-color: #fbe9e7;
   border-color: #f44336;
   color: #d32f2f;
   font-weight: bold;
 }
-
 button#clear-all-btn:hover {
   background-color: #ef9a9a;
-  color: white;
+  color: #fff;
 }
-
 #product-action-buttons button:hover {
   opacity: 0.9;
 }
@@ -258,13 +191,13 @@ button#clear-all-btn:hover {
   margin-left: 1rem;
 }
 
+/* 중복 고객 리스트 */
 #duplicate-list {
   list-style: none;
   margin-top: 1rem;
   padding: 0;
   margin-bottom: 10px;
 }
-
 #duplicate-list li {
   padding: 0.8rem;
   border-bottom: 1px solid #ddd;
@@ -273,22 +206,18 @@ button#clear-all-btn:hover {
   border-radius: 6px;
   transition: background-color 0.2s ease;
 }
-
 #duplicate-list li:hover {
   background-color: #f1f8ff;
 }
-
 #duplicate-list .dup-name {
   font-size: 1rem;
   font-weight: 600;
   margin-bottom: 4px;
 }
-
 #duplicate-list .dup-sub {
   font-size: 0.9rem;
   color: #666;
 }
-
 #duplicate-list .duplicate-item.selected {
   background-color: #e3f2fd;
   border-radius: 6px;
@@ -300,15 +229,7 @@ button#clear-all-btn:hover {
   margin-bottom: 10px;
 }
 
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.hidden {
-  display: none;
-}
-
+/* 반응형 */
 @media (max-width: 768px) {
   #selected-table th:nth-child(3),
   #selected-table td:nth-child(3),
@@ -317,12 +238,10 @@ button:disabled {
     display: none;
   }
 }
-
 @media (max-width: 480px) {
   .product-input-area {
     flex-direction: column;
   }
-
   #selected-table th:nth-child(5),
   #selected-table td:nth-child(5) {
     display: none;

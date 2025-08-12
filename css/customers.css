@@ -1,53 +1,38 @@
+/* 페이지 전용 레이아웃 */
 .container {
   padding: 20px;
-  max-width: 100%;
   margin: auto;
   overflow-x: hidden;
 }
-
 #top-bar {
   display: flex;
   justify-content: space-between;
   margin-bottom: 20px;
 }
 
+/* 공통 search-bar를 쓰되, 이 페이지에서 하단 여백만 조정 */
 .search-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
   margin-bottom: 15px;
-  align-items: center;
 }
 
-#global-search {
-  flex: 1;
-  padding: 6px 10px;
-}
-
+/* 고급 검색 배치만 보조 */
 #advanced-search {
-  display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 10px;
 }
-
 #field-search {
   flex: 1;
   min-width: 200px;
   gap: 5px;
 }
-
+/* select 너비 제한만 페이지 전용 */
 #field-select {
-  width: auto;
   min-width: 100px;
   max-width: 200px;
 }
 
-#field-select,
-#field-search {
-  padding: 6px;
-}
-
+/* 리스트 헤더/테이블 래퍼 */
 .list-header {
   display: flex;
   justify-content: space-between;
@@ -55,72 +40,48 @@
   margin-top: 20px;
   margin-bottom: 10px;
 }
-
 .table-wrapper {
   overflow-x: auto;
   width: 100%;
 }
 
+/* 고객 테이블(페이지 고유 제약) */
 #customer-table {
   width: 100%;
   min-width: 800px;
   border-collapse: collapse;
   table-layout: auto;
 }
-
 #customer-table td:nth-child(6) {
   text-align: left;
 }
 
-table {
-  width: max-content;
-  min-width: 100%;
-  table-layout: auto;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-thead {
-  background-color: #f2f2f2;
-}
-
+/* 정렬/hover는 common 테이블 규칙 사용, 필요시 보강 */
 th {
   cursor: pointer;
   user-select: none;
 }
-
 th:hover {
   background-color: #eee;
 }
 
-th,
-td {
-  border: 1px solid #ccc;
-  padding: 6px 8px;
-  text-align: center;
-  white-space: nowrap;
-}
-
+/* 상태 컬러 */
 .status-green {
   color: green;
   font-weight: bold;
 }
-
 .status-red {
   color: crimson;
   font-weight: bold;
 }
 
+/* 페이지네이션은 common 사용(여기선 여백만) */
 .pagination {
   margin-top: 20px;
   text-align: center;
 }
 
-.pagination button {
-  margin: 0 10px;
-  padding: 5px 10px;
-}
-
+/* 모달 커스텀 UI (페이지 고유) */
 .modal-content input[type="date"] {
   font-family: inherit;
   font-size: 14px;
@@ -131,13 +92,11 @@ td {
   width: 100%;
   appearance: none;
 }
-
 .custom-select {
   position: relative;
   font-size: 14px;
   margin-bottom: 10px;
 }
-
 .custom-select .selected,
 .custom-select input {
   border: 1px solid #ccc;
@@ -145,10 +104,9 @@ td {
   width: 100%;
   border-radius: 6px;
   cursor: pointer;
-  background-color: white;
+  background-color: #fff;
   box-sizing: border-box;
 }
-
 .custom-select .options {
   position: absolute;
   top: 100%;
@@ -157,43 +115,34 @@ td {
   max-height: 180px;
   overflow-y: auto;
   border: 1px solid #ccc;
-  background-color: white;
+  background: #fff;
   border-radius: 6px;
   z-index: 10;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-
 .custom-select .options div {
   padding: 10px;
   cursor: pointer;
 }
-
 .custom-select .options div:hover {
   background-color: #f0f0f0;
 }
 
-.hidden {
-  display: none !important;
-}
-
-/* 태블릿 이하 */
+/* 반응형 */
 @media (max-width: 768px) {
   .search-bar {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
   }
-
   #advanced-search {
     flex-direction: column;
     align-items: stretch;
   }
-
   #toggle-advanced-search,
   #open-modal-btn {
     align-self: flex-end;
   }
-
   #customer-table th:nth-child(6),
   #customer-table td:nth-child(6),
   #customer-table th:nth-child(7),
@@ -205,26 +154,18 @@ td {
     display: none;
   }
 }
-
-/* 모바일 (폰) */
 @media (max-width: 480px) {
   #field-select,
-  #field-search {
-    width: 100%;
-  }
-
+  #field-search,
   #global-search {
     width: 100%;
   }
-
   #customer-table {
     font-size: 12px;
   }
-
   #pagination {
     font-size: 14px;
   }
-
   #customer-table th:nth-child(3),
   #customer-table td:nth-child(3),
   #customer-table th:nth-child(4),
