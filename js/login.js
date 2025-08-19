@@ -1,18 +1,18 @@
-// js/login.js
 import { auth, db } from "./components/firebase-config.js";
 import {
-  GoogleAuthProvider,
-  OAuthProvider,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  signInWithPopup,
-  signInWithRedirect,
   getRedirectResult,
-  linkWithPopup,
   onAuthStateChanged,
+  updateProfile,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  signOut,
+  sendEmailVerification,
+  signInWithCustomToken,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
 import {
   doc,
   getDoc,
@@ -22,31 +22,63 @@ import {
 
 /* ===== 기능 플래그 ===== */
 const FEATURES = {
-  ROLE_ACCESS_CONTROL: true,
-  REQUIRED_ROLE: "admin",
   REDIRECT_TO_LAST_PATH: true,
-  MAINTENANCE_MODE: true,
-  MAINTENANCE_MESSAGE: "현재 시스템 점검 중입니다. 관리자만 접속 가능합니다.",
+  RATE_LIMIT_CLIENT_BACKOFF: true,
+  ENFORCE_EMAIL_VERIFIED: true,
+  ROLE_APPROVAL_REQUIRED: true,
+
+  CAPTCHA_LOGIN: true,
+  CAPTCHA_SIGNUP: true,
+  CAPTCHA_RESET: true,
 };
-/* ====================== */
+
+// 배포/로컬 브릿지 서버
+const AUTH_SERVER =
+  location.hostname === "localhost" || location.hostname === "127.0.0.1"
+    ? "http://localhost:3000"
+    : "https://foodmarket-pos.onrender.com";
+
+function toast(msg, isError = false) {
+  if (typeof window.showToast === "function") window.showToast(msg, isError);
+  else alert(msg);
+}
 
 const ui = {
   emailForm: document.getElementById("email-form"),
   emailLoginBtn: document.getElementById("email-login-btn"),
-  emailSignupBtn: document.getElementById("email-signup-btn"),
-  resetBtn: document.getElementById("reset-password-btn"),
+  email: document.getElementById("email"),
+  password: document.getElementById("password"),
+  remember: document.getElementById("remember-me"),
+  error: document.getElementById("login-error"),
+  pwToggle: document.getElementById("login-pw-toggle"),
+
   googleBtn: document.getElementById("google-login-btn"),
   kakaoBtn: document.getElementById("kakao-login-btn"),
   naverBtn: document.getElementById("naver-login-btn"),
-  error: document.getElementById("login-error"),
-  email: document.getElementById("email"),
-  password: document.getElementById("password"),
+
+  emailSignupBtn: document.getElementById("email-signup-btn"),
+  modal: document.getElementById("signup-modal"),
+  sName: document.getElementById("signup-name"),
+  sEmail: document.getElementById("signup-email"),
+  sPw: document.getElementById("signup-password"),
+  sPw2: document.getElementById("signup-password2"),
+  sAgree: document.getElementById("signup-agree"),
+  sError: document.getElementById("signup-error"),
+  sSubmit: document.getElementById("signup-submit-btn"),
+  sCancel: document.getElementById("signup-cancel-btn"),
+  pwStrength: document.getElementById("pw-strength"),
+  sPwToggle: document.getElementById("signup-pw-toggle"),
+  sPw2Toggle: document.getElementById("signup-pw2-toggle"),
+
+  resetOpen: document.getElementById("reset-password-btn"),
+  resetModal: document.getElementById("reset-modal"),
+  rEmail: document.getElementById("reset-email"),
+  rError: document.getElementById("reset-error"),
+  rSubmit: document.getElementById("reset-submit-btn"),
+  rCancel: document.getElementById("reset-cancel-btn"),
 };
 
-const AUTH_SERVER = "https://foodmarket-pos.onrender.com";
-const returnUrl = `${location.origin}/oauth-complete.html`;
-
-function setLoading(el, on) {
+function setBtnLoading(el, on) {
   if (!el) return;
   el.classList.toggle("loading", on);
   el.disabled = !!on;
@@ -54,10 +86,16 @@ function setLoading(el, on) {
 function showError(msg = "") {
   if (ui.error) ui.error.textContent = msg;
 }
+function showSignupError(msg = "") {
+  if (ui.sError) ui.sError.textContent = msg;
+}
+function showResetError(msg = "") {
+  if (ui.rError) ui.rError.textContent = msg;
+}
+
 function saveLastPath() {
-  if (FEATURES.REDIRECT_TO_LAST_PATH) {
+  if (FEATURES.REDIRECT_TO_LAST_PATH)
     sessionStorage.setItem("last_path", location.pathname + location.search);
-  }
 }
 function getPostLoginRedirect(defaultPath = "dashboard.html") {
   if (!FEATURES.REDIRECT_TO_LAST_PATH) return defaultPath;
@@ -67,204 +105,444 @@ function getPostLoginRedirect(defaultPath = "dashboard.html") {
   return defaultPath;
 }
 
-/* ----- 사용자 문서 생성/업데이트 & 역할 게이트 ----- */
+/* ===== Firestore user doc ===== */
 async function ensureUserDoc(user) {
   const ref = doc(db, "users", user.uid);
   const snap = await getDoc(ref);
+  const base = {
+    uid: user.uid,
+    email: user.email || "",
+    name: user.displayName || "",
+    providers: user.providerData.map((p) => p.providerId),
+  };
   if (!snap.exists()) {
     await setDoc(ref, {
-      uid: user.uid,
-      email: user.email || "",
-      name: user.displayName || "",
-      role: "user",
+      ...base,
+      role: "pending",
       createdAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),
-      providers: user.providerData.map((p) => p.providerId),
     });
   } else {
     await setDoc(
       ref,
-      {
-        lastLoginAt: serverTimestamp(),
-        providers: user.providerData.map((p) => p.providerId),
-      },
+      { lastLoginAt: serverTimestamp(), providers: base.providers },
       { merge: true }
     );
   }
   return (await getDoc(ref)).data();
 }
-async function gateByRole(user) {
-  if (!FEATURES.ROLE_ACCESS_CONTROL && !FEATURES.MAINTENANCE_MODE) return true;
-  const data = await ensureUserDoc(user);
-  const role = (data?.role || "user").toLowerCase();
-  if (FEATURES.MAINTENANCE_MODE && role !== "admin") {
-    showError(FEATURES.MAINTENANCE_MESSAGE);
+
+async function gateAfterLogin(user) {
+  if (FEATURES.ENFORCE_EMAIL_VERIFIED && !user.emailVerified) {
+    try {
+      await sendEmailVerification(user);
+    } catch {}
+    showError("이메일 인증 후 로그인 가능합니다. 메일함을 확인해 주세요.");
+    await signOut(auth);
     return false;
   }
-  if (FEATURES.ROLE_ACCESS_CONTROL && role !== FEATURES.REQUIRED_ROLE) {
-    showError(`접근 권한이 없습니다. (필요 역할: ${FEATURES.REQUIRED_ROLE})`);
-    return false;
+  if (FEATURES.ROLE_APPROVAL_REQUIRED) {
+    const data = await ensureUserDoc(user);
+    const role = (data?.role || "pending").toLowerCase();
+    if (!["admin", "manager", "user"].includes(role)) {
+      showError(
+        "계정이 생성되었습니다. 관리자가 권한을 부여하면 로그인할 수 있습니다."
+      );
+      await signOut(auth);
+      return false;
+    }
   }
   return true;
 }
 
-// Kakao
-document.getElementById("kakao-login-btn")?.addEventListener("click", () => {
-  location.href = `${AUTH_SERVER}/auth/kakao/start?return=${encodeURIComponent(
-    returnUrl
-  )}`;
-});
-
-// Naver
-document.getElementById("naver-login-btn")?.addEventListener("click", () => {
-  location.href = `${AUTH_SERVER}/auth/naver/start?return=${encodeURIComponent(
-    returnUrl
-  )}`;
-});
-
-/* ===== 리디렉트 결과 (소셜 폴백) ===== */
-getRedirectResult(auth)
-  .then(async (res) => {
-    if (res?.user) {
-      if (!(await gateByRole(res.user))) return;
-      showError("");
-      location.replace(getPostLoginRedirect("dashboard.html"));
+/* ===== Turnstile helpers ===== */
+async function getCaptchaToken(which = "login", timeoutMs = 60000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const t = window._tsTokens?.[which];
+    if (t) return t;
+    if (window.turnstile) {
+      const idEl =
+        which === "login"
+          ? document.getElementById("ts-login")
+          : which === "signup"
+          ? document.getElementById("ts-signup")
+          : which === "reset"
+          ? document.getElementById("ts-reset")
+          : null;
+      if (idEl) {
+        const viaApi = window.turnstile.getResponse(idEl);
+        if (viaApi) return viaApi;
+      }
     }
-  })
-  .catch((e) => {
-    console.error("getRedirectResult", e);
-    showError(`[${e.code}] ${e.message || "리디렉트 처리 중 오류"}`);
-  });
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error("captcha-timeout");
+}
+async function verifyCaptcha(token) {
+  if (!token) return false;
+  for (const p of ["/captcha/verify", "/api/captcha/verify"]) {
+    try {
+      const r = await fetch(`${AUTH_SERVER}${p}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ token }),
+      });
+      if (!r.ok) continue;
+      const data = await r.json().catch(() => ({}));
+      if (data?.success) return true;
+    } catch {}
+  }
+  return false;
+}
+function resetCaptcha(which = "login") {
+  try {
+    if (window._tsTokens) window._tsTokens[which] = null;
+    const idEl =
+      which === "login"
+        ? document.getElementById("ts-login")
+        : which === "signup"
+        ? document.getElementById("ts-signup")
+        : which === "reset"
+        ? document.getElementById("ts-reset")
+        : null;
+    if (window.turnstile && idEl) window.turnstile.reset(idEl);
+  } catch {}
+}
 
-/* ===== 이미 로그인된 경우 바로 이동 ===== */
+/* ===== Backoff ===== */
+const FAIL_KEY = "login_fail_info";
+const now = () => Date.now();
+const getFailInfo = () => {
+  try {
+    return JSON.parse(localStorage.getItem(FAIL_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
+const setFailInfo = (o) => localStorage.setItem(FAIL_KEY, JSON.stringify(o));
+const recordFail = () => {
+  const info = getFailInfo();
+  const n = (info.count || 0) + 1;
+  const base = 10_000;
+  const delay = Math.min(5 * 60_000, base * Math.pow(2, Math.max(0, n - 3)));
+  setFailInfo({ count: n, until: now() + delay });
+};
+const resetFail = () => setFailInfo({ count: 0, until: 0 });
+const backoffMs = () => {
+  const i = getFailInfo();
+  if (!i.until) return 0;
+  return Math.max(0, i.until - now());
+};
+const formatMs = (ms) => {
+  const s = Math.ceil(ms / 1000);
+  if (s < 60) return `${s}초`;
+  const m = Math.floor(s / 60),
+    r = s % 60;
+  return `${m}분${r ? " " + r + "초" : ""}`;
+};
+
+/* ===== OAuth hash handling (token or error) ===== */
+(function handleHash() {
+  if (!location.hash) return;
+  const p = new URLSearchParams(location.hash.slice(1));
+  const token = p.get("token");
+  const error = p.get("error");
+  const provider = p.get("provider");
+  // clear hash early
+  history.replaceState(null, "", location.pathname + location.search);
+
+  if (token) {
+    signInWithCustomToken(auth, token).catch((e) => {
+      console.error("custom token signIn failed", e);
+      toast("소셜 로그인 처리 중 오류가 발생했습니다.", true);
+    });
+  } else if (error) {
+    if (error === "not_linked") {
+      toast(
+        `해당 ${
+          provider || "소셜"
+        } 계정은 아직 연동되지 않았습니다. 먼저 이메일 계정을 만들고 로그인한 뒤, 계정 연동에서 연결해 주세요.`,
+        true
+      );
+    } else if (error === "missing_idtoken" || error === "invalid_idtoken") {
+      toast("연동을 완료하려면 다시 시도해 주세요.", true);
+    } else {
+      toast(`소셜 로그인 오류: ${error}`, true);
+    }
+  }
+})();
+
+/* ===== Redirect on auth ===== */
 onAuthStateChanged(auth, async (user) => {
   if (!user) return;
-  if (!(await gateByRole(user))) return;
+  if (!(await gateAfterLogin(user))) return;
   showError("");
   location.replace(getPostLoginRedirect("dashboard.html"));
 });
+getRedirectResult(auth).catch((e) =>
+  console.warn("getRedirectResult", e?.code || e)
+);
 
-/* ===== 이메일/비밀번호 로그인 & 회원가입 & 재설정 ===== */
+/* ===== Caps lock & toggle ===== */
+function mountCapsHint(input, hintEl) {
+  if (!input || !hintEl) return;
+  input.addEventListener("keydown", (e) => {
+    if (e.getModifierState && e.getModifierState("CapsLock"))
+      hintEl.classList.remove("hidden");
+    else hintEl.classList.add("hidden");
+  });
+  input.addEventListener("blur", () => hintEl.classList.add("hidden"));
+}
+function mountPwToggle(inputId, btnId) {
+  const input = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if (!input || !btn) return;
+  const update = (show) => {
+    input.type = show ? "text" : "password";
+    btn.setAttribute("aria-pressed", String(show));
+    btn.setAttribute("aria-label", show ? "비밀번호 숨기기" : "비밀번호 표시");
+    btn.title = show ? "비밀번호 숨기기" : "비밀번호 표시";
+  };
+  btn.addEventListener("click", () => update(input.type !== "text"));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && input.type === "text") update(false);
+  });
+}
+mountCapsHint(
+  document.getElementById("password"),
+  document.getElementById("caps-hint-login")
+);
+mountCapsHint(
+  document.getElementById("signup-password"),
+  document.getElementById("caps-hint-signup1")
+);
+mountCapsHint(
+  document.getElementById("signup-password2"),
+  document.getElementById("caps-hint-signup2")
+);
+mountPwToggle("password", "login-pw-toggle");
+mountPwToggle("signup-password", "signup-pw-toggle");
+mountPwToggle("signup-password2", "signup-pw2-toggle");
+
+/* ===== Signup input validation ===== */
+function validateEmailFormat(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+function pwStrengthLabel(pw) {
+  let s = 0;
+  if (pw.length >= 8) s++;
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) s++;
+  if (/\d/.test(pw)) s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
+  return ["매우 약함", "약함", "보통", "강함", "매우 강함"][s] || "-";
+}
+function updateSignupState() {
+  const email = ui.sEmail.value.trim();
+  const pw = ui.sPw.value,
+    pw2 = ui.sPw2.value,
+    agree = ui.sAgree.checked;
+  const okEmail = validateEmailFormat(email);
+  const okPw = pw.length >= 6;
+  const okMatch = pw && pw === pw2;
+
+  ui.sEmail.classList.toggle("input-valid", okEmail);
+  ui.sEmail.classList.toggle("input-invalid", email && !okEmail);
+  ui.sPw.classList.toggle("input-valid", okPw);
+  ui.sPw.classList.toggle("input-invalid", pw && !okPw);
+  ui.sPw2.classList.toggle("input-valid", okMatch);
+  ui.sPw2.classList.toggle("input-invalid", pw2 && !okMatch);
+
+  ui.sSubmit.disabled = !(okEmail && okPw && okMatch && agree);
+}
+["input", "change", "blur"].forEach((ev) => {
+  ui.sEmail?.addEventListener(ev, updateSignupState);
+  ui.sPw?.addEventListener(ev, updateSignupState);
+  ui.sPw2?.addEventListener(ev, updateSignupState);
+  ui.sAgree?.addEventListener(ev, updateSignupState);
+});
+updateSignupState();
+
+/* ===== Modal open/close ===== */
+function openModal(m) {
+  m.classList.remove("hidden");
+  m.setAttribute("aria-hidden", "false");
+  document.body.classList.add("is-modal-open");
+}
+function closeModal(m) {
+  m.classList.add("hidden");
+  m.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("is-modal-open");
+}
+ui.emailSignupBtn?.addEventListener("click", () => {
+  showSignupError("");
+  ui.pwStrength.textContent = "강도: -";
+  ui.sEmail.value = (ui.email?.value || "").trim();
+  ui.sName.value = "";
+  ui.sPw.value = "";
+  ui.sPw2.value = "";
+  ui.sAgree.checked = false;
+  openModal(ui.modal);
+});
+ui.sCancel?.addEventListener("click", () => closeModal(ui.modal));
+
+/* ===== Email login ===== */
 ui.emailForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   showError("");
-  setLoading(ui.emailLoginBtn, true);
+  setBtnLoading(ui.emailLoginBtn, true);
   saveLastPath();
+
+  const wait = FEATURES.RATE_LIMIT_CLIENT_BACKOFF ? backoffMs() : 0;
+  if (wait > 0) {
+    setBtnLoading(ui.emailLoginBtn, false);
+    return showError(
+      `로그인 시도가 많습니다. ${formatMs(wait)} 후 다시 시도해 주세요.`
+    );
+  }
+
   try {
+    const persistence = ui.remember?.checked
+      ? browserLocalPersistence
+      : browserSessionPersistence;
+    await setPersistence(auth, persistence);
+
+    if (FEATURES.CAPTCHA_LOGIN) {
+      const token = await getCaptchaToken("login");
+      const ok = await verifyCaptcha(token);
+      if (!ok) {
+        showError("로봇 방지 검증에 실패했습니다.");
+        resetCaptcha("login");
+        return;
+      }
+    }
+
     const cred = await signInWithEmailAndPassword(
       auth,
       ui.email.value.trim(),
       ui.password.value
     );
-    if (!(await gateByRole(cred.user))) return;
+    resetFail();
+    if (!(await gateAfterLogin(cred.user))) return;
     location.replace(getPostLoginRedirect("dashboard.html"));
   } catch (err) {
-    showError("이메일 또는 비밀번호를 확인해 주세요.");
     console.error(err);
+    if (FEATURES.RATE_LIMIT_CLIENT_BACKOFF) recordFail();
+    showError("이메일 또는 비밀번호를 확인해 주세요.");
   } finally {
-    setLoading(ui.emailLoginBtn, false);
+    setBtnLoading(ui.emailLoginBtn, false);
   }
 });
 
-ui.emailSignupBtn?.addEventListener("click", async () => {
-  showError("");
-  setLoading(ui.emailSignupBtn, true);
+/* ===== Signup ===== */
+ui.sPw?.addEventListener(
+  "input",
+  () => (ui.pwStrength.textContent = `강도: ${pwStrengthLabel(ui.sPw.value)}`)
+);
+ui.sSubmit?.addEventListener("click", async () => {
+  showSignupError("");
+  const email = ui.sEmail.value.trim(),
+    name = ui.sName.value.trim(),
+    pw = ui.sPw.value,
+    pw2 = ui.sPw2.value;
+  if (!email) return showSignupError("이메일을 입력해 주세요.");
+  if (pw.length < 6)
+    return showSignupError("비밀번호는 6자 이상이어야 합니다.");
+  if (pw !== pw2) return showSignupError("비밀번호가 일치하지 않습니다.");
+  if (!ui.sAgree.checked) return showSignupError("약관에 동의해 주세요.");
+
+  setBtnLoading(ui.sSubmit, true);
   try {
-    const cred = await createUserWithEmailAndPassword(
-      auth,
-      ui.email.value.trim(),
-      ui.password.value
-    );
-    // 새 계정 생성 시 기본 문서 생성
+    if (FEATURES.CAPTCHA_SIGNUP) {
+      const token = await getCaptchaToken("signup");
+      const ok = await verifyCaptcha(token);
+      if (!ok) {
+        showSignupError("로봇 방지 검증에 실패했습니다.");
+        resetCaptcha("signup");
+        return;
+      }
+    }
+
+    const cred = await createUserWithEmailAndPassword(auth, email, pw);
+    if (name) {
+      try {
+        await updateProfile(cred.user, { displayName: name });
+      } catch {}
+    }
     await ensureUserDoc(cred.user);
-    showError(
-      "계정이 생성되었습니다. 소셜 계정과 연동하려면 아래 버튼으로 연동해 주세요."
+    try {
+      await sendEmailVerification(cred.user);
+    } catch {}
+
+    closeModal(ui.modal);
+    toast(
+      "계정이 생성되었습니다. 이메일 인증 및 관리자 승인 후 로그인할 수 있습니다."
     );
+    await signOut(auth);
   } catch (err) {
-    console.error(err);
-    showError(
+    console.error("signup error:", err);
+    showSignupError(
       err.code === "auth/email-already-in-use"
-        ? "이미 등록된 이메일입니다. 로그인하거나 비밀번호를 재설정하세요."
+        ? "이미 등록된 이메일입니다."
+        : err.code === "auth/invalid-email"
+        ? "이메일 형식을 확인해 주세요."
+        : err.code === "auth/weak-password"
+        ? "비밀번호는 6자 이상이어야 합니다."
+        : err.code === "auth/operation-not-allowed"
+        ? "이메일/비밀번호 로그인이 비활성화되어 있습니다(콘솔에서 활성화 필요)."
         : "계정 생성 중 오류가 발생했습니다."
     );
+    toast("계정 생성 실패", true);
   } finally {
-    setLoading(ui.emailSignupBtn, false);
+    setBtnLoading(ui.sSubmit, false);
   }
 });
 
-ui.resetBtn?.addEventListener("click", async () => {
-  if (!ui.email.value) {
-    showError("비밀번호 재설정을 위해 이메일을 입력해 주세요.");
-    return;
-  }
-  try {
-    await sendPasswordResetEmail(auth, ui.email.value.trim());
-    showError("비밀번호 재설정 메일을 보냈습니다.");
-  } catch (err) {
-    console.error(err);
-    showError("재설정 메일 발송 중 오류가 발생했습니다.");
-  }
+/* ===== Reset password ===== */
+ui.resetOpen?.addEventListener("click", () => {
+  showResetError("");
+  ui.rEmail.value = (ui.email?.value || "").trim();
+  openModal(ui.resetModal);
 });
-
-/* ===== 공통: 소셜 로그인 or 현재 계정에 연동(link) ===== */
-async function signInOrLink(provider, buttonEl) {
-  showError("");
-  setLoading(buttonEl, true);
-  saveLastPath();
-
-  const watchdog = setTimeout(() => {
-    if (!auth.currentUser) {
-      showError(
-        "로그인 진행이 지연됩니다. 팝업 차단 또는 허용 도메인 설정을 확인해 주세요."
-      );
-    }
-  }, 6000);
-
+ui.rCancel?.addEventListener("click", () => closeModal(ui.resetModal));
+ui.rSubmit?.addEventListener("click", async () => {
+  showResetError("");
+  setBtnLoading(ui.rSubmit, true);
   try {
-    if (auth.currentUser) {
-      // 이미 이메일 계정으로 로그인된 상태에서 소셜 연동
-      await linkWithPopup(auth.currentUser, provider);
-      await ensureUserDoc(auth.currentUser);
-      showError("계정이 성공적으로 연동되었습니다.");
-      return;
-    }
-    // 일반 로그인
-    await signInWithPopup(auth, provider);
-  } catch (e) {
-    // 팝업 실패 시 리디렉트 폴백
-    if (
-      e?.code === "auth/popup-blocked" ||
-      e?.code === "auth/popup-closed-by-user" ||
-      e?.code === "auth/cancelled-popup-request" ||
-      e?.code === "auth/unauthorized-domain" ||
-      e?.code === "auth/operation-not-supported-in-this-environment"
-    ) {
-      try {
-        await signInWithRedirect(auth, provider);
+    if (FEATURES.CAPTCHA_RESET) {
+      const token = await getCaptchaToken("reset");
+      const ok = await verifyCaptcha(token);
+      if (!ok) {
+        showResetError("로봇 방지 검증에 실패했습니다.");
+        resetCaptcha("reset");
         return;
-      } catch (re) {
-        console.error("redirect error:", re);
-        showError(`[${re.code}] ${re.message || "리디렉트 로그인 실패"}`);
       }
-    } else if (
-      e?.code === "auth/credential-already-in-use" ||
-      e?.code === "auth/account-exists-with-different-credential"
-    ) {
-      showError(
-        "이미 다른 계정과 연결된 자격 증명입니다. 기존 계정으로 로그인 후 연동하세요."
-      );
-    } else {
-      console.error(e);
-      showError(`[${e.code}] ${e.message || "로그인 중 오류가 발생했습니다."}`);
     }
+    await sendPasswordResetEmail(auth, ui.rEmail.value.trim());
+    closeModal(ui.resetModal);
+    toast("비밀번호 재설정 메일을 보냈습니다. 메일함을 확인해 주세요.");
+  } catch (err) {
+    console.error("reset error:", err);
+    showResetError("재설정 메일을 보낼 수 없습니다. 이메일을 확인해 주세요.");
   } finally {
-    clearTimeout(watchdog);
-    setLoading(buttonEl, false);
+    setBtnLoading(ui.rSubmit, false);
   }
-}
+});
 
-/* ----- Google ----- */
-const googleProvider = new GoogleAuthProvider();
-ui.googleBtn?.addEventListener("click", () =>
-  signInOrLink(googleProvider, ui.googleBtn)
-);
+/* ===== Social (login-mode only; linking is separate when logged-in) ===== */
+ui.googleBtn?.addEventListener("click", () => {
+  const returnUrl = location.origin + "/index.html";
+  location.href = `${AUTH_SERVER}/auth/google/start?mode=login&return=${encodeURIComponent(
+    returnUrl
+  )}`;
+});
+
+// Kakao / Naver 은 "연동된 사용자만 로그인 허용"
+function startProviderLogin(provider) {
+  const returnUrl = location.origin + "/index.html"; // 토큰/에러를 index로 돌려받음
+  location.href = `${AUTH_SERVER}/auth/${provider}/start?mode=login&return=${encodeURIComponent(
+    returnUrl
+  )}`;
+}
+ui.kakaoBtn?.addEventListener("click", () => startProviderLogin("kakao"));
+ui.naverBtn?.addEventListener("click", () => startProviderLogin("naver"));

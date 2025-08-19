@@ -4,48 +4,98 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>POS 시스템 로그인</title>
+
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="css/index.css" />
     <link
       rel="stylesheet"
-      as="style"
-      crossorigin
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+
+    <style>
+      /* 보이는 Turnstile 배치 */
+      .turnstile-wrap {
+        margin-top: 10px;
+        display: flex;
+        justify-content: center;
+      }
+      .modal .turnstile-wrap {
+        margin-top: 12px;
+      }
+    </style>
   </head>
   <body>
-    <main class="login-container" role="main" aria-labelledby="login-title">
-      <h1 id="login-title">POS 시스템 로그인</h1>
+    <div class="login-container">
+      <h1>POS 시스템 로그인</h1>
 
-      <!-- 이메일/비밀번호 -->
+      <!-- 이메일 로그인 -->
       <form id="email-form" class="email-form" autocomplete="on">
-        <label class="sr-only" for="email">이메일</label>
         <input
           id="email"
-          name="email"
           type="email"
           placeholder="이메일"
           required
+          autocomplete="email"
         />
-        <label class="sr-only" for="password">비밀번호</label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          placeholder="비밀번호"
-          required
-        />
+        <div class="pw-field">
+          <input
+            id="password"
+            type="password"
+            placeholder="비밀번호"
+            required
+            autocomplete="current-password"
+          /><button
+            type="button"
+            id="login-pw-toggle"
+            class="pw-toggle"
+            aria-pressed="false"
+            aria-label="비밀번호 표시"
+          >
+            <i class="fa-solid fa-eye" aria-hidden="true"></i>
+            <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div id="caps-hint-login" class="caps-hint hidden">
+          Caps Lock이 켜져 있어요
+        </div>
+
+        <!-- ✅ Turnstile(로그인, 보이는 위젯) -->
+        <div class="turnstile-wrap">
+          <div
+            id="ts-login"
+            class="cf-turnstile"
+            data-sitekey="0x4AAAAAABtE3GFMWF3_Fd4E"
+            data-appearance="always"
+            data-theme="light"
+            data-callback="onTurnstileLogin"
+            data-expired-callback="onTurnstileLoginExpired"
+            data-error-callback="onTurnstileLoginError"
+          ></div>
+        </div>
+
         <button id="email-login-btn" class="login-btn" type="submit">
-          이메일로 로그인
-          <span class="spinner" aria-hidden="true"></span>
+          이메일로 로그인 <span class="spinner"></span>
         </button>
+
         <div class="helper-row">
-          <button id="email-signup-btn" class="text-btn" type="button">
+          <button id="email-signup-btn" type="button" class="text-btn">
             계정 만들기
           </button>
-          <button id="reset-password-btn" class="text-btn" type="button">
+          <button id="reset-password-btn" type="button" class="text-btn">
             비밀번호 재설정
           </button>
         </div>
+
+        <label
+          style="display: flex; align-items: center; gap: 8px; margin: 6px 0"
+        >
+          <input id="remember-me" type="checkbox" />
+          <span>로그인 유지</span>
+        </label>
       </form>
 
       <div class="divider"><span>또는</span></div>
@@ -56,13 +106,11 @@
           id="google-login-btn"
           class="login-btn social google"
           type="button"
-          aria-label="Google 계정으로 로그인"
         >
           <svg
             viewBox="0 0 533.5 544.3"
             xmlns="http://www.w3.org/2000/svg"
             aria-hidden="true"
-            focusable="false"
           >
             <path
               fill="#4285f4"
@@ -82,39 +130,229 @@
             />
           </svg>
           Google로 로그인
-          <span class="spinner" aria-hidden="true"></span>
         </button>
-
         <button
           id="kakao-login-btn"
           class="login-btn social kakao"
           type="button"
-          aria-label="Kakao 계정으로 로그인"
         >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <!-- 채팅 말풍선 -->
+            <path
+              fill="#181600"
+              d="M12 3.5c-5.1 0-9.25 3.05-9.25 6.81 0 2.43 1.68 4.53 4.19 5.74l-.92 3.38 3.36-2.25c.72.1 1.46.16 2.22.16 5.1 0 9.25-3.05 9.25-6.81S17.1 3.5 12 3.5z"
+            />
+          </svg>
           Kakao로 로그인
-          <span class="spinner" aria-hidden="true"></span>
         </button>
-
         <button
           id="naver-login-btn"
           class="login-btn social naver"
           type="button"
-          aria-label="Naver 계정으로 로그인"
         >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <!-- 흰색 N 로고 -->
+            <path fill="#ffffff" d="M6 4h4.8l3.2 5V4H18v16h-4.8l-3.2-5v5H6z" />
+          </svg>
           Naver로 로그인
-          <span class="spinner" aria-hidden="true"></span>
         </button>
       </div>
 
+      <p id="login-error" class="login-error"></p>
       <p class="login-note">조직 계정 또는 소셜 계정으로 로그인하세요.</p>
-      <p
-        id="login-error"
-        class="login-error"
-        role="alert"
-        aria-live="polite"
-      ></p>
-    </main>
+    </div>
 
+    <!-- 회원가입 모달 -->
+    <div id="signup-modal" class="modal hidden" aria-hidden="true">
+      <div
+        class="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="signup-title"
+      >
+        <h2 id="signup-title">계정 만들기</h2>
+
+        <form id="signup-form" autocomplete="on" onsubmit="return false;">
+          <label for="signup-name">이름(선택)</label>
+          <input
+            id="signup-name"
+            type="text"
+            placeholder="이름 또는 표시명"
+            autocomplete="name"
+          />
+
+          <label for="signup-email">이메일</label>
+          <input
+            id="signup-email"
+            type="email"
+            placeholder="you@example.com"
+            required
+            autocomplete="email"
+          />
+
+          <label for="signup-password">비밀번호</label>
+          <div class="pw-field">
+            <input
+              id="signup-password"
+              type="password"
+              placeholder="6자 이상"
+              required
+              autocomplete="new-password"
+            /><button
+              type="button"
+              id="signup-pw-toggle"
+              class="pw-toggle"
+              aria-pressed="false"
+              aria-label="비밀번호 표시"
+            >
+              <i class="fa-solid fa-eye" aria-hidden="true"></i>
+              <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div id="caps-hint-signup1" class="caps-hint hidden">
+            Caps Lock이 켜져 있어요
+          </div>
+
+          <label for="signup-password2">비밀번호 확인</label>
+          <div class="pw-field">
+            <input
+              id="signup-password2"
+              type="password"
+              placeholder="비밀번호 다시 입력"
+              required
+              autocomplete="new-password"
+            /><button
+              type="button"
+              id="signup-pw2-toggle"
+              class="pw-toggle"
+              aria-pressed="false"
+              aria-label="비밀번호 표시"
+            >
+              <i class="fa-solid fa-eye" aria-hidden="true"></i>
+              <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div id="caps-hint-signup2" class="caps-hint hidden">
+            Caps Lock이 켜져 있어요
+          </div>
+
+          <div id="pw-strength">강도: -</div>
+
+          <label class="agree-row">
+            <input id="signup-agree" type="checkbox" />
+            <span>이용 약관과 개인정보 처리방침에 동의합니다.</span>
+          </label>
+
+          <!-- ✅ Turnstile(회원가입, 보이는 위젯) -->
+          <div class="turnstile-wrap">
+            <div
+              id="ts-signup"
+              class="cf-turnstile"
+              data-sitekey="0x4AAAAAABtE3GFMWF3_Fd4E"
+              data-appearance="always"
+              data-theme="light"
+              data-callback="onTurnstileSignup"
+              data-expired-callback="onTurnstileSignupExpired"
+              data-error-callback="onTurnstileSignupError"
+            ></div>
+          </div>
+
+          <p id="signup-error"></p>
+
+          <div class="modal-buttons">
+            <button id="signup-submit-btn" type="button">계정 생성</button>
+            <button id="signup-cancel-btn" type="button">취소</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 비밀번호 재설정 모달 -->
+    <div id="reset-modal" class="modal hidden" aria-hidden="true">
+      <div
+        class="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reset-title"
+      >
+        <h2 id="reset-title">비밀번호 재설정</h2>
+        <form id="reset-form" onsubmit="return false;">
+          <label for="reset-email">이메일</label>
+          <input
+            id="reset-email"
+            type="email"
+            placeholder="you@example.com"
+            required
+            autocomplete="email"
+          />
+
+          <!-- ✅ Turnstile(재설정, 보이는 위젯) -->
+          <div class="turnstile-wrap">
+            <div
+              id="ts-reset"
+              class="cf-turnstile"
+              data-sitekey="0x4AAAAAABtE3GFMWF3_Fd4E"
+              data-appearance="always"
+              data-theme="light"
+              data-callback="onTurnstileReset"
+              data-expired-callback="onTurnstileResetExpired"
+              data-error-callback="onTurnstileResetError"
+            ></div>
+          </div>
+
+          <p id="reset-error" class="login-error"></p>
+
+          <div class="modal-buttons">
+            <button id="reset-submit-btn" type="button">
+              재설정 메일 보내기
+            </button>
+            <button id="reset-cancel-btn" type="button">취소</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Turnstile 콜백: 토큰 저장 -->
+    <script>
+      window._tsTokens = { login: null, signup: null, reset: null };
+      function onTurnstileLogin(t) {
+        window._tsTokens.login = t;
+      }
+      function onTurnstileSignup(t) {
+        window._tsTokens.signup = t;
+      }
+      function onTurnstileReset(t) {
+        window._tsTokens.reset = t;
+      }
+      function onTurnstileLoginExpired() {
+        window._tsTokens.login = null;
+      }
+      function onTurnstileSignupExpired() {
+        window._tsTokens.signup = null;
+      }
+      function onTurnstileResetExpired() {
+        window._tsTokens.reset = null;
+      }
+      function onTurnstileLoginError() {
+        window._tsTokens.login = null;
+      }
+      function onTurnstileSignupError() {
+        window._tsTokens.signup = null;
+      }
+      function onTurnstileResetError() {
+        window._tsTokens.reset = null;
+      }
+    </script>
+    <!-- Cloudflare Turnstile (한국어, 자동 렌더) -->
+    <script
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?hl=ko"
+      async
+      defer
+    ></script>
+
+    <!-- 공통 컴포넌트(토스트 등) -->
+    <script type="module" src="js/components/comp.js"></script>
+    <!-- 로그인 로직 -->
     <script type="module" src="js/login.js"></script>
   </body>
 </html>
