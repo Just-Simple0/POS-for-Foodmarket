@@ -87,14 +87,6 @@ export function loadHeader(containerID = null) {
       link.classList.add("active");
     }
   });
-
-  // ✅ Toast 요소 자동 삽입
-  if (!document.getElementById("toast")) {
-    const toastDiv = document.createElement("div");
-    toastDiv.id = "toast";
-    toastDiv.className = "toast";
-    document.body.appendChild(toastDiv);
-  }
 }
 
 export function loadFooter(containerID = null) {
@@ -116,8 +108,14 @@ export function loadFooter(containerID = null) {
 let toastTimeout;
 
 export function showToast(message, isError = false) {
-  const toast = document.getElementById("toast");
-  if (!toast) return;
+  let toast = document.getElementById("toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    document.body.appendChild(toast);
+  }
 
   toast.innerHTML = message;
   toast.classList.add("show");

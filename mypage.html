@@ -2,9 +2,8 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <title>POS System - Mypage</title>
+    <title>POS System - My Page</title>
 
-    <!-- 공통 리소스 -->
     <link rel="stylesheet" href="css/common.css" />
     <link rel="stylesheet" href="css/mypage.css" />
     <link
@@ -33,33 +32,29 @@
         <!-- 프로필 카드 -->
         <section class="user-card">
           <h2>👨‍💼 직원 정보</h2>
+
           <p><strong>이름:</strong> <span id="user-name">-</span></p>
           <p><strong>이메일:</strong> <span id="user-email">-</span></p>
           <p>
             <strong>최근 로그인:</strong> <span id="user-last-login">-</span>
           </p>
+
+          <!-- 권한 & 관리자 뱃지 (role === 'admin'일 때만 표시) -->
           <p>
-            <span id="admin-badge" class="admin-badge" style="display: none">
+            <strong>권한:</strong> <span id="user-role">-</span>
+            <span
+              id="admin-badge"
+              class="admin-badge"
+              style="display: none; margin-left: 0.5rem"
+            >
               <i class="fas fa-crown"></i> 관리자
             </span>
           </p>
-          <button id="logout-btn">로그아웃</button>
 
-          <section
-            id="admin-settings"
-            class="admin-settings"
-            style="display: none"
-          >
-            <h2>🛠️ 관리자 설정</h2>
-            <ul>
-              <li>✔️ 사용자 계정 관리</li>
-              <li>✔️ 상품 초기화 도구</li>
-              <li>✔️ 시스템 로그 보기</li>
-            </ul>
-          </section>
+          <button id="logout-btn">로그아웃</button>
         </section>
 
-        <!-- 🔗 계정 연동 -->
+        <!-- 🔗 계정 연동 (기존 섹션 유지) -->
         <section class="federation-card">
           <h2>🔗 계정 연동</h2>
           <p class="fed-help">
@@ -169,18 +164,6 @@
         const el = document.createElement("div");
         el.id = "toast";
         document.body.appendChild(el);
-      }
-      // 해시로 돌아온 경우(연동 완료/실패) 안내
-      if (location.hash) {
-        const p = new URLSearchParams(location.hash.slice(1));
-        const err = p.get("error"),
-          prov = p.get("provider"),
-          tok = p.get("token");
-        if (err === "not_linked")
-          showToast(`해당 ${prov} 계정은 연동되어 있지 않습니다.`, true);
-        if (tok && prov?.endsWith("_linked"))
-          showToast(`${prov.replace("_linked", "")} 연동이 완료되었습니다.`);
-        history.replaceState(null, "", location.pathname + location.search);
       }
     </script>
   </body>

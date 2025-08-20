@@ -99,8 +99,10 @@ header {
 
 .user-actions {
   display: flex;
-  flex-direction: flex-start;
+  flex-direction: row; /* 기존 flex-start → row */
   gap: 0.5rem;
+  align-items: center; /* 필요한 경우 */
+  justify-content: flex-start;
 }
 
 #user-name-header {
@@ -306,6 +308,22 @@ main {
   padding: 4px;
   border: 1px solid #ccc;
   border-radius: 4px;
+}
+
+/* Loading states */
+.btn.is-busy {
+  opacity: 0.7;
+  pointer-events: none;
+}
+.btn.is-busy::after {
+  content: " …";
+  font-weight: 700;
+}
+
+/* Status badge loading state */
+.status-badge.loading {
+  background: #fff7cc;
+  color: #7a5b00;
 }
 
 /* 반응형: 검색/필터 */

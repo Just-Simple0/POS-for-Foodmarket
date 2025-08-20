@@ -1,5 +1,5 @@
 .mypage-container {
-  max-width: 600px;
+  max-width: 720px;
   width: 100%;
   margin: 3rem auto;
   background: #fff;
@@ -12,10 +12,9 @@
   margin-bottom: 1rem;
   color: #1976d2;
 }
-
 .user-card p {
   margin: 0.5rem 0;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
 }
 
 .admin-badge {
@@ -44,57 +43,155 @@ button#logout-btn {
   border: 1px solid #fdd835;
   border-radius: 8px;
 }
-
 .admin-settings h2 {
   color: #d32f2f;
   margin-bottom: 1rem;
 }
-
 .admin-settings li {
   margin-bottom: 0.5rem;
-  font-size: 1.05rem;
+  font-size: 1.02rem;
 }
 
-/* 📱 태블릿 이하 (768px) */
+/* ===== Federation ===== */
+.federation-card {
+  margin-top: 2rem;
+}
+.federation-card h2 {
+  margin-bottom: 0.75rem;
+  color: #1976d2;
+}
+.fed-help {
+  margin: 0 0 1rem;
+  color: #555;
+}
+
+.link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.link-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+}
+.provider {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.provider i {
+  font-size: 24px;
+  width: 28px;
+  text-align: center;
+  color: #374151;
+}
+.provider h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.status {
+  margin-top: 4px;
+}
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: #e5e7eb;
+  color: #374151;
+}
+.status-badge.connected {
+  background: #dcfce7;
+  color: #14532d;
+}
+.status-badge.disconnected {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  border: none;
+  cursor: pointer;
+  padding: 0.55rem 0.9rem;
+  border-radius: 8px;
+  font-weight: 700;
+  background: #e5e7eb;
+  color: #111;
+}
+.btn.primary {
+  background: #2d80f7;
+  color: #fff;
+}
+.btn.danger {
+  background: #ef4444;
+  color: #fff;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.hidden {
+  display: none !important;
+}
+
+.note {
+  margin-top: 10px;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+/* 📱 태블릿 이하 */
 @media (max-width: 768px) {
   .mypage-container {
-    max-width: 90%;
+    max-width: 92%;
     padding: 1.5rem;
   }
-
   .user-card p {
     font-size: 1rem;
   }
-
   .admin-settings li {
     font-size: 1rem;
   }
+  .link-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .actions {
+    justify-content: flex-end;
+  }
 }
 
-/* 📱 모바일 이하 (480px) */
+/* 📱 모바일 이하 */
 @media (max-width: 480px) {
   .mypage-container {
     max-width: 95%;
     padding: 1.2rem;
   }
-
   .user-card h2 {
     font-size: 1.1rem;
   }
-
   .user-card p {
     font-size: 0.95rem;
   }
-
   button#logout-btn {
     width: 100%;
     font-size: 0.95rem;
   }
-
   .admin-settings h2 {
     font-size: 1rem;
   }
-
   .admin-settings li {
     font-size: 0.95rem;
   }
