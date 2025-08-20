@@ -19,6 +19,9 @@ import {
   setDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { showToast } from "./components/comp.js";
+
+let SIGNUP_IN_PROGRESS = false;
 
 /* ===== 기능 플래그 ===== */
 const FEATURES = {
@@ -37,11 +40,6 @@ const AUTH_SERVER =
   location.hostname === "localhost" || location.hostname === "127.0.0.1"
     ? "http://localhost:3000"
     : "https://foodmarket-pos.onrender.com";
-
-function toast(msg, isError = false) {
-  if (typeof window.showToast === "function") window.showToast(msg, isError);
-  else alert(msg);
-}
 
 const ui = {
   emailForm: document.getElementById("email-form"),
@@ -77,6 +75,12 @@ const ui = {
   rSubmit: document.getElementById("reset-submit-btn"),
   rCancel: document.getElementById("reset-cancel-btn"),
 };
+
+if (!document.getElementById("toast")) {
+  const el = document.createElement("div");
+  el.id = "toast";
+  document.body.appendChild(el);
+}
 
 function setBtnLoading(el, on) {
   if (!el) return;
@@ -255,26 +259,27 @@ const formatMs = (ms) => {
   if (token) {
     signInWithCustomToken(auth, token).catch((e) => {
       console.error("custom token signIn failed", e);
-      toast("소셜 로그인 처리 중 오류가 발생했습니다.", true);
+      showToast("소셜 로그인 처리 중 오류가 발생했습니다.", true);
     });
   } else if (error) {
     if (error === "not_linked") {
-      toast(
+      showToast(
         `해당 ${
           provider || "소셜"
         } 계정은 아직 연동되지 않았습니다. 먼저 이메일 계정을 만들고 로그인한 뒤, 계정 연동에서 연결해 주세요.`,
         true
       );
     } else if (error === "missing_idtoken" || error === "invalid_idtoken") {
-      toast("연동을 완료하려면 다시 시도해 주세요.", true);
+      showToast("연동을 완료하려면 다시 시도해 주세요.", true);
     } else {
-      toast(`소셜 로그인 오류: ${error}`, true);
+      showToast(`소셜 로그인 오류: ${error}`, true);
     }
   }
 })();
 
 /* ===== Redirect on auth ===== */
 onAuthStateChanged(auth, async (user) => {
+  if (SIGNUP_IN_PROGRESS) return;
   if (!user) return;
   if (!(await gateAfterLogin(user))) return;
   showError("");
@@ -386,6 +391,33 @@ ui.emailSignupBtn?.addEventListener("click", () => {
 });
 ui.sCancel?.addEventListener("click", () => closeModal(ui.modal));
 
+function setBtnBusy(btn, busy = true) {
+  if (!btn) return;
+  btn.classList.toggle("button-busy", busy);
+  btn.disabled = !!busy;
+}
+
+function showBlocking(modalEl, text = "처리 중...") {
+  if (!modalEl) return;
+  const host = modalEl.querySelector(".modal-content") || modalEl;
+  let ov = host.querySelector(".blocking");
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.className = "blocking";
+    ov.innerHTML = `<div class="blocking-inner"><div class="spinner-lg"></div><span class="msg"></span></div>`;
+    host.appendChild(ov);
+  }
+  ov.querySelector(".msg").textContent = text;
+  ov.style.display = "flex";
+}
+
+function hideBlocking(modalEl) {
+  if (!modalEl) return;
+  const host = modalEl.querySelector(".modal-content") || modalEl;
+  const ov = host.querySelector(".blocking");
+  if (ov) ov.style.display = "none";
+}
+
 /* ===== Email login ===== */
 ui.emailForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -439,31 +471,42 @@ ui.sPw?.addEventListener(
   "input",
   () => (ui.pwStrength.textContent = `강도: ${pwStrengthLabel(ui.sPw.value)}`)
 );
+
 ui.sSubmit?.addEventListener("click", async () => {
   showSignupError("");
+
   const email = ui.sEmail.value.trim(),
     name = ui.sName.value.trim(),
     pw = ui.sPw.value,
     pw2 = ui.sPw2.value;
+
   if (!email) return showSignupError("이메일을 입력해 주세요.");
   if (pw.length < 6)
     return showSignupError("비밀번호는 6자 이상이어야 합니다.");
   if (pw !== pw2) return showSignupError("비밀번호가 일치하지 않습니다.");
   if (!ui.sAgree.checked) return showSignupError("약관에 동의해 주세요.");
 
-  setBtnLoading(ui.sSubmit, true);
+  setBtnLoading(ui.sSubmit, true); // 기존 로딩 상태 유지
+  setBtnBusy(ui.sSubmit, true); // 버튼 중앙 스피너
+  SIGNUP_IN_PROGRESS = true; // 자동 리다이렉트 무시
+  // 모달 내 입력요소 잠금 + 오버레이 표시
+  const modalInputs = ui.modal?.querySelectorAll(
+    "input,button,select,textarea"
+  );
+  modalInputs?.forEach((el) => (el.disabled = true));
+  showBlocking(ui.modal, "계정을 생성하는 중...");
+
   try {
     if (FEATURES.CAPTCHA_SIGNUP) {
       const token = await getCaptchaToken("signup");
       const ok = await verifyCaptcha(token);
       if (!ok) {
-        showSignupError("로봇 방지 검증에 실패했습니다.");
-        resetCaptcha("signup");
-        return;
+        throw new Error("captcha-verify-failed");
       }
     }
 
     const cred = await createUserWithEmailAndPassword(auth, email, pw);
+
     if (name) {
       try {
         await updateProfile(cred.user, { displayName: name });
@@ -474,27 +517,35 @@ ui.sSubmit?.addEventListener("click", async () => {
       await sendEmailVerification(cred.user);
     } catch {}
 
-    closeModal(ui.modal);
-    toast(
-      "계정이 생성되었습니다. 이메일 인증 및 관리자 승인 후 로그인할 수 있습니다."
-    );
-    await signOut(auth);
+    closeModal(ui.modal); // ✅ 먼저 모달 닫기
+    try {
+      await signOut(auth);
+    } catch {} // 자동 로그인 즉시 종료
+    showToast("가입이 완료되었습니다. 이메일 인증 후 로그인 가능합니다.");
   } catch (err) {
     console.error("signup error:", err);
-    showSignupError(
-      err.code === "auth/email-already-in-use"
-        ? "이미 등록된 이메일입니다."
-        : err.code === "auth/invalid-email"
-        ? "이메일 형식을 확인해 주세요."
-        : err.code === "auth/weak-password"
-        ? "비밀번호는 6자 이상이어야 합니다."
-        : err.code === "auth/operation-not-allowed"
-        ? "이메일/비밀번호 로그인이 비활성화되어 있습니다(콘솔에서 활성화 필요)."
-        : "계정 생성 중 오류가 발생했습니다."
-    );
-    toast("계정 생성 실패", true);
+    if (err?.message === "captcha-verify-failed") {
+      showSignupError("로봇 방지 검증에 실패했습니다.");
+    } else {
+      showSignupError(
+        err.code === "auth/email-already-in-use"
+          ? "이미 등록된 이메일입니다."
+          : err.code === "auth/invalid-email"
+          ? "이메일 형식을 확인해 주세요."
+          : err.code === "auth/weak-password"
+          ? "비밀번호는 6자 이상이어야 합니다."
+          : err.code === "auth/operation-not-allowed"
+          ? "이메일/비밀번호 로그인이 비활성화되어 있습니다(콘솔에서 활성화 필요)."
+          : "계정 생성 중 오류가 발생했습니다."
+      );
+    }
+    showToast("계정 생성 실패", true);
   } finally {
+    hideBlocking(ui.modal);
+    modalInputs?.forEach((el) => (el.disabled = false));
+    setBtnBusy(ui.sSubmit, false);
     setBtnLoading(ui.sSubmit, false);
+    SIGNUP_IN_PROGRESS = false;
   }
 });
 
@@ -520,7 +571,7 @@ ui.rSubmit?.addEventListener("click", async () => {
     }
     await sendPasswordResetEmail(auth, ui.rEmail.value.trim());
     closeModal(ui.resetModal);
-    toast("비밀번호 재설정 메일을 보냈습니다. 메일함을 확인해 주세요.");
+    showToast("비밀번호 재설정 메일을 보냈습니다. 메일함을 확인해 주세요.");
   } catch (err) {
     console.error("reset error:", err);
     showResetError("재설정 메일을 보낼 수 없습니다. 이메일을 확인해 주세요.");

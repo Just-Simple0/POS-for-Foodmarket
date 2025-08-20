@@ -285,6 +285,7 @@ body {
   z-index: 1000;
 }
 .modal-content {
+  position: relative;
   background: #fff;
   color: #333;
   padding: 16px 20px;
@@ -374,6 +375,91 @@ body {
 .modal-actions button:last-child {
   background: #ddd;
   color: #000;
+}
+
+.blocking {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(2px);
+  display: none; /* JS로 토글 */
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.blocking .blocking-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+.spinner-lg {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: #2d80f7;
+  border-right-color: #2d80f7;
+  animation: spin 0.8s linear infinite;
+}
+
+/* 버튼 자체 스피너(텍스트 대신 중앙 스피너) */
+.button-busy {
+  position: relative;
+  pointer-events: none;
+}
+.button-busy::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-right-color: currentColor;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Toast 메시지 공통 스타일 */
+#toast {
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  background-color: #333;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 2000;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+#toast.error {
+  background-color: #ffe5e5;
+  color: #e53935;
+  font-weight: bold;
+}
+
+#toast.show.error {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 /* 유효성 피드백 */
