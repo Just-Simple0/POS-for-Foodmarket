@@ -215,6 +215,88 @@ export function loadFooter(containerID = null) {
 }
 
 /**
+ * Turnstile 모달을 띄워 토큰을 받는다(보이는 위젯).
+ * @param {{action?: string, title?: string, subtitle?: string}} opts
+ * @returns {Promise<string|null>}
+ */
+export async function openCaptchaModal(opts = {}) {
+  const {
+    action = "secure_action",
+    title = "보안 확인",
+    subtitle = "봇이 아님을 확인해 주세요.",
+  } = opts;
+  const ready = await ensureTurnstileScript();
+  if (!ready || !window.turnstile) return null;
+  const sitekey = window.CF_TURNSTILE_SITEKEY;
+  if (!sitekey || sitekey === "auto") return null;
+
+  const theme = opts.theme || window.CF_TURNSTILE_THEME || "light"; // "light" | "dark" | "auto"
+  const size = opts.size || window.CF_TURNSTILE_SIZE || "normal"; // "normal" | "compact"
+  const appearance =
+    opts.appearance || window.CF_TURNSTILE_APPEARANCE || "always"; // "always" | "interaction-only"
+
+  const overlay = document.createElement("div");
+  overlay.id = "cf-turnstile-modal";
+  overlay.className = "modal";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("tabindex", "-1");
+
+  const content = document.createElement("div");
+  content.className = "modal-content captcha-modal";
+  content.innerHTML = `
+    <h2>${title}</h2>
+    <p class="hint">${subtitle}</p>
+    <div id="cf-turnstile-slot" style="display:flex;justify-content:center;margin:12px 0;"></div>
+    <div class="modal-buttons" style="justify-content:flex-end">
+      <button type="button" id="cf-cancel" class="btn btn-ghost" aria-label="취소">취소</button>
+    </div>
+  `;
+  overlay.appendChild(content);
+  document.body.appendChild(overlay);
+
+  const lastFocus = document.activeElement;
+  content.focus();
+  const escHandler = (e) => {
+    if (e.key === "Escape") cleanup(null);
+  };
+  document.addEventListener("keydown", escHandler);
+
+  return await new Promise((resolve) => {
+    let widgetId = null;
+    const slot = content.querySelector("#cf-turnstile-slot");
+    const cancelBtn = content.querySelector("#cf-cancel");
+    cancelBtn.addEventListener("click", () => cleanup(null));
+    overlay.addEventListener("mousedown", (e) => {
+      if (e.target === overlay) cleanup(null);
+    });
+    function cleanup(val) {
+      try {
+        if (widgetId != null) window.turnstile.remove(widgetId);
+      } catch {}
+      document.removeEventListener("keydown", escHandler);
+      overlay.remove();
+      if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
+      resolve(val);
+    }
+
+    try {
+      widgetId = window.turnstile.render(slot, {
+        sitekey,
+        action,
+        theme,
+        size,
+        appearance,
+        callback: (token) => cleanup(token),
+        "error-callback": () => cleanup(null),
+      });
+    } catch {
+      cleanup(null);
+    }
+  });
+}
+
+/**
  * ⑩ Turnstile 토큰 받기 (옵션)
  * - 전역 window.turnstile 이 로드된 경우에만 토큰을 발급받아 반환
  * - 비활성/미로드 시 null 반환 → 서버에서 off 허용 가능

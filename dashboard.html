@@ -28,49 +28,47 @@
     <script type="module" src="js/dashboard.js" defer></script>
   </head>
   <body>
-    <div class="wrapper">
-      <div id="header-container"></div>
-      <main>
-        <div class="card" id="visit-card">
-          <h2><i class="fas fa-user-group"></i> 이용 고객 수</h2>
-          <div class="today-visit-info">
-            <span id="visit-count">-명</span>
-            <div>전일 대비</div>
-            <span id="visit-change">-명 (-%)</span>
-            <canvas id="visit-chart" height="150"></canvas>
-          </div>
+    <div id="header-container"></div>
+    <main>
+      <div class="card" id="visit-card">
+        <h2><i class="fas fa-user-group"></i> 이용 고객 수</h2>
+        <div class="today-visit-info">
+          <span id="visit-count">-명</span>
+          <div>전일 대비</div>
+          <span id="visit-change">-명 (-%)</span>
+          <canvas id="visit-chart" height="150"></canvas>
         </div>
+      </div>
 
-        <div class="card" id="item-card">
-          <h2><i class="fas fa-boxes-stacked"></i> 오늘 제공된 물품 수</h2>
-          <div class="today-item-info">
-            <span id="item-total">총 -개</span>
-            <div>전일 대비</div>
-            <div id="item-change">-개 (-%)</div>
-            <ul id="top-items-list"></ul>
-          </div>
+      <div class="card" id="item-card">
+        <h2><i class="fas fa-boxes-stacked"></i> 오늘 제공된 물품 수</h2>
+        <div class="today-item-info">
+          <span id="item-total">총 -개</span>
+          <div>전일 대비</div>
+          <div id="item-change">-개 (-%)</div>
+          <ul id="top-items-list"></ul>
         </div>
+      </div>
 
-        <div class="card" id="recent-product-card">
-          <h2><i class="fas fa-clock-rotate-left"></i> 등록/수정된 상품</h2>
-          <ul id="recent-products-list" class="simple-list"></ul>
+      <div class="card" id="recent-product-card">
+        <h2><i class="fas fa-clock-rotate-left"></i> 등록/수정된 상품</h2>
+        <ul id="recent-products-list" class="simple-list"></ul>
+      </div>
+
+      <div class="card" id="expiry-base-card">
+        <h2><i class="fas fa-calendar-xmark"></i> 임박 기준일 안내</h2>
+        <div class="expiry-info">
+          <span>TODAY</span>
+          <div id="today-date">-</div>
+          <span>제과류 / 음료수</span>
+          <div id="expiry-snack-drink" class="expiry-date">-</div>
+          <span>식료품 / 생필품</span>
+          <div id="expiry-food-daily" class="expiry-date">-</div>
         </div>
+      </div>
+    </main>
 
-        <div class="card" id="expiry-base-card">
-          <h2><i class="fas fa-calendar-xmark"></i> 임박 기준일 안내</h2>
-          <div class="expiry-info">
-            <span>TODAY</span>
-            <div id="today-date">-</div>
-            <span>제과류 / 음료수</span>
-            <div id="expiry-snack-drink" class="expiry-date">-</div>
-            <span>식료품 / 생필품</span>
-            <div id="expiry-food-daily" class="expiry-date">-</div>
-          </div>
-        </div>
-      </main>
-
-      <div id="footer-container"></div>
-    </div>
+    <div id="footer-container"></div>
 
     <!-- header footer 삽입 -->
     <script type="module">

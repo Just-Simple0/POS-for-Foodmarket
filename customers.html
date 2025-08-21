@@ -28,168 +28,166 @@
     <script type="module" src="js/customers.js" defer></script>
   </head>
   <body>
-    <div class="wrapper">
-      <div id="header-container"></div>
+    <div id="header-container"></div>
 
-      <main class="container">
-        <h2>이용자 조회</h2>
-        <div id="top-bar">
-          <div class="search-bar">
-            <input id="global-search" placeholder="전체 검색 (이름, 주소 등)" />
+    <main class="container">
+      <h2>이용자 조회</h2>
+      <div id="top-bar">
+        <div class="search-bar">
+          <input id="global-search" placeholder="전체 검색 (이름, 주소 등)" />
 
-            <label>
-              <input type="checkbox" id="exact-match" /> 정확한 검색
-            </label>
+          <label>
+            <input type="checkbox" id="exact-match" /> 정확한 검색
+          </label>
 
-            <button id="toggle-advanced-search">고급 검색 열기</button>
-          </div>
-
-          <div id="advanced-search" class="hidden">
-            <select id="field-select">
-              <option value="">필드 선택</option>
-              <option value="id">이용자ID</option>
-              <option value="name">이용자명</option>
-              <option value="birth">생년월일</option>
-              <option value="gender">성별</option>
-              <option value="status">상태</option>
-              <option value="address">주소</option>
-              <option value="phone">전화번호</option>
-              <option value="type">이용자구분</option>
-              <option value="category">이용자분류</option>
-            </select>
-            <input id="field-search" placeholder="선택 필드 검색" />
-          </div>
+          <button id="toggle-advanced-search">고급 검색 열기</button>
         </div>
 
-        <div class="list-header">
-          <h2>이용자 목록</h2>
-          <button id="open-modal-btn">
-            <i class="fas fa-file-excel"></i> Excel 업로드
+        <div id="advanced-search" class="hidden">
+          <select id="field-select">
+            <option value="">필드 선택</option>
+            <option value="id">이용자ID</option>
+            <option value="name">이용자명</option>
+            <option value="birth">생년월일</option>
+            <option value="gender">성별</option>
+            <option value="status">상태</option>
+            <option value="address">주소</option>
+            <option value="phone">전화번호</option>
+            <option value="type">이용자구분</option>
+            <option value="category">이용자분류</option>
+          </select>
+          <input id="field-search" placeholder="선택 필드 검색" />
+        </div>
+      </div>
+
+      <div class="list-header">
+        <h2>이용자 목록</h2>
+        <button id="open-modal-btn">
+          <i class="fas fa-file-excel"></i> Excel 업로드
+        </button>
+      </div>
+
+      <div class="table-wrapper">
+        <table id="customer-table">
+          <thead>
+            <tr>
+              <th data-label="이용자ID">이용자ID</th>
+              <th data-label="이용자명">이용자명</th>
+              <th data-label="생년월일">생년월일</th>
+              <th data-label="성별">성별</th>
+              <th data-label="상태">상태</th>
+              <th data-label="주소">주소</th>
+              <th data-label="전화번호">전화번호</th>
+              <th data-label="이용자구분">이용자구분</th>
+              <th data-label="이용자분류">이용자분류</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div id="pagination" class="pagination"></div>
+    </main>
+
+    <div id="upload-modal" class="modal hidden">
+      <form class="modal-content" id="upload-form">
+        <h2>엑셀 파일 업로드</h2>
+        <input type="file" id="file-upload" accept=".xlsx" />
+        <div class="modal-buttons">
+          <button type="submit" id="upload-btn">
+            <i class="fas fa-arrow-up-from-bracket"></i> 업로드
+          </button>
+          <button type="button" id="close-upload-modal">
+            <i class="fas fa-times"></i> 취소
           </button>
         </div>
-
-        <div class="table-wrapper">
-          <table id="customer-table">
-            <thead>
-              <tr>
-                <th data-label="이용자ID">이용자ID</th>
-                <th data-label="이용자명">이용자명</th>
-                <th data-label="생년월일">생년월일</th>
-                <th data-label="성별">성별</th>
-                <th data-label="상태">상태</th>
-                <th data-label="주소">주소</th>
-                <th data-label="전화번호">전화번호</th>
-                <th data-label="이용자구분">이용자구분</th>
-                <th data-label="이용자분류">이용자분류</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-
-        <div id="pagination" class="pagination"></div>
-      </main>
-
-      <div id="upload-modal" class="modal hidden">
-        <form class="modal-content" id="upload-form">
-          <h2>엑셀 파일 업로드</h2>
-          <input type="file" id="file-upload" accept=".xlsx" />
-          <div class="modal-buttons">
-            <button type="submit" id="upload-btn">
-              <i class="fas fa-arrow-up-from-bracket"></i> 업로드
-            </button>
-            <button type="button" id="close-upload-modal">
-              <i class="fas fa-times"></i> 취소
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div id="edit-modal" class="modal hidden">
-        <form id="edit-form" class="modal-content">
-          <h2>이용자 정보 수정</h2>
-
-          <input type="hidden" id="edit-id" />
-
-          <label>이름 <input id="edit-name" /></label>
-          <label>생년월일 <input id="edit-birth" type="date" /></label>
-
-          <label>
-            성별
-            <div class="custom-select" id="gender-select">
-              <div class="selected">선택</div>
-              <div class="options hidden">
-                <div data-value="남">남</div>
-                <div data-value="여">여</div>
-              </div>
-            </div>
-          </label>
-
-          <label>
-            상태
-            <div class="custom-select" id="status-select">
-              <div class="selected">선택</div>
-              <div class="options hidden">
-                <div data-value="지원">지원</div>
-                <div data-value="제외">제외</div>
-                <div data-value="사망">사망</div>
-              </div>
-            </div>
-          </label>
-
-          <label>주소 <input id="edit-address" /></label>
-          <label>전화번호 <input id="edit-phone" /></label>
-
-          <label>
-            이용자구분
-            <div class="custom-select" id="type-select">
-              <input
-                type="text"
-                id="edit-type"
-                placeholder="직접 입력 또는 선택"
-              />
-              <div class="options hidden">
-                <div data-value="기초생활수급자">기초생활수급자</div>
-                <div data-value="기초생활수급탈락자">기초생활수급탈락자</div>
-                <div data-value="긴급지원대상자">긴급지원대상자</div>
-                <div data-value="저소득층">저소득층</div>
-                <div data-value="차상위계층">차상위계층</div>
-              </div>
-            </div>
-          </label>
-
-          <label>
-            이용자분류
-            <div class="custom-select" id="category-select">
-              <input
-                type="text"
-                id="edit-category"
-                placeholder="직접 입력 또는 선택"
-              />
-              <div class="options hidden">
-                <div data-value="기타">기타</div>
-                <div data-value="노인부부가구">노인부부가구</div>
-                <div data-value="독거노인">독거노인</div>
-                <div data-value="부부중심가구">부부중심가구</div>
-                <div data-value="재가장애인">재가장애인</div>
-                <div data-value="저소득가정">저소득가정</div>
-                <div data-value="청장년1인가구">청장년1인가구</div>
-                <div data-value="한부모가정">한부모가정</div>
-              </div>
-            </div>
-          </label>
-
-          <div class="modal-buttons">
-            <button type="submit"><i class="fas fa-save"></i> 저장</button>
-            <button type="button" id="close-edit-modal">
-              <i class="fas fa-times"></i> 취소
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div id="footer-container"></div>
+      </form>
     </div>
+
+    <div id="edit-modal" class="modal hidden">
+      <form id="edit-form" class="modal-content">
+        <h2>이용자 정보 수정</h2>
+
+        <input type="hidden" id="edit-id" />
+
+        <label>이름 <input id="edit-name" /></label>
+        <label>생년월일 <input id="edit-birth" type="date" /></label>
+
+        <label>
+          성별
+          <div class="custom-select" id="gender-select">
+            <div class="selected">선택</div>
+            <div class="options hidden">
+              <div data-value="남">남</div>
+              <div data-value="여">여</div>
+            </div>
+          </div>
+        </label>
+
+        <label>
+          상태
+          <div class="custom-select" id="status-select">
+            <div class="selected">선택</div>
+            <div class="options hidden">
+              <div data-value="지원">지원</div>
+              <div data-value="제외">제외</div>
+              <div data-value="사망">사망</div>
+            </div>
+          </div>
+        </label>
+
+        <label>주소 <input id="edit-address" /></label>
+        <label>전화번호 <input id="edit-phone" /></label>
+
+        <label>
+          이용자구분
+          <div class="custom-select" id="type-select">
+            <input
+              type="text"
+              id="edit-type"
+              placeholder="직접 입력 또는 선택"
+            />
+            <div class="options hidden">
+              <div data-value="기초생활수급자">기초생활수급자</div>
+              <div data-value="기초생활수급탈락자">기초생활수급탈락자</div>
+              <div data-value="긴급지원대상자">긴급지원대상자</div>
+              <div data-value="저소득층">저소득층</div>
+              <div data-value="차상위계층">차상위계층</div>
+            </div>
+          </div>
+        </label>
+
+        <label>
+          이용자분류
+          <div class="custom-select" id="category-select">
+            <input
+              type="text"
+              id="edit-category"
+              placeholder="직접 입력 또는 선택"
+            />
+            <div class="options hidden">
+              <div data-value="기타">기타</div>
+              <div data-value="노인부부가구">노인부부가구</div>
+              <div data-value="독거노인">독거노인</div>
+              <div data-value="부부중심가구">부부중심가구</div>
+              <div data-value="재가장애인">재가장애인</div>
+              <div data-value="저소득가정">저소득가정</div>
+              <div data-value="청장년1인가구">청장년1인가구</div>
+              <div data-value="한부모가정">한부모가정</div>
+            </div>
+          </div>
+        </label>
+
+        <div class="modal-buttons">
+          <button type="submit"><i class="fas fa-save"></i> 저장</button>
+          <button type="button" id="close-edit-modal">
+            <i class="fas fa-times"></i> 취소
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div id="footer-container"></div>
 
     <!-- header footer 삽입 -->
     <script type="module">

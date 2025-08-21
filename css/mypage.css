@@ -170,7 +170,8 @@ button#logout-btn {
   font-weight: 700;
 }
 
-.security-card {
+.security-card,
+.login-history-card {
   margin-top: 2rem;
 }
 .security-card h2 {

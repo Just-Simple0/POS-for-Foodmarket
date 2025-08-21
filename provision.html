@@ -33,108 +33,103 @@
   </head>
 
   <body>
-    <div class="wrapper">
-      <div id="header-container"></div>
+    <div id="header-container"></div>
 
-      <main class="container">
-        <h3>이용자 조회</h3>
-        <!-- ✅ 사용자 확인 영역 -->
-        <section id="customer-lookup">
-          <label for="customer-id">이용자 ID 또는 이름</label>
-          <input
-            type="text"
-            id="customer-id"
-            placeholder="예: 10001 또는 홍길동"
-          />
-          <button id="lookup-btn"><i class="fas fa-search"></i> 조회</button>
+    <main class="container">
+      <h3>이용자 조회</h3>
+      <!-- ✅ 사용자 확인 영역 -->
+      <section id="customer-lookup">
+        <label for="customer-id">이용자 ID 또는 이름</label>
+        <input
+          type="text"
+          id="customer-id"
+          placeholder="예: 10001 또는 홍길동"
+        />
+        <button id="lookup-btn"><i class="fas fa-search"></i> 조회</button>
 
-          <div id="customer-info" class="hidden">
-            <!-- 조회된 고객 정보 -->
-          </div>
-        </section>
+        <div id="customer-info" class="hidden">
+          <!-- 조회된 고객 정보 -->
+        </div>
+      </section>
 
-        <!-- ✅ 상품 선택 영역 -->
-        <section id="product-selection" class="hidden">
-          <h3>상품 추가</h3>
+      <!-- ✅ 상품 선택 영역 -->
+      <section id="product-selection" class="hidden">
+        <h3>상품 추가</h3>
 
-          <div class="product-input-area">
-            <div class="autocomplete-wrapper">
-              <input
-                type="text"
-                id="barcode-input"
-                placeholder="바코드 또는 상품명 입력"
-              />
-              <div
-                id="autocomplete-list"
-                class="autocomplete-list hidden"
-              ></div>
-            </div>
+        <div class="product-input-area">
+          <div class="autocomplete-wrapper">
             <input
-              type="number"
-              id="quantity-input"
-              placeholder="수량 (기본 1)"
-              min="1"
-              max="30"
+              type="text"
+              id="barcode-input"
+              placeholder="바코드 또는 상품명 입력"
             />
-            <button id="add-product-btn">
-              <i class="fas fa-plus-circle"></i> 추가
-            </button>
+            <div id="autocomplete-list" class="autocomplete-list hidden"></div>
           </div>
-
-          <div class="selected-products table-wrapper">
-            <table id="selected-table">
-              <thead>
-                <tr>
-                  <th>상품명</th>
-                  <th>수량</th>
-                  <th>단가</th>
-                  <th>총가격</th>
-                  <th>관리</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-            <div id="total-summary">
-              총 합계: <span id="total-points">0</span> 포인트
-              <span id="point-warning" class="hidden"
-                >⚠ 포인트 초과 (최대 30)</span
-              >
-            </div>
-          </div>
-        </section>
-
-        <!-- 🔁 기능 버튼들 (상품 테이블 하단) -->
-        <div
-          id="product-action-buttons"
-          style="margin-top: 1rem; display: flex; gap: 10px"
-        >
-          <button id="undo-btn">
-            <i class="fas fa-rotate-left"></i>
-          </button>
-          <button id="redo-btn">
-            <i class="fas fa-rotate-right"></i>
-          </button>
-          <button id="clear-products-btn">
-            <i class="fas fa-broom"></i> 물품 초기화
-          </button>
-          <button id="clear-all-btn">
-            <i class="fas fa-trash-alt"></i> 전체 초기화
+          <input
+            type="number"
+            id="quantity-input"
+            placeholder="수량 (기본 1)"
+            min="1"
+            max="30"
+          />
+          <button id="add-product-btn">
+            <i class="fas fa-plus-circle"></i> 추가
           </button>
         </div>
 
-        <!-- ✅ 제출 버튼 -->
-        <section id="submit-section" class="hidden">
-          <label for="lifelove-checkbox">
-            <input type="checkbox" id="lifelove-checkbox" /> 생명사랑 제공
-          </label>
-          <button id="submit-btn">
-            <i class="fas fa-check-circle"></i> 제공 등록 완료
-          </button>
-        </section>
-      </main>
+        <div class="selected-products table-wrapper">
+          <table id="selected-table">
+            <thead>
+              <tr>
+                <th>상품명</th>
+                <th>수량</th>
+                <th>단가</th>
+                <th>총가격</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div id="total-summary">
+            총 합계: <span id="total-points">0</span> 포인트
+            <span id="point-warning" class="hidden"
+              >⚠ 포인트 초과 (최대 30)</span
+            >
+          </div>
+        </div>
+      </section>
 
-      <div id="footer-container"></div>
-    </div>
+      <!-- 🔁 기능 버튼들 (상품 테이블 하단) -->
+      <div
+        id="product-action-buttons"
+        style="margin-top: 1rem; display: flex; gap: 10px"
+      >
+        <button id="undo-btn">
+          <i class="fas fa-rotate-left"></i>
+        </button>
+        <button id="redo-btn">
+          <i class="fas fa-rotate-right"></i>
+        </button>
+        <button id="clear-products-btn">
+          <i class="fas fa-broom"></i> 물품 초기화
+        </button>
+        <button id="clear-all-btn">
+          <i class="fas fa-trash-alt"></i> 전체 초기화
+        </button>
+      </div>
+
+      <!-- ✅ 제출 버튼 -->
+      <section id="submit-section" class="hidden">
+        <label for="lifelove-checkbox">
+          <input type="checkbox" id="lifelove-checkbox" /> 생명사랑 제공
+        </label>
+        <button id="submit-btn">
+          <i class="fas fa-check-circle"></i> 제공 등록 완료
+        </button>
+      </section>
+    </main>
+
+    <div id="footer-container"></div>
 
     <!-- ✅ 동명이인 선택 모달 -->
     <div id="duplicate-modal" class="modal hidden">

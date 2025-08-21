@@ -1,0 +1,103 @@
+/* 관리자 전용 스타일 */
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
+  margin: 18px 0;
+}
+.card-header,
+.card-footer {
+  padding: 12px 16px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.admin-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  align-items: center;
+}
+.admin-filterbar .input {
+  min-width: 160px;
+}
+.admin-filterbar #q {
+  flex: 1;
+  min-width: 220px;
+}
+
+.admin-actionbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px 12px;
+  align-items: center;
+  border-top: 1px solid #f0f0f0;
+}
+.admin-actionbar .muted {
+  opacity: 0.7;
+}
+.admin-actionbar .input.small {
+  width: auto;
+  min-width: 180px;
+}
+
+.table-wrap {
+  overflow: auto;
+}
+
+.table-base thead th:first-child,
+.table-base tbody td:first-child {
+  text-align: center;
+  width: 36px;
+}
+
+/* 선택된 행 하이라이트 */
+.table-base tbody tr.selected {
+  background: #f5faff;
+  transition: background 0.15s ease;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.badge.small {
+  font-size: 0.72rem;
+}
+.badge.muted {
+  background: #eef2f7;
+  color: #475569;
+}
+.badge-ok {
+  background: #e7f8ef;
+  color: #0f8a47;
+}
+.badge-alert {
+  background: #fff0f0;
+  color: #d1282a;
+}
+
+#logs-card .logs-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+#logs-card .input {
+  min-width: 180px;
+}
+#logs-card h3 {
+  margin-right: auto;
+}

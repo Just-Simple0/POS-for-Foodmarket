@@ -3,57 +3,154 @@
   <head>
     <meta charset="UTF-8" />
     <title>POS System - Admin Setting</title>
+    <!-- 공통 parts 삽입 -->
+    <link rel="stylesheet" href="css/common.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      as="style"
+      crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
+    />
     <script>
       window.CF_TURNSTILE_SITEKEY = "0x4AAAAAABtE3GFMWF3_Fd4E";
     </script>
-    <link rel="stylesheet" href="css/common.css" />
+    <!-- XLSX (엑셀) -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
+      defer
+    ></script>
+    <!-- firebase parts 삽입 -->
+    <script type="module" src="js/components/firebase-config.js"></script>
     <link rel="stylesheet" href="css/admin.css" />
   </head>
   <body>
-    <div id="app">
-      <div id="header-container"></div>
-      <main class="container">
-        <h2>계정 관리 · 권한 부여</h2>
+    <div id="header-container"></div>
+    <main class="container">
+      <h2>계정 관리 · 권한 부여</h2>
 
-        <section class="card">
-          <div class="card-header">
-            <input
-              id="q"
-              type="search"
-              placeholder="이메일/이름/UID 검색"
-              class="input"
-            />
-            <button id="btn-search" class="btn">검색</button>
+      <section class="card">
+        <!-- 필터 바 -->
+        <div class="admin-filterbar">
+          <input
+            id="q"
+            type="search"
+            placeholder="이메일/이름/UID 검색"
+            class="input"
+          />
+          <select id="f-role" class="input">
+            <option value="">역할(전체)</option>
+            <option value="admin">admin</option>
+            <option value="manager">manager</option>
+            <option value="user">user</option>
+            <option value="pending">pending</option>
+          </select>
+          <input
+            id="f-provider"
+            type="text"
+            placeholder="수단 필터(ex: google)"
+            class="input"
+          />
+          <select id="f-sort" class="input">
+            <option value="lastSignInTime:desc">최근로그인 ↓</option>
+            <option value="lastSignInTime:asc">최근로그인 ↑</option>
+            <option value="email:asc">이메일 ↑</option>
+            <option value="email:desc">이메일 ↓</option>
+          </select>
+          <button id="btn-search" class="btn">검색</button>
+        </div>
+
+        <!-- 액션 바 -->
+        <div class="admin-actionbar">
+          <label class="muted">선택: <span id="sel-count">0</span>명</label>
+          <select id="bulk-role" class="input small">
+            <option value="">역할 일괄 변경…</option>
+            <option value="admin">admin</option>
+            <option value="manager">manager</option>
+            <option value="user">user</option>
+            <option value="pending">pending</option>
+          </select>
+          <button id="btn-bulk-role" class="btn btn-ghost">적용</button>
+          <button id="btn-disable" class="btn btn-ghost">비활성화</button>
+          <button id="btn-enable" class="btn btn-ghost">활성화</button>
+          <button id="btn-reset" class="btn btn-ghost">비번 초기화</button>
+          <button id="btn-export-xlsx" class="btn">XLSX 내보내기</button>
+        </div>
+
+        <div class="table-wrap">
+          <table id="admin-user-table" class="table-base">
+            <thead>
+              <tr>
+                <th style="width: 36px">
+                  <input id="chk-all" type="checkbox" />
+                </th>
+                <th>이메일</th>
+                <th>이름</th>
+                <th>역할</th>
+                <th>최근 로그인</th>
+                <th>수단</th>
+                <th>이상</th>
+                <th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="admin-user-tbody">
+              <tr>
+                <td colspan="8">검색 후 결과가 표시됩니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card-footer">
+          <button id="btn-more" class="btn btn-ghost">더 보기</button>
+        </div>
+      </section>
+
+      <!-- 로그 탐색 -->
+      <section class="card" id="logs-card">
+        <div class="card-header">
+          <h3>감사 로그(최근 60일)</h3>
+          <div class="logs-filter">
+            <input id="log-uid" class="input" placeholder="UID(선택)" />
+            <select id="log-action" class="input">
+              <option value="">액션(전체)</option>
+              <option value="setRole">setRole</option>
+              <option value="setRoleBulk">setRoleBulk</option>
+              <option value="disableUser">disableUser</option>
+              <option value="enableUser">enableUser</option>
+              <option value="forcePasswordReset">forcePasswordReset</option>
+              <option value="sales.refund">sales.refund</option>
+              <option value="product.delete">product.delete</option>
+              <option value="product.priceChange">product.priceChange</option>
+            </select>
+            <button id="btn-logs" class="btn">조회</button>
           </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table-base" id="logs-table">
+            <thead>
+              <tr>
+                <th>시각</th>
+                <th>행위자</th>
+                <th>액션</th>
+                <th>대상</th>
+                <th>상태</th>
+              </tr>
+            </thead>
+            <tbody id="logs-tbody">
+              <tr>
+                <td colspan="5">필터 후 조회하세요.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
 
-          <div class="table-wrap">
-            <table id="admin-user-table" class="table-base">
-              <thead>
-                <tr>
-                  <th>이메일</th>
-                  <th>이름</th>
-                  <th>역할</th>
-                  <th>최근 로그인</th>
-                  <th>수단</th>
-                  <th>작업</th>
-                </tr>
-              </thead>
-              <tbody id="admin-user-tbody">
-                <tr>
-                  <td colspan="6">검색 후 결과가 표시됩니다.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="card-footer">
-            <button id="btn-more" class="btn btn-ghost">더 보기</button>
-          </div>
-        </section>
-      </main>
-
-      <div id="footer-container"></div>
-    </div>
+    <div id="footer-container"></div>
 
     <script type="module">
       import { loadHeader, loadFooter } from "./js/components/comp.js";

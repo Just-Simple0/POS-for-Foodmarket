@@ -23,7 +23,7 @@ import {
   limit,
   onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { showToast, getTurnstileToken } from "./components/comp.js";
+import { showToast, openCaptchaModal } from "./components/comp.js";
 
 const AUTH_SERVER =
   location.hostname === "localhost" || location.hostname === "127.0.0.1"
@@ -300,11 +300,15 @@ onAuthStateChanged(auth, async (user) => {
       try {
         const [idToken, cfToken] = await Promise.all([
           user.getIdToken(true),
-          getTurnstileToken("revoke_tokens"),
+          openCaptchaModal({
+            action: "revoke_tokens",
+            title: "보안 확인",
+            subtitle: "다른 기기에서 모두 로그아웃하려면 인증이 필요합니다.",
+          }),
         ]);
         if (!cfToken)
           throw new Error("보안 검증 실패: 캡차 토큰을 받을 수 없습니다.");
-        const res = await fetch("${AUTH_SERVER}/api/auth/revokeTokens", {
+        const res = await fetch(`${AUTH_SERVER}/api/auth/revokeTokens`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -337,7 +341,11 @@ onAuthStateChanged(auth, async (user) => {
       ev.preventDefault();
       ui.formChangeEmail.classList.add("is-busy");
       try {
-        const cf = await getTurnstileToken("change_email");
+        const cf = await openCaptchaModal({
+          action: "change_email",
+          title: "보안 확인",
+          subtitle: "이메일 변경 전에 인증이 필요합니다.",
+        });
         if (!cf)
           throw new Error("보안 검증 실패: 캡차 토큰을 받을 수 없습니다.");
 
@@ -405,11 +413,15 @@ onAuthStateChanged(auth, async (user) => {
       try {
         const [idToken, cfToken] = await Promise.all([
           user.getIdToken(true),
-          getTurnstileToken("delete_request"),
+          openCaptchaModal({
+            action: "delete_request",
+            title: "보안 확인",
+            subtitle: "계정 삭제 요청 전에 인증이 필요합니다.",
+          }),
         ]);
         if (!cfToken)
           throw new Error("보안 검증 실패: 캡차 토큰을 받을 수 없습니다.");
-        const res = await fetch("${AUTH_SERVER}/api/account/delete-request", {
+        const res = await fetch(`${AUTH_SERVER}/api/account/delete-request`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
