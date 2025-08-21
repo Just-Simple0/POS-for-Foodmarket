@@ -7,9 +7,42 @@ import {
 import {
   doc,
   getDoc,
+  onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// ---------------- favicon (모든 페이지 공통 주입) ----------------
+function ensureFavicon() {
+  const head = document.head || document.getElementsByTagName("head")[0];
+  const pngHref = window.FAVICON_HREF || "/favicon.png"; // 권장: 호스팅 루트에 favicon.png 배치
+  const appleHref = window.APPLE_TOUCH_ICON_HREF || pngHref;
+  // rel="icon"
+  let linkIcon = document.querySelector('link[rel="icon"]');
+  if (!linkIcon) {
+    linkIcon = document.createElement("link");
+    linkIcon.rel = "icon";
+    linkIcon.type = "image/png";
+    linkIcon.sizes = "512x512";
+    linkIcon.href = pngHref;
+    head.appendChild(linkIcon);
+  } else {
+    linkIcon.type = "image/png";
+    linkIcon.href = pngHref;
+  }
+  // rel="apple-touch-icon"
+  let linkApple = document.querySelector('link[rel="apple-touch-icon"]');
+  if (!linkApple) {
+    linkApple = document.createElement("link");
+    linkApple.rel = "apple-touch-icon";
+    linkApple.href = appleHref;
+    head.appendChild(linkApple);
+  } else {
+    linkApple.href = appleHref;
+  }
+}
+
 export function loadHeader(containerID = null) {
+  ensureFavicon();
+
   const headerHTML = `
     <header>
       <div class="header-top">
@@ -58,10 +91,39 @@ export function loadHeader(containerID = null) {
       }
 
       const badgeEl = document.getElementById("admin-badge-header");
-      const docRef = doc(db, "admin_users", user.email);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists() && docSnap.data().role === "admin") {
-        badgeEl.style.display = "inline-block";
+      let role = "user";
+      try {
+        const token = await user.getIdTokenResult(true);
+        if (token?.claims?.role) {
+          role = String(token.claims.role).toLowerCase();
+        } else {
+          // fallback: Firestore 문서(users/{uid}.role)
+          const uref = doc(db, "users", user.uid);
+          const usnap = await getDoc(uref);
+          if (usnap.exists() && usnap.data()?.role) {
+            role = String(usnap.data().role).toLowerCase();
+          }
+        }
+      } catch (e) {
+        console.warn("[header] role load failed:", e);
+      }
+      if (badgeEl) {
+        badgeEl.style.display = role === "admin" ? "inline-block" : "none";
+      }
+
+      // ✅ 실시간 역할 변경 반영: users/{uid}.role subscribe
+      try {
+        onSnapshot(doc(db, "users", user.uid), async (snap) => {
+          if (!snap.exists()) return;
+          const r = String(snap.data()?.role || "user").toLowerCase();
+          if (badgeEl)
+            badgeEl.style.display = r === "admin" ? "inline-block" : "none";
+          try {
+            await user.getIdToken(true);
+          } catch {}
+        });
+      } catch (e) {
+        console.warn("[header] role watch failed:", e);
       }
 
       const logoutBtn = document.getElementById("logout-btn-header");
@@ -72,11 +134,11 @@ export function loadHeader(containerID = null) {
         });
       }
     } else {
-      nameEl.innerHTML = `
-          <i class="fas fa-circle-user"></i> 로그인이 되지 않았습니다.`;
+      // nameEl.innerHTML = `
+      //     <i class="fas fa-circle-user"></i> 로그인이 되지 않았습니다.`;
       // 로그인 안된 경우
-      // alert("로그인이 필요합니다. 로그인 화면으로 돌아갑니다.");
-      // window.location.href = "index.html";
+      showToast("로그인이 필요합니다. 로그인 화면으로 돌아갑니다.");
+      window.location.href = "index.html";
     }
   });
 
@@ -102,6 +164,37 @@ export function loadFooter(containerID = null) {
     ? document.getElementById(containerID)
     : document.body;
   container.insertAdjacentHTML("beforeend", footerHTML);
+}
+
+/**
+ * ⑩ Turnstile 토큰 받기 (옵션)
+ * - 전역 window.turnstile 이 로드된 경우에만 토큰을 발급받아 반환
+ * - 비활성/미로드 시 null 반환 → 서버에서 off 허용 가능
+ */
+export async function getTurnstileToken(action = "secure_action") {
+  try {
+    if (typeof window === "undefined" || !window.turnstile) return null;
+    // 숨김 호스트 보장
+    let host = document.getElementById("cf-turnstile-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "cf-turnstile-host";
+      host.style.position = "fixed";
+      host.style.left = "-9999px";
+      host.style.top = "-9999px";
+      document.body.appendChild(host);
+    }
+    return await new Promise((resolve) => {
+      window.turnstile.render(host, {
+        sitekey: window.CF_TURNSTILE_SITEKEY || "auto",
+        callback: (token) => resolve(token),
+        "error-callback": () => resolve(null),
+        action,
+      });
+    });
+  } catch {
+    return null;
+  }
 }
 
 // 🔔 공통 토스트 메시지 함수

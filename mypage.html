@@ -25,130 +25,248 @@
     <script type="module" src="js/mypage.js" defer></script>
   </head>
   <body>
-    <div class="wrapper">
-      <div id="header-container"></div>
+    <div id="header-container"></div>
 
-      <main class="mypage-container">
-        <!-- 프로필 카드 -->
-        <section class="user-card">
-          <h2>👨‍💼 직원 정보</h2>
+    <main class="mypage-container">
+      <!-- 프로필 카드 -->
+      <section class="user-card">
+        <h2>👨‍💼 정보</h2>
 
-          <p><strong>이름:</strong> <span id="user-name">-</span></p>
-          <p><strong>이메일:</strong> <span id="user-email">-</span></p>
-          <p>
-            <strong>최근 로그인:</strong> <span id="user-last-login">-</span>
-          </p>
+        <p><strong>이름:</strong> <span id="user-name">-</span></p>
+        <p><strong>이메일:</strong> <span id="user-email">-</span></p>
+        <p><strong>최근 로그인:</strong> <span id="user-last-login">-</span></p>
 
-          <!-- 권한 & 관리자 뱃지 (role === 'admin'일 때만 표시) -->
-          <p>
-            <strong>권한:</strong> <span id="user-role">-</span>
-            <span
-              id="admin-badge"
-              class="admin-badge"
-              style="display: none; margin-left: 0.5rem"
-            >
-              <i class="fas fa-crown"></i> 관리자
-            </span>
-          </p>
+        <!-- 권한 & 관리자 뱃지 (role === 'admin'일 때만 표시) -->
+        <p>
+          <span id="admin-badge" class="admin-badge" style="display: none">
+            <i class="fas fa-crown"></i> 관리자
+          </span>
+        </p>
 
-          <button id="logout-btn">로그아웃</button>
-        </section>
+        <button id="logout-btn">로그아웃</button>
+      </section>
 
-        <!-- 🔗 계정 연동 (기존 섹션 유지) -->
-        <section class="federation-card">
-          <h2>🔗 계정 연동</h2>
-          <p class="fed-help">
-            이메일 계정을 기본으로 사용하고, 소셜 계정은 로그인용으로
-            <strong>연동</strong>할 수 있어요.
-          </p>
+      <!-- 🔗 계정 연동 (기존 섹션 유지) -->
+      <section class="federation-card">
+        <h2>🔗 계정 연동</h2>
+        <p class="fed-help">
+          이메일 계정을 기본으로 사용하고, 소셜 계정은 로그인용으로
+          <strong>연동</strong>할 수 있어요.
+        </p>
 
-          <div class="link-list">
-            <!-- Google -->
-            <article class="link-item" data-provider="google">
-              <div class="provider">
-                <i class="fa-brands fa-google"></i>
-                <div>
-                  <h3>Google</h3>
-                  <div class="status">
-                    <span id="status-google" class="status-badge"
-                      >확인 중…</span
-                    >
-                  </div>
+        <div class="link-list">
+          <!-- Google -->
+          <article class="link-item" data-provider="google">
+            <div class="provider">
+              <i class="fa-brands fa-google"></i>
+              <div>
+                <h3>Google</h3>
+                <div class="status">
+                  <span id="status-google" class="status-badge">확인 중…</span>
                 </div>
               </div>
-              <div class="actions">
-                <button id="link-google" class="btn primary" type="button">
-                  연동하기
-                </button>
-                <button
-                  id="unlink-google"
-                  class="btn danger hidden"
-                  type="button"
-                >
-                  연동 해지
-                </button>
-              </div>
-            </article>
+            </div>
+            <div class="actions">
+              <button id="link-google" class="btn primary" type="button">
+                연동하기
+              </button>
+              <button
+                id="unlink-google"
+                class="btn danger hidden"
+                type="button"
+              >
+                연동 해지
+              </button>
+            </div>
+          </article>
 
-            <!-- Kakao -->
-            <article class="link-item" data-provider="kakao">
-              <div class="provider">
-                <i class="fa-solid fa-comment"></i>
-                <div>
-                  <h3>Kakao</h3>
-                  <div class="status">
-                    <span id="status-kakao" class="status-badge">확인 중…</span>
-                  </div>
+          <!-- Kakao -->
+          <article class="link-item" data-provider="kakao">
+            <div class="provider">
+              <i class="fa-solid fa-comment"></i>
+              <div>
+                <h3>Kakao</h3>
+                <div class="status">
+                  <span id="status-kakao" class="status-badge">확인 중…</span>
                 </div>
               </div>
-              <div class="actions">
-                <button id="link-kakao" class="btn primary" type="button">
-                  연동하기
-                </button>
-                <button
-                  id="unlink-kakao"
-                  class="btn danger hidden"
-                  type="button"
-                >
-                  연동 해지
-                </button>
-              </div>
-            </article>
+            </div>
+            <div class="actions">
+              <button id="link-kakao" class="btn primary" type="button">
+                연동하기
+              </button>
+              <button id="unlink-kakao" class="btn danger hidden" type="button">
+                연동 해지
+              </button>
+            </div>
+          </article>
 
-            <!-- Naver -->
-            <article class="link-item" data-provider="naver">
-              <div class="provider">
-                <i class="fa-solid fa-n"></i>
-                <div>
-                  <h3>Naver</h3>
-                  <div class="status">
-                    <span id="status-naver" class="status-badge">확인 중…</span>
-                  </div>
+          <!-- Naver -->
+          <article class="link-item" data-provider="naver">
+            <div class="provider">
+              <i class="fa-solid fa-n"></i>
+              <div>
+                <h3>Naver</h3>
+                <div class="status">
+                  <span id="status-naver" class="status-badge">확인 중…</span>
                 </div>
               </div>
-              <div class="actions">
-                <button id="link-naver" class="btn primary" type="button">
-                  연동하기
-                </button>
-                <button
-                  id="unlink-naver"
-                  class="btn danger hidden"
-                  type="button"
-                >
-                  연동 해지
-                </button>
-              </div>
-            </article>
-          </div>
+            </div>
+            <div class="actions">
+              <button id="link-naver" class="btn primary" type="button">
+                연동하기
+              </button>
+              <button id="unlink-naver" class="btn danger hidden" type="button">
+                연동 해지
+              </button>
+            </div>
+          </article>
+        </div>
 
-          <p class="note">
-            ※ 연동 후에는 해당 소셜 버튼으로도 로그인할 수 있습니다. 연동을
-            해지하면 로그인에 사용할 수 없습니다.
-          </p>
-        </section>
-      </main>
+        <p class="note">
+          ※ 연동 후에는 해당 소셜 버튼으로도 로그인할 수 있습니다. 연동을
+          해지하면 로그인에 사용할 수 없습니다.
+        </p>
+      </section>
 
-      <div id="footer-container"></div>
+      <!-- 🔐 보안 관리 -->
+      <section class="security-card">
+        <h2>🔐 보안 설정</h2>
+        <!-- ② 비밀번호 재설정 메일 -->
+        <button id="btn-reset-password" class="btn">
+          <i class="fas fa-key"></i> 비밀번호 재설정 메일
+        </button>
+        <!-- ③ 다른 기기에서 로그아웃 -->
+        <button id="btn-logout-others" class="btn">
+          <i class="fas fa-right-from-bracket"></i> 다른 기기에서 로그아웃
+        </button>
+        <!-- ④ 이메일 변경 -->
+        <button id="btn-open-change-email" class="btn">
+          <i class="fas fa-envelope"></i> 이메일 변경
+        </button>
+        <!-- ⑨ 계정 삭제 요청 -->
+        <button id="btn-open-delete-request" class="btn danger">
+          <i class="fas fa-user-slash"></i> 계정 삭제 요청
+        </button>
+      </section>
+      <!-- ⑥ 최근 로그인 기록 -->
+      <section class="login-history-card">
+        <h2>🕓 최근 로그인 기록</h2>
+        <table id="login-history-table" class="table-base">
+          <thead>
+            <tr>
+              <th>일시</th>
+              <th>IP</th>
+              <th>수단</th>
+            </tr>
+          </thead>
+          <tbody id="login-history">
+            <tr>
+              <td colspan="3">Loading...</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="note">* 최근 5회 기록이 표시됩니다.</p>
+      </section>
+    </main>
+
+    <div id="footer-container"></div>
+
+    <!-- ④ 이메일 변경 모달 -->
+    <div
+      id="modal-change-email"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="change-email-title"
+      tabindex="-1"
+    >
+      <form id="form-change-email" class="modal-content">
+        <h2 id="change-email-title">이메일 변경</h2>
+        <label
+          >현재 비밀번호
+          <input
+            type="password"
+            id="chg-current-pw"
+            required
+            autocomplete="current-password"
+            data-initial-focus
+          />
+        </label>
+        <label
+          >새 이메일
+          <input
+            type="email"
+            id="chg-new-email"
+            required
+            autocomplete="email"
+          />
+        </label>
+        <div class="modal-buttons">
+          <button type="submit" class="btn" aria-label="이메일 변경 저장">
+            <i class="fas fa-save"></i> 변경
+          </button>
+          <button
+            type="button"
+            id="btn-cancel-change-email"
+            class="btn btn-ghost"
+            aria-label="이메일 변경 취소"
+          >
+            취소
+          </button>
+        </div>
+        <p class="hint">
+          보안을 위해 비밀번호 재인증이 필요합니다. 변경 후 재로그인될 수
+          있어요.
+        </p>
+      </form>
+    </div>
+
+    <!-- ⑨ 계정 삭제 요청 모달 -->
+    <div
+      id="modal-delete-request"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-request-title"
+      tabindex="-1"
+    >
+      <form id="form-delete-request" class="modal-content">
+        <h2 id="delete-request-title">계정 삭제 요청</h2>
+        <p class="danger-text">
+          바로 삭제되지 않습니다. 관리자가 검토한 후 처리됩니다.
+        </p>
+        <label
+          >사유 (선택)
+          <textarea
+            id="del-reason"
+            rows="3"
+            placeholder="예: 더 이상 서비스를 사용하지 않습니다."
+            data-initial-focus
+          ></textarea>
+        </label>
+        <div class="agree-row">
+          <input type="checkbox" id="del-consent" required />
+          <label class="checkbox-label">데이터 삭제 요청에 동의합니다.</label>
+        </div>
+        <div class="modal-buttons">
+          <button
+            type="submit"
+            class="btn danger"
+            aria-label="계정 삭제 요청 보내기"
+          >
+            <i class="fas fa-paper-plane"></i> 요청 보내기
+          </button>
+          <button
+            type="button"
+            id="btn-cancel-delete-request"
+            class="btn btn-ghost"
+            aria-label="계정 삭제 요청 취소"
+          >
+            취소
+          </button>
+        </div>
+      </form>
     </div>
 
     <!-- header/footer 삽입 & toast 컨테이너 보장 -->

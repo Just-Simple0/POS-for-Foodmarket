@@ -17,6 +17,8 @@ import {
   doc,
   getDoc,
   setDoc,
+  collection,
+  addDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { showToast } from "./components/comp.js";
@@ -281,8 +283,26 @@ const formatMs = (ms) => {
 onAuthStateChanged(auth, async (user) => {
   if (SIGNUP_IN_PROGRESS) return;
   if (!user) return;
+  if (FEATURES?.ENFORCE_EMAIL_VERIFIED && !user.emailVerified) return;
   if (!(await gateAfterLogin(user))) return;
   showError("");
+  // ⑥ 로그인 이력 저장 (최근 5개는 mypage에서 조회)
+  try {
+    const providers = (user.providerData || []).map((p) => p.providerId);
+    let ip = null;
+    try {
+      const r = await fetch("/api/utils/ip");
+      if (r.ok) {
+        const j = await r.json();
+        ip = j?.ip || null;
+      }
+    } catch {}
+    await addDoc(collection(db, "users", user.uid, "logins"), {
+      at: serverTimestamp(),
+      ip,
+      provider: providers,
+    });
+  } catch {}
   location.replace(getPostLoginRedirect("dashboard.html"));
 });
 getRedirectResult(auth).catch((e) =>
@@ -454,6 +474,26 @@ ui.emailForm?.addEventListener("submit", async (e) => {
       ui.email.value.trim(),
       ui.password.value
     );
+
+    if (FEATURES?.ENFORCE_EMAIL_VERIFIED && !cred.user.emailVerified) {
+      await signOut(auth);
+      showToast(
+        "이메일 인증 후 로그인할 수 있습니다. 메일함을 확인해 주세요.",
+        true
+      );
+      return;
+    }
+
+    try {
+      await ensureUserDoc(cred.user);
+    } catch (e) {
+      console.error("[ensureUserDoc] permission error:", e);
+      showToast(
+        "프로필 초기화 권한 오류가 발생했습니다. 관리자에게 문의해 주세요.",
+        true
+      );
+    }
+
     resetFail();
     if (!(await gateAfterLogin(cred.user))) return;
     location.replace(getPostLoginRedirect("dashboard.html"));
