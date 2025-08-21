@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>관리자 - 계정 관리</title>
+    <link rel="stylesheet" href="css/common.css" />
+    <link rel="stylesheet" href="css/admin.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="header-container"></div>
+      <main class="container">
+        <h2>계정 관리 · 권한 부여</h2>
+
+        <section class="card">
+          <div class="card-header">
+            <input
+              id="q"
+              type="search"
+              placeholder="이메일/이름/UID 검색"
+              class="input"
+            />
+            <button id="btn-search" class="btn">검색</button>
+          </div>
+
+          <div class="table-wrap">
+            <table id="admin-user-table" class="table-base">
+              <thead>
+                <tr>
+                  <th>이메일</th>
+                  <th>이름</th>
+                  <th>역할</th>
+                  <th>최근 로그인</th>
+                  <th>수단</th>
+                  <th>작업</th>
+                </tr>
+              </thead>
+              <tbody id="admin-user-tbody">
+                <tr>
+                  <td colspan="6">검색 후 결과가 표시됩니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card-footer">
+            <button id="btn-more" class="btn btn-ghost">더 보기</button>
+          </div>
+        </section>
+      </main>
+
+      <div id="footer-container"></div>
+    </div>
+
+    <script>
+      window.CF_TURNSTILE_SITEKEY = "0x4AAAAAABtE3GFMWF3_Fd4E";
+    </script>
+
+    <script type="module">
+      import { loadHeader, loadFooter } from "./js/components/comp.js";
+      import "./js/admin.js";
+      loadHeader("header-container");
+      loadFooter("footer-container");
+    </script>
+  </body>
+</html>

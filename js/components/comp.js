@@ -40,8 +40,37 @@ function ensureFavicon() {
   }
 }
 
+// ---------------- Turnstile: 스크립트 자동 로드 + 준비 보장 ----------------
+let turnstileReadyPromise = null;
+async function ensureTurnstileScript() {
+  if (typeof window === "undefined") return false;
+  if (window.turnstile) return true;
+  if (turnstileReadyPromise) return turnstileReadyPromise;
+  turnstileReadyPromise = new Promise((resolve) => {
+    const finalize = () => resolve(!!window.turnstile);
+    const existing = document.querySelector("script[data-turnstile]");
+    if (!existing) {
+      const s = document.createElement("script");
+      s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+      s.async = true;
+      s.defer = true;
+      s.setAttribute("data-turnstile", "");
+      s.onload = finalize;
+      s.onerror = () => resolve(false);
+      (document.head || document.documentElement).appendChild(s);
+    } else {
+      if (window.turnstile) resolve(true);
+      else existing.addEventListener("load", finalize, { once: true });
+    }
+    // 5초 타임아웃(네트워크 문제 대비)
+    setTimeout(finalize, 5000);
+  });
+  return turnstileReadyPromise;
+}
+
 export function loadHeader(containerID = null) {
   ensureFavicon();
+  ensureTurnstileScript();
 
   const headerHTML = `
     <header>
@@ -71,6 +100,7 @@ export function loadHeader(containerID = null) {
           <a href="customers.html">이용자 관리</a>
           <a href="products.html">상품 관리</a>
           <a href="statistics.html">통계</a>
+          <a href="admin.html" id="nav-admin" style="display: none">관리자</a>
         </nav>
       </div>
     </header>
@@ -91,6 +121,8 @@ export function loadHeader(containerID = null) {
       }
 
       const badgeEl = document.getElementById("admin-badge-header");
+      const navAdmin = document.getElementById("nav-admin");
+
       let role = "user";
       try {
         const token = await user.getIdTokenResult(true);
@@ -107,9 +139,20 @@ export function loadHeader(containerID = null) {
       } catch (e) {
         console.warn("[header] role load failed:", e);
       }
-      if (badgeEl) {
-        badgeEl.style.display = role === "admin" ? "inline-block" : "none";
-      }
+
+      const isAdmin = role === "admin";
+      if (badgeEl) badgeEl.style.display = isAdmin ? "inline-block" : "none";
+      if (navAdmin) navAdmin.style.display = isAdmin ? "inline-block" : "none";
+      // 페이지 가드: admin.html에 접근했는데 admin이 아니면 대시보드로
+      try {
+        const path = (
+          window.location.pathname.split("/").pop() || ""
+        ).toLowerCase();
+        if (path === "admin.html" && !isAdmin) {
+          showToast("관리자만 접근할 수 있습니다.", true);
+          window.location.href = "dashboard.html";
+        }
+      } catch {}
 
       // ✅ 실시간 역할 변경 반영: users/{uid}.role subscribe
       try {
@@ -118,6 +161,11 @@ export function loadHeader(containerID = null) {
           const r = String(snap.data()?.role || "user").toLowerCase();
           if (badgeEl)
             badgeEl.style.display = r === "admin" ? "inline-block" : "none";
+          const isAdmin2 = r === "admin";
+          if (badgeEl)
+            badgeEl.style.display = isAdmin2 ? "inline-block" : "none";
+          if (navAdmin)
+            navAdmin.style.display = isAdmin2 ? "inline-block" : "none";
           try {
             await user.getIdToken(true);
           } catch {}
@@ -173,8 +221,17 @@ export function loadFooter(containerID = null) {
  */
 export async function getTurnstileToken(action = "secure_action") {
   try {
-    if (typeof window === "undefined" || !window.turnstile) return null;
-    // 숨김 호스트 보장
+    // 스크립트 준비 보장
+    const ready = await ensureTurnstileScript();
+    if (!ready || !window.turnstile) return null;
+    // ⚠️ sitekey는 반드시 head 등에서 주입되어 있어야 함
+    const sitekey = window.CF_TURNSTILE_SITEKEY;
+    if (!sitekey || sitekey === "auto") {
+      console.warn(
+        "[Turnstile] window.CF_TURNSTILE_SITEKEY is missing/invalid"
+      );
+      return null;
+    } // 숨김 호스트 보장
     let host = document.getElementById("cf-turnstile-host");
     if (!host) {
       host = document.createElement("div");
@@ -186,7 +243,7 @@ export async function getTurnstileToken(action = "secure_action") {
     }
     return await new Promise((resolve) => {
       window.turnstile.render(host, {
-        sitekey: window.CF_TURNSTILE_SITEKEY || "auto",
+        sitekey,
         callback: (token) => resolve(token),
         "error-callback": () => resolve(null),
         action,
