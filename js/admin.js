@@ -2,6 +2,8 @@ import { auth } from "./components/firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { showToast, openCaptchaModal } from "./components/comp.js";
 
+let ADMIN_STS = sessionStorage.getItem("admin_sts") || "";
+
 const API_BASE =
   location.hostname === "localhost" || location.hostname === "127.0.0.1"
     ? "http://localhost:3000"
@@ -17,6 +19,7 @@ const els = {
   tbody: document.getElementById("admin-user-tbody"),
   chkAll: document.getElementById("chk-all"),
   selCount: document.getElementById("sel-count"),
+  btnRevoke: document.getElementById("btn-revoke"),
   bulkRole: document.getElementById("bulk-role"),
   btnBulkRole: document.getElementById("btn-bulk-role"),
   btnDisable: document.getElementById("btn-disable"),
@@ -28,12 +31,24 @@ const els = {
   logAction: document.getElementById("log-action"),
   btnLogs: document.getElementById("btn-logs"),
   logsTbody: document.getElementById("logs-tbody"),
+  cRoles: document.getElementById("c-roles"),
+  cDisable: document.getElementById("c-disable"),
+  cReset: document.getElementById("c-reset"),
+  c7Roles: document.getElementById("c7-roles"),
+  c7Disable: document.getElementById("c7-disable"),
+  c7Reset: document.getElementById("c7-reset"),
 };
 
 let nextPageToken = null;
 let latestQuery = "";
 let latestFilters = { role: "", provider: "", sort: "lastSignInTime:desc" };
 let currentUsers = []; // 현재 화면 데이터(엑셀/선택용)
+
+// (9) 가상 스크롤(200행↑에서만 가동)
+const VIRTUAL_THRESHOLD = 200;
+let rowHeight = 44;
+let firstIndex = 0,
+  visibleCount = 60;
 
 function fmtTime(s) {
   if (!s) return "-";
@@ -83,54 +98,83 @@ function renderRows(users) {
   }
   if (!users?.length) return;
 
-  const frag = document.createDocumentFragment();
-  users.forEach((u) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="checkbox" class="row-chk" data-uid="${u.uid}"></td>
-      <td>${u.email || "-"}</td>
-      <td>${u.displayName || "-"}</td>
-      <td>
-        <select class="input role-select" data-uid="${u.uid}">${roleOptions(
-      u.role
-    )}</select>
-      </td>
-      <td>${fmtTime(u.lastSignInTime)}</td>
-      <td>${(u.providers || []).join(", ") || "-"}</td>
-      <td><span class="badge small muted" data-anom="${u.uid}">확인</span></td>
-      <td><button class="btn btn-ghost btn-apply" data-uid="${
-        u.uid
-      }">적용</button></td>
-    `;
-    frag.appendChild(tr);
-  });
-  // 첫 결과면 tbody 교체, 아니면 append
-  if (
-    els.tbody.children.length &&
-    !(
-      els.tbody.children.length === 1 &&
-      els.tbody.firstElementChild?.children?.length === 1
-    )
-  ) {
-    els.tbody.appendChild(frag);
+  if (currentUsers.length > VIRTUAL_THRESHOLD) {
+    els.tbody.innerHTML = `
+      <tr class="vspacer"><td colspan="8"><div class="pad" id="pad-top"></div></td></tr>
+      <tr id="v-anchor"></tr>
+      <tr class="vspacer"><td colspan="8"><div class="pad" id="pad-bot"></div></td></tr>`;
+    mountVirtualWindow();
   } else {
+    const frag = document.createDocumentFragment();
+    users.forEach((u) => frag.appendChild(renderRow(u)));
     els.tbody.innerHTML = "";
     els.tbody.appendChild(frag);
+    // 행 높이 실측
+    const one = els.tbody.querySelector("tr:not(.vspacer)");
+    if (one) rowHeight = Math.max(40, one.offsetHeight || rowHeight);
+    updateSelectionUI();
   }
-  updateSelectionUI();
+}
+
+function renderRow(u) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td><input type="checkbox" class="row-chk" data-uid="${u.uid}"></td>
+    <td>${u.email || "-"}</td>
+    <td>${u.displayName || "-"}</td>
+    <td><select class="input role-select" data-uid="${u.uid}">${roleOptions(
+    u.role
+  )}</select></td>
+    <td>${fmtTime(u.lastSignInTime)}</td>
+    <td>${(u.providers || []).join(", ") || "-"}</td>
+    <td><span class="badge small muted" data-anom="${u.uid}">확인</span></td>
+    <td><button class="btn btn-ghost btn-apply" data-uid="${
+      u.uid
+    }">적용</button></td>`;
+  return tr;
+}
+
+function mountVirtualWindow() {
+  const wrap = document.querySelector(".table-wrap");
+  const anchor = document.getElementById("v-anchor");
+  const padTop = document.getElementById("pad-top");
+  const padBot = document.getElementById("pad-bot");
+  if (!wrap || !anchor || !padTop || !padBot) return;
+  const renderSlice = () => {
+    const scrollTop = wrap.scrollTop;
+    const viewport = wrap.clientHeight || 600;
+    firstIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 10);
+    visibleCount = Math.min(80, Math.ceil(viewport / rowHeight) + 20);
+    const lastIndex = Math.min(currentUsers.length, firstIndex + visibleCount);
+    // 패딩
+    padTop.style.height = `${firstIndex * rowHeight}px`;
+    padBot.style.height = `${Math.max(
+      0,
+      (currentUsers.length - lastIndex) * rowHeight
+    )}px`;
+    // 윈도우 교체
+    // anchor 다음에 있는 실제 행들 제거
+    let n = anchor.nextElementSibling;
+    while (n && !n.classList.contains("vspacer")) {
+      const x = n;
+      n = n.nextElementSibling;
+      x.remove();
+    }
+    const frag = document.createDocumentFragment();
+    for (let i = firstIndex; i < lastIndex; i++)
+      frag.appendChild(renderRow(currentUsers[i]));
+    anchor.after(frag);
+    updateSelectionUI();
+  };
+  wrap.addEventListener("scroll", () => requestAnimationFrame(renderSlice));
+  renderSlice();
 }
 
 async function fetchUsers(q = "", append = false) {
   const user = auth.currentUser;
   if (!user) return;
+  await ensureAdminSession();
   const idToken = await user.getIdToken(true);
-  const cf = await openCaptchaModal({
-    action: "admin_user_list",
-    title: "관리자 인증",
-    subtitle: "관리자 페이지 접근을 확인합니다.",
-  });
-  if (!cf)
-    return showToast("캡차 검증 실패. 새로고침 후 다시 시도하세요.", true);
 
   const params = new URLSearchParams();
   if (q) params.set("q", q);
@@ -143,7 +187,7 @@ async function fetchUsers(q = "", append = false) {
   const res = await fetch(`${API_BASE}/api/admin/users?` + params.toString(), {
     headers: {
       Authorization: "Bearer " + idToken,
-      "x-cf-turnstile-token": cf,
+      "x-admin-sts": ADMIN_STS,
     },
   });
   const data = await res.json();
@@ -159,20 +203,15 @@ async function fetchUsers(q = "", append = false) {
 async function applyRole(uid, role) {
   const user = auth.currentUser;
   if (!user) return;
+  await ensureAdminSession();
   const idToken = await user.getIdToken(true);
-  const cf = await openCaptchaModal({
-    action: "admin_set_role",
-    title: "보안 확인",
-    subtitle: "역할 변경 전 본인 확인이 필요합니다.",
-  });
-  if (!cf) return showToast("캡차 검증 실패", true);
 
   const res = await fetch(`${API_BASE}/api/admin/setRole`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: "Bearer " + idToken,
-      "x-cf-turnstile-token": cf,
+      "x-admin-sts": ADMIN_STS,
     },
     body: JSON.stringify({ uid, role }),
   });
@@ -188,19 +227,15 @@ async function applyRoleBulk(role) {
   );
   if (!checked.length) return showToast("선택된 사용자가 없습니다.", true);
   const user = auth.currentUser;
+  await ensureAdminSession();
   const idToken = await user.getIdToken(true);
-  const cf = await openCaptchaModal({
-    action: "admin_set_role_bulk",
-    title: "보안 확인",
-    subtitle: `선택 ${checked.length}명 역할을 '${role}'로 변경합니다.`,
-  });
-  if (!cf) return showToast("캡차 검증 실패", true);
+
   const res = await fetch(`${API_BASE}/api/admin/setRoleBulk`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: "Bearer " + idToken,
-      "x-cf-turnstile-token": cf,
+      "x-admin-sts": ADMIN_STS,
     },
     body: JSON.stringify({ items: checked.map((uid) => ({ uid, role })) }),
   });
@@ -214,22 +249,17 @@ async function applyRoleBulk(role) {
 async function disableEnable(uidList, disabled) {
   if (!uidList.length) return showToast("선택된 사용자가 없습니다.", true);
   const user = auth.currentUser;
+
+  await ensureAdminSession();
   const idToken = await user.getIdToken(true);
-  const cf = await openCaptchaModal({
-    action: disabled ? "admin_disable" : "admin_enable",
-    title: "보안 확인",
-    subtitle: `선택 ${uidList.length}명 계정을 ${
-      disabled ? "비활성화" : "활성화"
-    } 합니다.`,
-  });
-  if (!cf) return showToast("캡차 검증 실패", true);
+
   for (const uid of uidList) {
     const res = await fetch(`${API_BASE}/api/admin/disableUser`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + idToken,
-        "x-cf-turnstile-token": cf,
+        "x-admin-sts": ADMIN_STS,
       },
       body: JSON.stringify({ uid, disabled }),
     });
@@ -242,13 +272,10 @@ async function disableEnable(uidList, disabled) {
 async function forceReset(uidList) {
   if (!uidList.length) return showToast("선택된 사용자가 없습니다.", true);
   const user = auth.currentUser;
+
+  await ensureAdminSession();
   const idToken = await user.getIdToken(true);
-  const cf = await openCaptchaModal({
-    action: "admin_force_reset",
-    title: "보안 확인",
-    subtitle: `선택 ${uidList.length}명 비밀번호 초기화 링크를 생성합니다.`,
-  });
-  if (!cf) return showToast("캡차 검증 실패", true);
+
   const links = [];
   for (const uid of uidList) {
     const res = await fetch(`${API_BASE}/api/admin/forcePasswordReset`, {
@@ -256,7 +283,7 @@ async function forceReset(uidList) {
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + idToken,
-        "x-cf-turnstile-token": cf,
+        "x-admin-sts": ADMIN_STS,
       },
       body: JSON.stringify({ uid, revokeAll: true }),
     });
@@ -274,19 +301,77 @@ async function forceReset(uidList) {
 
 function exportXLSX() {
   if (!currentUsers.length) return showToast("내보낼 데이터가 없습니다.", true);
-  const rows = currentUsers.map((u) => ({
-    uid: u.uid,
-    email: u.email || "",
-    displayName: u.displayName || "",
-    role: u.role || "",
-    disabled: !!u.disabled,
-    lastSignInTime: u.lastSignInTime || "",
-    providers: (u.providers || []).join(","),
-  }));
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const headers = [
+    ["UID", "Email", "Name", "Role", "Disabled", "Last Sign-In", "Providers"],
+  ];
+  const rows = currentUsers.map((u) => [
+    u.uid,
+    u.email || "",
+    u.displayName || "",
+    u.role || "",
+    u.disabled ? "Y" : "N",
+    fmtTime(u.lastSignInTime),
+    (u.providers || []).join(","),
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
+  ws["!autofilter"] = { ref: "A1:G1" };
+  ws["!cols"] = [8, 24, 16, 10, 10, 20, 18].map((w) => ({ wch: w }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "users");
-  XLSX.writeFile(wb, `users_${Date.now()}.xlsx`);
+  XLSX.writeFile(wb, `users_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+// (4) per-user 전원 로그아웃
+async function revokeSelected() {
+  const targets = getSelectedUids();
+  if (!targets.length) return showToast("선택된 사용자가 없습니다.", true);
+  const user = auth.currentUser;
+
+  await ensureAdminSession();
+  const idToken = await user.getIdToken(true);
+
+  for (const uid of targets) {
+    const res = await fetch(`${API_BASE}/api/admin/revokeTokens`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + idToken,
+        "x-admin-sts": ADMIN_STS,
+      },
+      body: JSON.stringify({ uid }),
+    });
+    if (!res.ok) return showToast("일부 실패", true);
+  }
+  showToast("전원 로그아웃 완료");
+}
+
+// (6) 요약 위젯
+async function loadCounters() {
+  const user = auth.currentUser;
+  if (!user) return;
+  await ensureAdminSession();
+  const idToken = await user.getIdToken(true);
+  try {
+    const r = await fetch(`${API_BASE}/api/admin/counters?range=both`, {
+      headers: { Authorization: "Bearer " + idToken, "x-admin-sts": ADMIN_STS },
+    });
+    if (!r.ok) throw new Error("counters-failed");
+    const { today = {}, week = {} } = await r.json();
+    if (els.cRoles) els.cRoles.textContent = String(today.rolesChanged || 0);
+    if (els.cDisable)
+      els.cDisable.textContent = String(today.usersDisabled || 0);
+    if (els.cReset) els.cReset.textContent = String(today.passwordResets || 0);
+    if (els.c7Roles) els.c7Roles.textContent = String(week.rolesChanged || 0);
+    if (els.c7Disable)
+      els.c7Disable.textContent = String(week.usersDisabled || 0);
+    if (els.c7Reset) els.c7Reset.textContent = String(week.passwordResets || 0);
+  } catch {
+    ["cRoles", "cDisable", "cReset", "c7Roles", "c7Disable", "c7Reset"].forEach(
+      (id) => {
+        if (els[id]) els[id].textContent = "0";
+      }
+    );
+  }
 }
 
 function getSelectedUids() {
@@ -412,14 +497,10 @@ els.tbody?.addEventListener("click", async (e) => {
   if (!badge) return;
   const uid = badge.getAttribute("data-anom");
   try {
+    await ensureAdminSession();
     const user = auth.currentUser;
     const idToken = await user.getIdToken(true);
-    const cf = await openCaptchaModal({
-      action: "admin_anomaly",
-      title: "보안 확인",
-      subtitle: "최근 로그인 이상 징후를 확인합니다.",
-    });
-    if (!cf) return;
+
     const res = await fetch(
       `${API_BASE}/api/admin/userLoginAnomalies?uid=${encodeURIComponent(
         uid
@@ -427,7 +508,7 @@ els.tbody?.addEventListener("click", async (e) => {
       {
         headers: {
           Authorization: "Bearer " + idToken,
-          "x-cf-turnstile-token": cf,
+          "x-admin-sts": ADMIN_STS,
         },
       }
     );
@@ -470,9 +551,36 @@ els.btnExport?.addEventListener("click", exportXLSX);
 els.btnLogs?.addEventListener("click", () =>
   fetchLogs().catch((e) => showToast("로그 조회 실패", true))
 );
+els.btnRevoke?.addEventListener("click", () =>
+  revokeSelected().catch(() => showToast("실패", true))
+);
 
 onAuthStateChanged(auth, (user) => {
   if (!user) return;
   // 첫 진입시 자동 검색
   fetchUsers("", false).catch((e) => showToast(e.message || String(e), true));
+  // (6) 요약 위젯 로드
+  loadCounters().catch(() => {});
 });
+
+// ===== STS 유틸: 관리자 세션(15분) =====
+async function ensureAdminSession() {
+  if (ADMIN_STS) return;
+  const user = auth.currentUser;
+  if (!user) throw new Error("no-user");
+  const idToken = await user.getIdToken(true);
+  const cf = await openCaptchaModal({
+    action: "admin_session",
+    title: "관리자 인증",
+    subtitle: "보안을 위해 인증을 완료하세요.",
+  });
+  if (!cf) throw new Error("captcha-failed");
+  const res = await fetch(`${API_BASE}/api/admin/session`, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + idToken, "x-cf-turnstile-token": cf },
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok || !data.sts) throw new Error("sts-issue-failed");
+  ADMIN_STS = data.sts;
+  sessionStorage.setItem("admin_sts", ADMIN_STS);
+}

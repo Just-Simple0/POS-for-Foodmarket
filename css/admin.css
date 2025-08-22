@@ -6,6 +6,29 @@
   box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
   margin: 18px 0;
 }
+/* (6) 요약 위젯 */
+.counters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+}
+.counter-card {
+  padding: 10px 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  background: #fafcff;
+}
+.counter-card .k {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.counter-card .v {
+  font-variant-numeric: tabular-nums;
+}
+.counter-card.muted {
+  background: #fff;
+}
 .card-header,
 .card-footer {
   padding: 12px 16px;
@@ -64,6 +87,15 @@
 .table-base tbody tr.selected {
   background: #f5faff;
   transition: background 0.15s ease;
+}
+/* (9) 가상 스크롤용 스페이서 */
+.vspacer td {
+  padding: 0 !important;
+  border: none !important;
+  height: 0 !important;
+}
+.vspacer .pad {
+  height: 0;
 }
 
 .badge {

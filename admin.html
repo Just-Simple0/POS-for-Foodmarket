@@ -32,6 +32,23 @@
     <main class="container">
       <h2>계정 관리 · 권한 부여</h2>
 
+      <!-- (6) 요약 위젯 -->
+      <section class="card counters">
+        <div class="counter-card">
+          <div class="k">오늘</div>
+          <div class="v">
+            <span id="c-roles">0</span> 역할변경 ·
+            <span id="c-disable">0</span> 비활성 ·
+            <span id="c-reset">0</span> 초기화
+          </div>
+        </div>
+        <div class="counter-card muted">
+          최근 7일 합계:
+          <span id="c7-roles">0</span> / <span id="c7-disable">0</span> /
+          <span id="c7-reset">0</span>
+        </div>
+      </section>
+
       <section class="card">
         <!-- 필터 바 -->
         <div class="admin-filterbar">
@@ -77,6 +94,7 @@
           <button id="btn-disable" class="btn btn-ghost">비활성화</button>
           <button id="btn-enable" class="btn btn-ghost">활성화</button>
           <button id="btn-reset" class="btn btn-ghost">비번 초기화</button>
+          <button id="btn-revoke" class="btn btn-ghost">전원 로그아웃</button>
           <button id="btn-export-xlsx" class="btn">XLSX 내보내기</button>
         </div>
 

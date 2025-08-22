@@ -8,6 +8,11 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ---------------- favicon (모든 페이지 공통 주입) ----------------
@@ -174,6 +179,8 @@ export function loadHeader(containerID = null) {
         console.warn("[header] role watch failed:", e);
       }
 
+      notifyNewAccountsOnceOnLogin(user, role);
+
       const logoutBtn = document.getElementById("logout-btn-header");
       if (logoutBtn) {
         logoutBtn.addEventListener("click", async () => {
@@ -294,6 +301,43 @@ export async function openCaptchaModal(opts = {}) {
       cleanup(null);
     }
   });
+}
+
+// --- 로그인 직후 1회만 새 계정 안내 ---
+async function notifyNewAccountsOnceOnLogin(user, role) {
+  try {
+    if (!user || role !== "admin") return;
+    const flagKey = `admin:newAcct:checked:${user.uid}`;
+    if (sessionStorage.getItem(flagKey) === "1") return; // 세션 내 1회만
+    sessionStorage.setItem(flagKey, "1");
+    // 직전 확인 시각(로컬 저장소) — 서버 과금 없음
+    const lastKey = `admin:newAcct:lastAt:${user.uid}`;
+    const lastAt = Number(localStorage.getItem(lastKey) || 0);
+    // 최근 생성순 상위 10개만 조회 후 클라 필터
+    const snap = await getDocs(
+      query(collection(db, "users"), orderBy("createdAt", "desc"), limit(10))
+    );
+    let count = 0;
+    snap.forEach((d) => {
+      const v = d.data() || {};
+      if (v.role !== "pending") return;
+      const created =
+        typeof v.createdAt?.toMillis === "function"
+          ? v.createdAt.toMillis()
+          : v.createdAt
+          ? Date.parse(v.createdAt)
+          : 0;
+      if (!lastAt || created > lastAt) count++;
+    });
+    if (count > 0) {
+      showToast(
+        `새로운 계정 ${count}건이 생성되었습니다. 권한을 설정해주세요.`
+      );
+    }
+    localStorage.setItem(lastKey, String(Date.now()));
+  } catch (e) {
+    // 알림 실패는 치명적 아님 — 무시
+  }
 }
 
 /**
