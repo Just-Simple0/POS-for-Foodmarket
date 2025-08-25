@@ -313,22 +313,34 @@ async function notifyNewAccountsOnceOnLogin(user, role) {
     // 직전 확인 시각(로컬 저장소) — 서버 과금 없음
     const lastKey = `admin:newAcct:lastAt:${user.uid}`;
     const lastAt = Number(localStorage.getItem(lastKey) || 0);
-    // 최근 생성순 상위 10개만 조회 후 클라 필터
-    const snap = await getDocs(
-      query(collection(db, "users"), orderBy("createdAt", "desc"), limit(10))
+
+    // 서버 API로 조회(보안 규칙상 client list 금지 → Turnstile 필요)
+    const API_BASE =
+      location.hostname === "localhost" || location.hostname === "127.0.0.1"
+        ? "http://localhost:3000"
+        : "https://foodmarket-pos.onrender.com";
+    // 토큰 준비
+    const idToken = await user.getIdToken(true);
+    const ts = await getTurnstileToken("admin_notify");
+    const res = await fetch(
+      `${API_BASE}/api/admin/new-users-count?since=${encodeURIComponent(
+        String(lastAt || 0)
+      )}`,
+      {
+        headers: {
+          Authorization: "Bearer " + idToken,
+          "x-cf-turnstile-token": ts || "",
+        },
+      }
     );
     let count = 0;
-    snap.forEach((d) => {
-      const v = d.data() || {};
-      if (v.role !== "pending") return;
-      const created =
-        typeof v.createdAt?.toMillis === "function"
-          ? v.createdAt.toMillis()
-          : v.createdAt
-          ? Date.parse(v.createdAt)
-          : 0;
-      if (!lastAt || created > lastAt) count++;
-    });
+    if (res.ok) {
+      const j = await res.json().catch(() => ({}));
+      if (j && j.ok) count = Number(j.count || 0);
+    } else {
+      // 조용히 스킵 (알림 실패는 치명적이지 않음)
+      // console.warn("new-users-count failed", await res.text());
+    }
     if (count > 0) {
       showToast(
         `새로운 계정 ${count}건이 생성되었습니다. 권한을 설정해주세요.`

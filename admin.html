@@ -42,19 +42,19 @@
             <span id="c-reset">0</span> 초기화
           </div>
         </div>
-        <div class="counter-card muted">
-          최근 7일 합계:
-          <span id="c7-roles">0</span> / <span id="c7-disable">0</span> /
-          <span id="c7-reset">0</span>
+        <div class="counter-card">
+          <div class="k">최근 7일 </div>
+          <span id="c7-roles">0</span> 역할변경 · <span id="c7-disable">0</span> 비활성 ·
+          <span id="c7-reset">0</span> 초기화
         </div>
       </section>
 
       <section class="card">
         <!-- 필터 바 -->
-        <div class="admin-filterbar">
+        <div class="card-header admin-filterbar search-bar">
           <input
             id="q"
-            type="search"
+            type="text"
             placeholder="이메일/이름/UID 검색"
             class="input"
           />
@@ -129,10 +129,10 @@
 
       <!-- 로그 탐색 -->
       <section class="card" id="logs-card">
-        <div class="card-header">
+        <div class="card-header logs-filter search-bar">
           <h3>감사 로그(최근 60일)</h3>
           <div class="logs-filter">
-            <input id="log-uid" class="input" placeholder="UID(선택)" />
+            <input id="log-uid" class="input" type="text" placeholder="UID(선택)" />
             <select id="log-action" class="input">
               <option value="">액션(전체)</option>
               <option value="setRole">setRole</option>

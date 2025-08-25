@@ -3,6 +3,100 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/f
 import { showToast, openCaptchaModal } from "./components/comp.js";
 
 let ADMIN_STS = sessionStorage.getItem("admin_sts") || "";
+let __adminSessionPromise = null; // 동시 실행 가드
+let __stsRenewTimer = null; // 갱신 타이머 핸들
+
+// === STS(body) exp 파싱 & 갱신 스케줄 ===
+function b64urlDecode(s) {
+  try {
+    s = String(s).replace(/-/g, "+").replace(/_/g, "/");
+    const pad = s.length % 4;
+    if (pad) s += "=".repeat(4 - pad);
+    return atob(s);
+  } catch {
+    return "";
+  }
+}
+function parseStsExp(token) {
+  try {
+    const body = String(token || "").split(".")[0];
+    if (!body) return 0;
+    const json = JSON.parse(b64urlDecode(body));
+    return Number(json.exp) || 0;
+  } catch {
+    return 0;
+  }
+}
+function isStsValid(tok, safetyMs = 60_000) {
+  const exp = parseStsExp(tok);
+  if (!exp) return false;
+  return exp * 1000 - Date.now() > safetyMs; // 만료까지 safetyMs 이상 남았는가?
+}
+
+// === 공통 fetch 래퍼: STS 주입 + 만료/부족 시 강제 갱신 + 1회 자동 재시도 ===
+async function adminFetch(path, init = {}, retry = true) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("not-authenticated");
+  // 호출 직전 STS 유효성 확인(30초 미만 남았으면 강제 갱신)
+  if (!isStsValid(ADMIN_STS, 30_000)) {
+    await ensureAdminSession(true);
+  } else {
+    await ensureAdminSession(false);
+  }
+  const idToken = await user.getIdToken(true);
+  const headers = Object.assign({}, init.headers, {
+    Authorization: "Bearer " + idToken,
+    "x-admin-sts": ADMIN_STS,
+  });
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  if (!res.ok) {
+    let msg = "";
+    try {
+      const j = await res.json();
+      msg = j?.message || "";
+    } catch {}
+    // STS 없음/만료 응답이면 1회 강제 갱신 후 재시도
+    if (
+      retry &&
+      (res.status === 400 || res.status === 403) &&
+      msg === "missing-turnstile-token"
+    ) {
+      try {
+        await ensureAdminSession(true);
+        return adminFetch(path, init, false);
+      } catch {}
+    }
+    throw new Error(msg || "request-failed");
+  }
+  return res;
+}
+
+function scheduleStsRenewal() {
+  if (__stsRenewTimer) {
+    clearTimeout(__stsRenewTimer);
+    __stsRenewTimer = null;
+  }
+  const exp = parseStsExp(ADMIN_STS);
+  if (!exp) return;
+  const msUntilPrompt = exp * 1000 - Date.now() - 60_000; // 만료 1분 전
+  const wait = Math.max(0, Math.min(msUntilPrompt, 14 * 60_000)); // 안전 클램프
+  __stsRenewTimer = setTimeout(async () => {
+    const remain = Math.max(0, exp * 1000 - Date.now());
+    const mins = Math.floor(remain / 60000),
+      secs = Math.floor((remain % 60000) / 1000);
+    const ok = confirm(
+      `관리자 인증이 ${mins}분 ${secs}초 후 만료됩니다. 지금 갱신할까요?`
+    );
+    if (!ok) return;
+    try {
+      await ensureAdminSession(true); // 강제 갱신
+      showToast("관리자 인증이 갱신되었습니다.");
+    } catch {
+      showToast("갱신 실패. 만료 후 다시 인증해 주세요.", true);
+    }
+  }, wait);
+}
+if (ADMIN_STS) scheduleStsRenewal(); // 새로고침/재방문 시 바로 스케줄
 
 const API_BASE =
   location.hostname === "localhost" || location.hostname === "127.0.0.1"
@@ -173,8 +267,6 @@ function mountVirtualWindow() {
 async function fetchUsers(q = "", append = false) {
   const user = auth.currentUser;
   if (!user) return;
-  await ensureAdminSession();
-  const idToken = await user.getIdToken(true);
 
   const params = new URLSearchParams();
   if (q) params.set("q", q);
@@ -184,12 +276,7 @@ async function fetchUsers(q = "", append = false) {
   if (latestFilters.provider) params.set("provider", latestFilters.provider);
   if (latestFilters.sort) params.set("sort", latestFilters.sort);
 
-  const res = await fetch(`${API_BASE}/api/admin/users?` + params.toString(), {
-    headers: {
-      Authorization: "Bearer " + idToken,
-      "x-admin-sts": ADMIN_STS,
-    },
-  });
+  const res = await adminFetch(`/api/admin/users?` + params.toString());
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data?.message || "조회 실패");
   nextPageToken = data.nextPageToken || null;
@@ -203,15 +290,11 @@ async function fetchUsers(q = "", append = false) {
 async function applyRole(uid, role) {
   const user = auth.currentUser;
   if (!user) return;
-  await ensureAdminSession();
-  const idToken = await user.getIdToken(true);
 
-  const res = await fetch(`${API_BASE}/api/admin/setRole`, {
+  const res = await adminFetch(`/api/admin/setRole`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: "Bearer " + idToken,
-      "x-admin-sts": ADMIN_STS,
     },
     body: JSON.stringify({ uid, role }),
   });
@@ -226,16 +309,10 @@ async function applyRoleBulk(role) {
     c.getAttribute("data-uid")
   );
   if (!checked.length) return showToast("선택된 사용자가 없습니다.", true);
-  const user = auth.currentUser;
-  await ensureAdminSession();
-  const idToken = await user.getIdToken(true);
-
-  const res = await fetch(`${API_BASE}/api/admin/setRoleBulk`, {
+  const res = await adminFetch(`/api/admin/setRoleBulk`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: "Bearer " + idToken,
-      "x-admin-sts": ADMIN_STS,
     },
     body: JSON.stringify({ items: checked.map((uid) => ({ uid, role })) }),
   });
@@ -248,18 +325,12 @@ async function applyRoleBulk(role) {
 
 async function disableEnable(uidList, disabled) {
   if (!uidList.length) return showToast("선택된 사용자가 없습니다.", true);
-  const user = auth.currentUser;
-
-  await ensureAdminSession();
-  const idToken = await user.getIdToken(true);
 
   for (const uid of uidList) {
-    const res = await fetch(`${API_BASE}/api/admin/disableUser`, {
+    const res = await adminFetch(`/api/admin/disableUser`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + idToken,
-        "x-admin-sts": ADMIN_STS,
       },
       body: JSON.stringify({ uid, disabled }),
     });
@@ -271,19 +342,13 @@ async function disableEnable(uidList, disabled) {
 
 async function forceReset(uidList) {
   if (!uidList.length) return showToast("선택된 사용자가 없습니다.", true);
-  const user = auth.currentUser;
-
-  await ensureAdminSession();
-  const idToken = await user.getIdToken(true);
 
   const links = [];
   for (const uid of uidList) {
-    const res = await fetch(`${API_BASE}/api/admin/forcePasswordReset`, {
+    const res = await adminFetch(`/api/admin/forcePasswordReset`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + idToken,
-        "x-admin-sts": ADMIN_STS,
       },
       body: JSON.stringify({ uid, revokeAll: true }),
     });
@@ -325,18 +390,12 @@ function exportXLSX() {
 async function revokeSelected() {
   const targets = getSelectedUids();
   if (!targets.length) return showToast("선택된 사용자가 없습니다.", true);
-  const user = auth.currentUser;
-
-  await ensureAdminSession();
-  const idToken = await user.getIdToken(true);
 
   for (const uid of targets) {
-    const res = await fetch(`${API_BASE}/api/admin/revokeTokens`, {
+    const res = await adminFetch(`/api/admin/revokeTokens`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + idToken,
-        "x-admin-sts": ADMIN_STS,
       },
       body: JSON.stringify({ uid }),
     });
@@ -348,13 +407,8 @@ async function revokeSelected() {
 // (6) 요약 위젯
 async function loadCounters() {
   const user = auth.currentUser;
-  if (!user) return;
-  await ensureAdminSession();
-  const idToken = await user.getIdToken(true);
   try {
-    const r = await fetch(`${API_BASE}/api/admin/counters?range=both`, {
-      headers: { Authorization: "Bearer " + idToken, "x-admin-sts": ADMIN_STS },
-    });
+    const r = await adminFetch(`/api/admin/counters?range=both`);
     if (!r.ok) throw new Error("counters-failed");
     const { today = {}, week = {} } = await r.json();
     if (els.cRoles) els.cRoles.textContent = String(today.rolesChanged || 0);
@@ -407,25 +461,7 @@ els.tbody?.addEventListener("change", (e) => {
 // 키보드 조작/라벨 클릭 등 change 이벤트 케이스까지 커버하기 위해 추가합니다.
 
 async function fetchLogs() {
-  const user = auth.currentUser;
-  if (!user) return;
-  const idToken = await user.getIdToken(true);
-  const cf = await openCaptchaModal({
-    action: "admin_logs",
-    title: "관리자 인증",
-    subtitle: "감사 로그를 조회합니다(최근 60일).",
-  });
-  if (!cf) return showToast("캡차 검증 실패", true);
-  const params = new URLSearchParams();
-  if (els.logUid.value.trim()) params.set("uid", els.logUid.value.trim());
-  if (els.logAction.value) params.set("action", els.logAction.value);
-  params.set("limit", "50");
-  const res = await fetch(`${API_BASE}/api/admin/logs?` + params.toString(), {
-    headers: {
-      Authorization: "Bearer " + idToken,
-      "x-cf-turnstile-token": cf,
-    },
-  });
+  const res = await adminFetch(`/api/admin/logs?` + params.toString());
   const data = await res.json();
   if (!res.ok || !data.ok) return showToast("로그 조회 실패", true);
   const logs = data.logs || [];
@@ -497,20 +533,8 @@ els.tbody?.addEventListener("click", async (e) => {
   if (!badge) return;
   const uid = badge.getAttribute("data-anom");
   try {
-    await ensureAdminSession();
-    const user = auth.currentUser;
-    const idToken = await user.getIdToken(true);
-
-    const res = await fetch(
-      `${API_BASE}/api/admin/userLoginAnomalies?uid=${encodeURIComponent(
-        uid
-      )}&limit=10`,
-      {
-        headers: {
-          Authorization: "Bearer " + idToken,
-          "x-admin-sts": ADMIN_STS,
-        },
-      }
+    const res = await adminFetch(
+      `/api/admin/checkAnomalies?uid=${encodeURIComponent(uid)}&limit=10`
     );
     const data = await res.json();
     if (res.ok && data.ok) {
@@ -557,30 +581,45 @@ els.btnRevoke?.addEventListener("click", () =>
 
 onAuthStateChanged(auth, (user) => {
   if (!user) return;
-  // 첫 진입시 자동 검색
-  fetchUsers("", false).catch((e) => showToast(e.message || String(e), true));
-  // (6) 요약 위젯 로드
-  loadCounters().catch(() => {});
+  // 첫 진입: STS 예열(유효하면 유지, 부족하면 갱신)
+  (async () => {
+    try {
+      if (!isStsValid(ADMIN_STS, 60_000)) await ensureAdminSession(true);
+      else await ensureAdminSession(false);
+    } catch {}
+    fetchUsers("", false).catch((e) => showToast(e.message || String(e), true));
+    loadCounters().catch(() => {});
+  })();
 });
 
-// ===== STS 유틸: 관리자 세션(15분) =====
-async function ensureAdminSession() {
-  if (ADMIN_STS) return;
-  const user = auth.currentUser;
-  if (!user) throw new Error("no-user");
-  const idToken = await user.getIdToken(true);
-  const cf = await openCaptchaModal({
-    action: "admin_session",
-    title: "관리자 인증",
-    subtitle: "보안을 위해 인증을 완료하세요.",
+// ===== STS 유틸: 관리자 세션(15분) + 갱신(강제) =====
+async function ensureAdminSession(force = false) {
+  if (ADMIN_STS && !force) return;
+  if (__adminSessionPromise) return __adminSessionPromise; // 동시 호출 코얼레싱
+  __adminSessionPromise = (async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("no-user");
+    const idToken = await user.getIdToken(true);
+    const cf = await openCaptchaModal({
+      action: "admin_session",
+      title: "관리자 인증",
+      subtitle: "보안을 위해 인증을 완료하세요.",
+    });
+    if (!cf) throw new Error("captcha-failed");
+    const res = await fetch(`${API_BASE}/api/admin/session`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + idToken,
+        "x-cf-turnstile-token": cf,
+      },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok || !data.sts) throw new Error("sts-issue-failed");
+    ADMIN_STS = data.sts;
+    sessionStorage.setItem("admin_sts", ADMIN_STS);
+    scheduleStsRenewal(); // 새 STS에 맞춰 타이머 재설정
+  })().finally(() => {
+    __adminSessionPromise = null;
   });
-  if (!cf) throw new Error("captcha-failed");
-  const res = await fetch(`${API_BASE}/api/admin/session`, {
-    method: "POST",
-    headers: { Authorization: "Bearer " + idToken, "x-cf-turnstile-token": cf },
-  });
-  const data = await res.json();
-  if (!res.ok || !data.ok || !data.sts) throw new Error("sts-issue-failed");
-  ADMIN_STS = data.sts;
-  sessionStorage.setItem("admin_sts", ADMIN_STS);
+  return __adminSessionPromise;
 }
