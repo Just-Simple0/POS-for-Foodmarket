@@ -561,37 +561,41 @@ main {
 }
 
 /* Admin Pending Summary : LIST ONLY (scoped) */
-.modal--admin-summary .mas-list {
+.modal--admin-summary__content .mas-list {
   list-style: disc;
   padding-left: 1.25rem;
   margin: 4px 0 12px;
 }
-.modal--admin-summary .mas-item {
+.modal--admin-summary__content .mas-item {
   margin: 10px 0; /* 항목 간 간격 */
 }
-.modal--admin-summary .mas-item.is-hot {
+.modal--admin-summary__content .mas-item.is-hot {
   color: #e53935; /* 0건 아님 → 강조 */
   font-weight: 800;
 }
-.modal--admin-summary .mas-text {
+.modal--admin-summary__content .mas-text {
   color: inherit; /* 강조 색/굵기 상속 */
   font-weight: inherit;
 }
-.modal--admin-summary .mas-count {
+.modal--admin-summary__content .mas-count {
   color: #2b2f36; /* 0건일 때 일반 텍스트 */
   font-weight: 700;
 }
-.modal--admin-summary .mas-count-link {
+.modal--admin-summary__content .mas-count-link {
   color: inherit; /* 강조 시 빨강 상속 */
   font-weight: inherit;
-  text-decoration: underline;
   text-underline-offset: 2px;
 }
-.modal--admin-summary .mas-count-link:focus-visible {
+.modal--admin-summary__content .mas-count-link:focus-visible {
   outline: 2px solid #1976d2;
   outline-offset: 2px;
   border-radius: 4px;
 }
+.modal .mas-buttons{
+  display: flex;
+  justify-content: flex-end;
+}
+
 @media (max-width: 480px) {
   .modal--admin-summary .mas-item {
     margin: 8px 0;

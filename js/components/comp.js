@@ -123,6 +123,29 @@ export function loadHeader(containerID = null) {
 
   // 사용자 상태 확인 및 로그아웃 처리
   onAuthStateChanged(auth, async (user) => {
+    // === 관리자 요약 모달 세션 플래그 관리 ===
+    // 로그아웃→재로그인 시에도 모달이 다시 뜨도록 플래그를 정리한다.
+    const MODAL_UID_KEY = "admin:newAcct:uid";
+    const prevUid = sessionStorage.getItem(MODAL_UID_KEY);
+    if (!user) {
+      // 로그아웃: 이전 사용자 플래그 제거
+      if (prevUid) {
+        sessionStorage.removeItem(`admin:newAcct:checked:${prevUid}`);
+      }
+      sessionStorage.removeItem(MODAL_UID_KEY);
+    } else {
+      // 새 로그인: UID가 바뀌었거나 같은 UID여도 '새 로그인'으로 보고 플래그 초기화
+      if (prevUid !== user.uid) {
+        if (prevUid) {
+          sessionStorage.removeItem(`admin:newAcct:checked:${prevUid}`);
+        }
+        sessionStorage.removeItem(`admin:newAcct:checked:${user.uid}`);
+        sessionStorage.setItem(MODAL_UID_KEY, user.uid);
+      } else {
+        sessionStorage.removeItem(`admin:newAcct:checked:${user.uid}`);
+      }
+    }
+
     const nameEl = document.getElementById("user-name-header");
     if (user) {
       if (nameEl) {
@@ -364,7 +387,7 @@ function openAdminPendingSummaryModal({
   userPending = 0,
 }) {
   const overlay = document.createElement("div");
-  overlay.className = "modal";
+  overlay.className = "modal modal--admin-summary";
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("aria-labelledby", "admin-pending-title");
@@ -382,27 +405,24 @@ function openAdminPendingSummaryModal({
     <div class="mas-divider"></div>
       <ul class="mas-list">
       <li class="mas-item ${hotUsers ? "is-hot" : ""}">
-        <span class="mas-text">사용자 권한 설정 대기 건 - </span>
         ${
           hotUsers
-            ? `<a class="mas-count-link" href="admin.html#pending-users" aria-label="사용자 권한 설정 대기 ${pendingUsers}건 보기">${pendingUsers}개</a>`
+            ? `<a class="mas-count-link" href="admin.html#pending-users" aria-label="사용자 권한 설정 대기 ${pendingUsers}건 보기">사용자 권한 설정 대기 건 - ${pendingUsers}개</a>`
             : `<span class="mas-count">${pendingUsers}개</span>`
         }
       </li>
       <li class="mas-item ${hotProd ? "is-hot" : ""}">
-        <span class="mas-text">물품 등록 / 변경 / 삭제 승인 대기 건 - </span>
         ${
           hotProd
-            ? `<a class="mas-count-link" href="admin.html#pending-products" aria-label="물품 승인 대기 ${productPending}건 보기">${productPending}개</a>`
-            : `<span class="mas-count">${productPending}개</span>`
+            ? `<a class="mas-count-link" href="admin.html#pending-products" aria-label="물품 등록 / 변경 / 삭제 승인 대기 ${productPending}건 보기">물품 등록 / 변경 / 삭제 대기 건 - ${productPending}개</a>`
+            : `<span class="mas-text">물품 등록 / 변경 / 삭제 승인 대기 건 - </span> <span class="mas-count">${productPending}개</span>`
         }
       </li>
       <li class="mas-item ${hotCust ? "is-hot" : ""}">
-        <span class="mas-text">이용자 등록 / 변경 / 삭제 승인 대기 건 - </span>
         ${
           hotCust
-            ? `<a class="mas-count-link" href="admin.html#pending-customers" aria-label="이용자 승인 대기 ${userPending}건 보기">${userPending}개</a>`
-            : `<span class="mas-count">${userPending}개</span>`
+            ? `<a class="mas-count-link" href="admin.html#pending-customers" aria-label="이용자 승인 대기 ${userPending}건 보기">이용자 승인 대기 건 - ${userPending}개</a>`
+            : `<span class="mas-text">이용자 등록 / 변경 / 삭제 승인 대기 건 - </span><span class="mas-count">${userPending}개</span>`
         }
       </li>
     </ul>
@@ -425,7 +445,7 @@ function openAdminPendingSummaryModal({
   overlay
     .querySelector("#admin-pending-close")
     ?.addEventListener("click", cleanup);
-  content.querySelectorAll(".mas-count").forEach((a) => {
+  content.querySelectorAll(".mas-count-link").forEach((a) => {
     a.addEventListener("click", () => setTimeout(cleanup, 0));
   });
   document.addEventListener("keydown", function onEsc(e) {
