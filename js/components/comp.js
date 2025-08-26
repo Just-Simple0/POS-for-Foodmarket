@@ -15,6 +15,12 @@ import {
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// 백엔드 베이스 URL (관리자 API 호출용)
+const API_BASE =
+  location.hostname === "localhost" || location.hostname === "127.0.0.1"
+    ? "http://localhost:3000"
+    : "https://foodmarket-pos.onrender.com";
+
 // ---------------- favicon (모든 페이지 공통 주입) ----------------
 function ensureFavicon() {
   const head = document.head || document.getElementsByTagName("head")[0];
@@ -164,21 +170,27 @@ export function loadHeader(containerID = null) {
         onSnapshot(doc(db, "users", user.uid), async (snap) => {
           if (!snap.exists()) return;
           const r = String(snap.data()?.role || "user").toLowerCase();
-          if (badgeEl)
-            badgeEl.style.display = r === "admin" ? "inline-block" : "none";
           const isAdmin2 = r === "admin";
           if (badgeEl)
             badgeEl.style.display = isAdmin2 ? "inline-block" : "none";
           if (navAdmin)
             navAdmin.style.display = isAdmin2 ? "inline-block" : "none";
+          // claims 최신화
           try {
             await user.getIdToken(true);
           } catch {}
+          // 🔁 이제 admin으로 관측되면, 세션 1회 알림 재시도
+          if (isAdmin2) {
+            try {
+              await notifyNewAccountsOnceOnLogin(user, "admin");
+            } catch {}
+          }
         });
       } catch (e) {
         console.warn("[header] role watch failed:", e);
       }
 
+      // 초기 진입에서도 1회 시도(세션 플래그로 중복 방지)
       notifyNewAccountsOnceOnLogin(user, role);
 
       const logoutBtn = document.getElementById("logout-btn-header");
@@ -244,7 +256,7 @@ export async function openCaptchaModal(opts = {}) {
 
   const overlay = document.createElement("div");
   overlay.id = "cf-turnstile-modal";
-  overlay.className = "modal";
+  overlay.className = "modal modal--admin-summary";
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("tabindex", "-1");
@@ -303,53 +315,125 @@ export async function openCaptchaModal(opts = {}) {
   });
 }
 
-// --- 로그인 직후 1회만 새 계정 안내 ---
+// --- 로그인 직후 1회만: 관리자 대기 요약 모달 ---
 async function notifyNewAccountsOnceOnLogin(user, role) {
   try {
-    if (!user || role !== "admin") return;
+    if (!user) return;
+    // 초기에 role 인자가 admin이 아닐 수도 있으므로, 한 번 더 claims로 보조 확인
+    let isAdmin = role === "admin";
+    if (!isAdmin) {
+      try {
+        const t = await user.getIdTokenResult();
+        isAdmin = (t?.claims?.role || "").toLowerCase() === "admin";
+      } catch {}
+    }
+    if (!isAdmin) return;
     const flagKey = `admin:newAcct:checked:${user.uid}`;
     if (sessionStorage.getItem(flagKey) === "1") return; // 세션 내 1회만
-    sessionStorage.setItem(flagKey, "1");
-    // 직전 확인 시각(로컬 저장소) — 서버 과금 없음
-    const lastKey = `admin:newAcct:lastAt:${user.uid}`;
-    const lastAt = Number(localStorage.getItem(lastKey) || 0);
-
-    // 서버 API로 조회(보안 규칙상 client list 금지 → Turnstile 필요)
-    const API_BASE =
-      location.hostname === "localhost" || location.hostname === "127.0.0.1"
-        ? "http://localhost:3000"
-        : "https://foodmarket-pos.onrender.com";
-    // 토큰 준비
     const idToken = await user.getIdToken(true);
-    const ts = await getTurnstileToken("admin_notify");
-    const res = await fetch(
-      `${API_BASE}/api/admin/new-users-count?since=${encodeURIComponent(
-        String(lastAt || 0)
-      )}`,
-      {
-        headers: {
-          Authorization: "Bearer " + idToken,
-          "x-cf-turnstile-token": ts || "",
-        },
-      }
-    );
-    let count = 0;
-    if (res.ok) {
-      const j = await res.json().catch(() => ({}));
-      if (j && j.ok) count = Number(j.count || 0);
-    } else {
-      // 조용히 스킵 (알림 실패는 치명적이지 않음)
-      // console.warn("new-users-count failed", await res.text());
+    const res = await fetch(`${API_BASE}/api/admin/pending-summary`, {
+      headers: { Authorization: "Bearer " + idToken },
+    });
+    if (!res.ok) return; // 조용히 스킵
+    const j = await res.json();
+    const pendingUsers = Number(j?.pendingUsers || 0);
+    const productPending = Number(j?.productPending || 0);
+    const userPending = Number(j?.userPending || 0);
+    const total = pendingUsers + productPending + userPending;
+    if (total > 0) {
+      openAdminPendingSummaryModal({
+        pendingUsers,
+        productPending,
+        userPending,
+      });
+      sessionStorage.setItem(flagKey, "1");
     }
-    if (count > 0) {
-      showToast(
-        `새로운 계정 ${count}건이 생성되었습니다. 권한을 설정해주세요.`
-      );
-    }
-    localStorage.setItem(lastKey, String(Date.now()));
-  } catch (e) {
+    console.debug("[admin-pending-summary] start", {
+      host: location.host,
+      API_BASE,
+    });
+  } catch {
     // 알림 실패는 치명적 아님 — 무시
   }
+}
+
+// 관리자 대기 요약 모달
+function openAdminPendingSummaryModal({
+  pendingUsers = 0,
+  productPending = 0,
+  userPending = 0,
+}) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-labelledby", "admin-pending-title");
+  overlay.tabIndex = -1;
+
+  const content = document.createElement("div");
+  content.className = "modal-content modal--admin-summary__content";
+
+  const hotUsers = Number(pendingUsers) > 0;
+  const hotProd = Number(productPending) > 0;
+  const hotCust = Number(userPending) > 0;
+
+  content.innerHTML = `
+    <h2 id="admin-pending-title">관리자 확인 필요 항목</h2>
+    <div class="mas-divider"></div>
+      <ul class="mas-list">
+      <li class="mas-item ${hotUsers ? "is-hot" : ""}">
+        <span class="mas-text">사용자 권한 설정 대기 건 - </span>
+        ${
+          hotUsers
+            ? `<a class="mas-count-link" href="admin.html#pending-users" aria-label="사용자 권한 설정 대기 ${pendingUsers}건 보기">${pendingUsers}개</a>`
+            : `<span class="mas-count">${pendingUsers}개</span>`
+        }
+      </li>
+      <li class="mas-item ${hotProd ? "is-hot" : ""}">
+        <span class="mas-text">물품 등록 / 변경 / 삭제 승인 대기 건 - </span>
+        ${
+          hotProd
+            ? `<a class="mas-count-link" href="admin.html#pending-products" aria-label="물품 승인 대기 ${productPending}건 보기">${productPending}개</a>`
+            : `<span class="mas-count">${productPending}개</span>`
+        }
+      </li>
+      <li class="mas-item ${hotCust ? "is-hot" : ""}">
+        <span class="mas-text">이용자 등록 / 변경 / 삭제 승인 대기 건 - </span>
+        ${
+          hotCust
+            ? `<a class="mas-count-link" href="admin.html#pending-customers" aria-label="이용자 승인 대기 ${userPending}건 보기">${userPending}개</a>`
+            : `<span class="mas-count">${userPending}개</span>`
+        }
+      </li>
+    </ul>
+    <div class="mas-buttons">
+      <button type="button" class="mas-btn mas-btn-ghost" id="admin-pending-close">닫기</button>
+    </div>
+  `;
+  overlay.appendChild(content);
+  document.body.appendChild(overlay);
+
+  const last = document.activeElement;
+  content.focus();
+  const cleanup = () => {
+    overlay.remove();
+    if (last && typeof last.focus === "function") last.focus();
+  };
+  overlay.addEventListener("mousedown", (e) => {
+    if (e.target === overlay) cleanup();
+  });
+  overlay
+    .querySelector("#admin-pending-close")
+    ?.addEventListener("click", cleanup);
+  content.querySelectorAll(".mas-count").forEach((a) => {
+    a.addEventListener("click", () => setTimeout(cleanup, 0));
+  });
+  document.addEventListener("keydown", function onEsc(e) {
+    if (e.key === "Escape") {
+      cleanup();
+      document.removeEventListener("keydown", onEsc);
+    }
+  });
 }
 
 /**

@@ -138,7 +138,7 @@ async function ensureUserDoc(user) {
   return (await getDoc(ref)).data();
 }
 
-async function gateAfterLogin(user) {
+async function gateAfterLogin(user, preloadedDoc) {
   if (FEATURES.ENFORCE_EMAIL_VERIFIED && !user.emailVerified) {
     try {
       await sendEmailVerification(user);
@@ -148,7 +148,7 @@ async function gateAfterLogin(user) {
     return false;
   }
   if (FEATURES.ROLE_APPROVAL_REQUIRED) {
-    const data = await ensureUserDoc(user);
+    const data = preloadedDoc || (await ensureUserDoc(user));
     const role = (data?.role || "pending").toLowerCase();
     if (!["admin", "manager", "user"].includes(role)) {
       showError(
@@ -284,7 +284,7 @@ onAuthStateChanged(auth, async (user) => {
   if (SIGNUP_IN_PROGRESS) return;
   if (!user) return;
   if (FEATURES?.ENFORCE_EMAIL_VERIFIED && !user.emailVerified) return;
-  if (!(await gateAfterLogin(user))) return;
+  if (!(await gateAfterLogin(user /*, preloadedDoc */))) return;
   showError("");
   // ⑥ 로그인 이력 저장 (최근 5개는 mypage에서 조회)
   try {
@@ -484,8 +484,9 @@ ui.emailForm?.addEventListener("submit", async (e) => {
       return;
     }
 
+    let userDoc = null;
     try {
-      await ensureUserDoc(cred.user);
+      userDoc = await ensureUserDoc(cred.user);
     } catch (e) {
       console.error("[ensureUserDoc] permission error:", e);
       showToast(
@@ -495,12 +496,23 @@ ui.emailForm?.addEventListener("submit", async (e) => {
     }
 
     resetFail();
-    if (!(await gateAfterLogin(cred.user))) return;
+    if (!(await gateAfterLogin(cred.user, userDoc))) return;
     location.replace(getPostLoginRedirect("dashboard.html"));
   } catch (err) {
     console.error(err);
     if (FEATURES.RATE_LIMIT_CLIENT_BACKOFF) recordFail();
-    showError("이메일 또는 비밀번호를 확인해 주세요.");
+    const code = err?.code || err?.message || "";
+    if (
+      code === "auth/invalid-credential" ||
+      code === "auth/wrong-password" ||
+      code === "auth/user-not-found"
+    ) {
+      showError("이메일 또는 비밀번호를 확인해 주세요.");
+    } else if (code === "captcha-timeout") {
+      showError("로봇 방지 검증 시간이 초과되었습니다. 다시 시도해 주세요.");
+    } else {
+      showError("로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    }
   } finally {
     setBtnLoading(ui.emailLoginBtn, false);
   }
