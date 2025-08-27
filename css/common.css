@@ -511,6 +511,12 @@ main {
   text-align: left;
 }
 
+.modal-button {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .modal-buttons {
   display: flex;
   justify-content: space-between;
@@ -561,6 +567,9 @@ main {
 }
 
 /* Admin Pending Summary : LIST ONLY (scoped) */
+#admin-pending-title {
+  margin: 0;
+}
 .modal--admin-summary__content .mas-list {
   list-style: disc;
   padding-left: 1.25rem;
@@ -591,7 +600,7 @@ main {
   outline-offset: 2px;
   border-radius: 4px;
 }
-.modal .mas-buttons{
+.modal .mas-buttons {
   display: flex;
   justify-content: flex-end;
 }

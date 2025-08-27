@@ -33,6 +33,19 @@ async function loadRecentProducts() {
   });
 }
 
+function navigateTo(url) {
+  window.location.href = url;
+}
+function onCardActivate(el, cb) {
+  el.addEventListener("click", cb);
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      cb();
+    }
+  });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   const searchInput = document.getElementById("global-search");
   if (searchInput) {
@@ -47,16 +60,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadDashboardData();
   loadRecentProducts();
   setExpiryInfo();
+
+  // 통계로 이동: 이용 고객 수 / 제공된 물품 수
+  const visitCard = document.getElementById("visit-card");
+  const itemCard = document.getElementById("item-card");
+  if (visitCard) onCardActivate(visitCard, () => navigateTo("statistics.html"));
+  if (itemCard) onCardActivate(itemCard, () => navigateTo("statistics.html"));
+
+  // 상품 페이지로 이동 (등록순 필터 의도 전달: sort=latest 파라미터)
+  const recentProductCard = document.getElementById("recent-product-card");
+  if (recentProductCard)
+    onCardActivate(recentProductCard, () =>
+      navigateTo("products.html?sort=latest")
+    );
+
+  // 날짜 계산기 모달 오픈
+  const expiryCard = document.getElementById("expiry-base-card");
+  if (expiryCard) onCardActivate(expiryCard, () => openExpiryModal());
 });
 
 async function loadDashboardData() {
   try {
-    const {
-      visitData,
-      todayItemsMap,
-      todayItemsTotal,
-      prevItemsTotal,
-    } = await fetchProvisionStats();
+    const { visitData, todayItemsMap, todayItemsTotal, prevItemsTotal } =
+      await fetchProvisionStats();
 
     renderVisitSection(visitData);
     renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal);
@@ -100,8 +126,7 @@ async function fetchProvisionStats() {
         const qty = item.quantity || 0;
         dayTotal += qty;
         if (dateStr === todayStr) {
-          todayItemsMap[item.name] =
-            (todayItemsMap[item.name] || 0) + qty;
+          todayItemsMap[item.name] = (todayItemsMap[item.name] || 0) + qty;
         }
       });
       itemsTotalsByDate[dateStr] = (itemsTotalsByDate[dateStr] || 0) + dayTotal;
@@ -206,9 +231,7 @@ function renderVisitSection(visitData) {
 function renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal) {
   const itemDiff = todayItemsTotal - prevItemsTotal;
   const itemRate =
-    prevItemsTotal > 0
-      ? ((itemDiff / prevItemsTotal) * 100).toFixed(1)
-      : "0";
+    prevItemsTotal > 0 ? ((itemDiff / prevItemsTotal) * 100).toFixed(1) : "0";
 
   const itemCountEl = document.getElementById("item-total");
   const itemChangeEl = document.getElementById("item-change");
@@ -274,4 +297,105 @@ function setExpiryInfo() {
     formatDate(snackDrinkDate);
   document.getElementById("expiry-food-daily").textContent =
     formatDate(foodDailyDate);
+}
+
+function openExpiryModal() {
+  const modal = document.getElementById("expiry-modal");
+  const baseEl = document.getElementById("expiry-base-date");
+  const todayBtn = document.getElementById("expiry-today-btn");
+  const closeBtn = document.getElementById("expiry-modal-close");
+
+  const out20 = document.getElementById("expiry-20");
+  const out30 = document.getElementById("expiry-30");
+
+  const customDays = document.getElementById("expiry-custom-days");
+  const customBtn = document.getElementById("expiry-calc-btn");
+  const customOut = document.getElementById("expiry-custom-result");
+  // 초기값: 오늘
+  const today = new Date();
+  baseEl.value = formatDateInput(today);
+  renderBaseResults();
+
+  // 기준일 변경 시 즉시 20/30 갱신
+  baseEl.addEventListener("change", renderBaseResults);
+  baseEl.addEventListener("input", renderBaseResults);
+
+  // 오늘 버튼
+  todayBtn.addEventListener("click", () => {
+    baseEl.value = formatDateInput(new Date());
+    renderBaseResults();
+  });
+
+  // 사용자 지정 계산
+  customBtn.addEventListener("click", () => {
+    const base = parseDateInput(baseEl.value);
+    const n = Number(customDays.value);
+    if (!base) {
+      customOut.textContent = "유효한 기준 날짜를 입력하세요";
+      return;
+    }
+    if (!Number.isFinite(n) || n < 0) {
+      customOut.textContent = "추가 일수를 올바르게 입력하세요";
+      return;
+    }
+    customOut.textContent = formatDateOut(addDaysToDate(base, n));
+  });
+
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+  const close = () => {
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden", "true");
+  };
+  closeBtn.addEventListener("click", close, { once: true });
+  modal.addEventListener(
+    "click",
+    (e) => {
+      if (e.target === modal) close();
+    },
+    { once: true }
+  );
+  window.addEventListener("keydown", function escHandler(e) {
+    if (e.key === "Escape") {
+      close();
+      window.removeEventListener("keydown", escHandler);
+    }
+  });
+
+  function renderBaseResults() {
+    const base = parseDateInput(baseEl.value);
+    if (!base) {
+      out20.textContent = "-";
+      out30.textContent = "-";
+      return;
+    }
+    out20.textContent = formatDateOut(addDaysToDate(base, 20));
+    out30.textContent = formatDateOut(addDaysToDate(base, 30));
+  }
+}
+
+// === (3) 날짜 유틸 ===
+function formatDateInput(d) {
+  // YYYY-MM-DD
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function formatDateOut(d) {
+  // YYYY.MM.DD
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}.${mm}.${dd}`;
+}
+function parseDateInput(v) {
+  if (!v) return null;
+  const t = new Date(v);
+  return Number.isNaN(t.getTime()) ? null : t;
+}
+function addDaysToDate(d, n) {
+  const out = new Date(d);
+  out.setDate(out.getDate() + n);
+  return out;
 }

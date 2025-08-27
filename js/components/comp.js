@@ -8,11 +8,6 @@ import {
   doc,
   getDoc,
   onSnapshot,
-  collection,
-  query,
-  orderBy,
-  limit,
-  getDocs,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // 백엔드 베이스 URL (관리자 API 호출용)
@@ -20,6 +15,17 @@ const API_BASE =
   location.hostname === "localhost" || location.hostname === "127.0.0.1"
     ? "http://localhost:3000"
     : "https://foodmarket-pos.onrender.com";
+
+let __adminPendingModalInFlight = false;
+let __adminNotifyTimer = null;
+
+function scheduleAdminPendingNotify(user, role) {
+  if (__adminNotifyTimer) return;
+  __adminNotifyTimer = setTimeout(() => {
+    __adminNotifyTimer = null;
+    notifyNewAccountsOnceOnLogin(user, role);
+  }, 50);
+}
 
 // ---------------- favicon (모든 페이지 공통 주입) ----------------
 function ensureFavicon() {
@@ -134,15 +140,14 @@ export function loadHeader(containerID = null) {
       }
       sessionStorage.removeItem(MODAL_UID_KEY);
     } else {
-      // 새 로그인: UID가 바뀌었거나 같은 UID여도 '새 로그인'으로 보고 플래그 초기화
+      // 같은 탭에서 페이지 이동/새로고침이면 prevUid === user.uid 이므로 플래그 보존
+      // '진짜' 새 로그인(이전 페이지에서 로그아웃 후 다시 로그인) 또는 계정 전환 시에만 초기화
       if (prevUid !== user.uid) {
         if (prevUid) {
           sessionStorage.removeItem(`admin:newAcct:checked:${prevUid}`);
         }
-        sessionStorage.removeItem(`admin:newAcct:checked:${user.uid}`);
+        // 현재 UID의 checked 플래그는 지우지 않는다(페이지 이동시 재노출 방지)
         sessionStorage.setItem(MODAL_UID_KEY, user.uid);
-      } else {
-        sessionStorage.removeItem(`admin:newAcct:checked:${user.uid}`);
       }
     }
 
@@ -205,7 +210,7 @@ export function loadHeader(containerID = null) {
           // 🔁 이제 admin으로 관측되면, 세션 1회 알림 재시도
           if (isAdmin2) {
             try {
-              await notifyNewAccountsOnceOnLogin(user, "admin");
+              scheduleAdminPendingNotify(user, "admin");
             } catch {}
           }
         });
@@ -213,8 +218,8 @@ export function loadHeader(containerID = null) {
         console.warn("[header] role watch failed:", e);
       }
 
-      // 초기 진입에서도 1회 시도(세션 플래그로 중복 방지)
-      notifyNewAccountsOnceOnLogin(user, role);
+      // 초기 진입에서도 1회 시도(디바운스 + in-flight 가드로 중복 방지)
+      if (user) scheduleAdminPendingNotify(user, role);
 
       const logoutBtn = document.getElementById("logout-btn-header");
       if (logoutBtn) {
@@ -353,6 +358,8 @@ async function notifyNewAccountsOnceOnLogin(user, role) {
     if (!isAdmin) return;
     const flagKey = `admin:newAcct:checked:${user.uid}`;
     if (sessionStorage.getItem(flagKey) === "1") return; // 세션 내 1회만
+    if (__adminPendingModalInFlight) return;
+    __adminPendingModalInFlight = true;
     const idToken = await user.getIdToken(true);
     const res = await fetch(`${API_BASE}/api/admin/pending-summary`, {
       headers: { Authorization: "Bearer " + idToken },
@@ -371,12 +378,8 @@ async function notifyNewAccountsOnceOnLogin(user, role) {
       });
       sessionStorage.setItem(flagKey, "1");
     }
-    console.debug("[admin-pending-summary] start", {
-      host: location.host,
-      API_BASE,
-    });
-  } catch {
-    // 알림 실패는 치명적 아님 — 무시
+  } finally {
+    __adminPendingModalInFlight = false;
   }
 }
 
