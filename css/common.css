@@ -192,7 +192,7 @@ main {
 
 /* 페이지 공통 컨테이너: 각 페이지에서 max-width만 오버라이드 */
 .container {
-  max-width: 1200px;
+  max-width: 1280px;
   width: 100%;
   margin: 0 auto;
   padding: 2rem;

@@ -10,6 +10,7 @@ import {
   deleteDoc,
   where,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { showToast } from "./components/comp.js";
 
 // 🔍 검색용 메모리 저장
@@ -23,12 +24,14 @@ let currentSort = { field: null, direction: "asc" };
 
 // ===== 권한/역할 감지 & UI 토글 =====
 let isAdmin = false;
-async function detectRole() {
-  const user = auth.currentUser;
-  if (!user) return;
-  const token = await user.getIdTokenResult().catch(() => null);
-  const role = token?.claims?.role || "pending";
-  isAdmin = role === "admin" || role === "manager";
+async function applyRoleFromUser(user) {
+  if (!user) {
+    isAdmin = false;
+  } else {
+    const token = await user.getIdTokenResult().catch(() => null);
+    const role = token?.claims?.role || "pending";
+    isAdmin = role === "admin" || role === "manager";
+  }
   document.documentElement.classList.toggle("is-admin", isAdmin);
 }
 
@@ -48,11 +51,8 @@ function bindToolbarAndCreateModal() {
     modal.setAttribute("aria-hidden", "true");
   };
   document
-    .getElementById("create-modal-close")
-    .addEventListener("click", closeAll);
-  document
-    .getElementById("create-modal-close2")
-    .addEventListener("click", closeAll);
+    .querySelectorAll("#create-modal-close")
+    .forEach((el) => el.addEventListener("click", closeAll));
   // 탭 스위치
   modal.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -158,14 +158,14 @@ function renderTable(data) {
       <td>${c.name || ""}</td>
       <td>${c.birth || ""}</td>
       <td>${c.gender || ""}</td>
-      <td class="admin-only ${
+      <td class="td-admin-only ${
         c.status === "지원" ? "status-green" : "status-red"
       }">${c.status || ""}</td>
       <td>${c.region1 || ""}</td>
       <td>${c.address || ""}</td>
       <td>${c.phone || ""}</td>
-      <td class="admin-only">${c.type || ""}</td>
-      <td class="admin-only">${c.category || ""}</td>
+      <td class="td-admin-only">${c.type || ""}</td>
+      <td class="td-admin-only">${c.category || ""}</td>
       <td>
         ${c.note || ""}
         <span class="row-actions">
@@ -289,10 +289,12 @@ function openEditModal(customer) {
   document.getElementById("edit-id").value = customer.id;
   document.getElementById("edit-name").value = customer.name || "";
   document.getElementById("edit-birth").value = customer.birth || "";
+  document.getElementById("edit-region1").value = customer.region1 || "";
   document.getElementById("edit-address").value = customer.address || "";
   document.getElementById("edit-phone").value = customer.phone || "";
   document.getElementById("edit-type").value = customer.type || "";
   document.getElementById("edit-category").value = customer.category || "";
+  document.getElementById("edit-note").value = customer.note || "";
 
   // 커스텀 select 초기화
   const genderSel = document.querySelector("#gender-select .selected");
@@ -317,17 +319,26 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
     birth: document.getElementById("edit-birth").value,
     gender:
       document.querySelector("#gender-select .selected")?.dataset.value || "",
-    status:
-      document.querySelector("#status-select .selected")?.dataset.value || "",
+    status: document.documentElement.classList.contains("is-admin")
+      ? document.querySelector("#status-select .selected")?.dataset.value || ""
+      : undefined,
     address: document.getElementById("edit-address").value,
     phone: document.getElementById("edit-phone").value,
-    type: document.getElementById("edit-type").value,
-    category: document.getElementById("edit-category").value,
+    type: document.documentElement.classList.contains("is-admin")
+      ? document.getElementById("edit-type").value
+      : undefined,
+    category: document.documentElement.classList.contains("is-admin")
+      ? document.getElementById("edit-category").value
+      : undefined,
+    note: document.getElementById("edit-note").value,
     updatedAt: new Date().toISOString(),
     updatedBy: email,
   };
 
-  await setDoc(ref, updateData);
+  Object.keys(updateData).forEach(
+    (k) => updateData[k] === undefined && delete updateData[k]
+  );
+  await updateDoc(ref, updateData);
   document.getElementById("edit-modal").classList.add("hidden");
   await loadCustomers();
 });
@@ -337,7 +348,7 @@ document.getElementById("close-edit-modal")?.addEventListener("click", () => {
 });
 
 function updateSortIcons() {
-  const ths = document.querySelectorAll("#customer-thead th");
+  const ths = document.querySelectorAll("#customers-thead th");
   const arrows = { asc: "▲", desc: "▼" };
   const fieldMap = [
     "name",
@@ -433,21 +444,23 @@ document
   .getElementById("field-search")
   .addEventListener("input", filterAndRender);
 
-// 초기 로딩 및 검색 필드 포커스
-document.addEventListener("DOMContentLoaded", async () => {
-  await detectRole();
-  bindToolbarAndCreateModal();
-  const searchInput = document.getElementById("global-search");
-  if (searchInput) {
-    searchInput.focus();
-    searchInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        filterAndRender();
-      }
-    });
-  }
-  loadCustomers();
+// 초기 로딩: 인증 준비(onAuthStateChanged) 후 역할/목록 로드
+document.addEventListener("DOMContentLoaded", () => {
+  onAuthStateChanged(auth, async (user) => {
+    await applyRoleFromUser(user);
+    bindToolbarAndCreateModal();
+    const searchInput = document.getElementById("global-search");
+    if (searchInput) {
+      searchInput.focus();
+      searchInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          filterAndRender();
+        }
+      });
+    }
+    loadCustomers();
+  });
 });
 
 // ===== 삭제 =====
@@ -515,27 +528,181 @@ async function parseAndNormalizeExcel(file, opts) {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws);
+  // 병합/제목행 대응: 헤더 자동 탐지 → 객체 배열화
+  const rows = sheetToObjectsSmart(ws);
+
   const out = [];
+
   for (const row of rows) {
-    const rec = {
-      name: row["이용자명"] || row["이름"] || "",
-      birth: row["생년월일"] || row["birth"] || "",
-      gender: row["성별"] || "",
-      status: row["상태"] || "",
-      region1: row["행정구역"] || "",
-      address: row["주소"] || "",
-      phone: row["전화번호"] || row["전화"] || "",
-      type: row["이용자구분"] || "",
-      category: row["이용자분류"] || "",
-      note: row["비고"] || "",
-    };
-    if (!rec.name || !rec.birth) continue; // 필수
-    if (!rec.status && opts.allowMissingStatus) rec.status = "지원";
-    if (opts.statusMode === "all-support") rec.status = "지원";
-    out.push(rec);
+    // ── 헤더 매핑(스크린샷 파일 대응) ────────────────────────────────
+    const name = cleanName(pick(row, "성명", "이용자명", "이름", "name"));
+    const rrn = pick(row, "주민등록번호", "주민번호");
+    let birth = pick(row, "생년월일", "생년월", "출생", "birth");
+    let gender = pick(row, "성별", "gender");
+    const region1 = pick(
+      row,
+      "행정구역",
+      "행정동",
+      "관할주민센터",
+      "지역",
+      "센터"
+    );
+    const address = pick(row, "주소");
+    const telCell = pick(row, "전화", "연락처", "집", "연락처1"); // 유선
+    const hpCell = pick(row, "핸드폰", "휴대폰", "모바일", "연락처2"); // 휴대폰
+    const category = pick(row, "이용자분류", "분류", "세대유형");
+    const type = pick(row, "이용자구분", "구분", "지원자격");
+    const note = pick(row, "비고", "메모", "특이사항");
+    let status = pick(row, "상태", "지원상태");
+
+    if (!name) continue; // 이름은 필수
+
+    // 주민번호로 생년월일/성별 보정(앞6뒤1만 있어도 처리)
+    if ((!birth || !gender) && rrn) {
+      const d = deriveBirthGenderFromRRNPartial(rrn);
+      if (d) {
+        if (!birth) birth = d.birth;
+        if (!gender) gender = d.gender;
+      }
+    }
+    if (!birth) continue; // 생년월일은 필수
+
+    // 상태 기본값(옵션/파일명 기반)
+    if (!status) {
+      if (opts.statusMode === "all-support") status = "지원";
+      else if (opts.allowMissingStatus) status = "지원";
+    }
+
+    // 연락처 파싱: 대표 1개  보조 1개
+    const p = parsePhonesPrimarySecondary(telCell, hpCell);
+    const phoneDisplay = p.display; // "010-.... / 053-...." 형식
+
+    out.push({
+      name,
+      birth,
+      gender,
+      status,
+      region1,
+      address,
+      // 표시용
+      phone: phoneDisplay,
+      // 보관용(검색/중복 판단 등에 활용 가능)
+      phonePrimary: p.prim || "",
+      phoneSecondary: p.sec || "",
+      type,
+      category,
+      note,
+    });
   }
   return out;
+}
+
+// ========== 유틸(엑셀 파싱/정규화) ==========
+// 헤더 자동 탐지(제목행/병합 헤더 대응)
+function sheetToObjectsSmart(ws) {
+  const arr = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  const looksLikeHeader = (r = []) =>
+    r.some((c) =>
+      /성\s*명|이용자명|주민등록번호|행정동|주소|연락처|핸드폰|세대유형|지원자격|비고/.test(
+        String(c)
+      )
+    );
+  const hIdx = arr.findIndex(looksLikeHeader);
+  const header = (hIdx >= 0 ? arr[hIdx] : arr[0]).map((c) =>
+    String(c).replace(/\s+/g, "").trim()
+  );
+  const data = arr
+    .slice(hIdx >= 0 ? hIdx + 1 : 1)
+    .filter((r) => r.some((v) => String(v).trim() !== ""));
+  return data.map((r) => {
+    const o = {};
+    header.forEach((h, i) => (o[h || `COL${i}`] = r[i]));
+    return o;
+  });
+}
+// 헤더 별칭 선택
+function pick(obj, ...keys) {
+  for (const k of keys) {
+    const kNorm = String(k).replace(/\s+/g, "");
+    for (const ok of Object.keys(obj)) {
+      if (String(ok).replace(/\s+/g, "") === kNorm) return obj[ok];
+    }
+  }
+  return "";
+}
+// 이름 앞의 "7." 등 제거
+function cleanName(v) {
+  return String(v || "")
+    .trim()
+    .replace(/^\d+[\.\-]?\s*/, "");
+}
+// 주민번호 앞6자리+뒤1자리 → 생년월일/성별
+function deriveBirthGenderFromRRNPartial(rrn) {
+  const digits = String(rrn || "").replace(/\D/g, "");
+  if (digits.length < 7) return null;
+  const yymmdd = digits.slice(0, 6);
+  const code = digits[6];
+  let century = null,
+    gender = null;
+  if (code === "1" || code === "2") century = 1900;
+  if (code === "3" || code === "4") century = 2000;
+  if (code === "1" || code === "3") gender = "남";
+  if (code === "2" || code === "4") gender = "여";
+  if (!century || !gender) return null;
+  const yy = parseInt(yymmdd.slice(0, 2), 10);
+  const mm = yymmdd.slice(2, 4);
+  const dd = yymmdd.slice(4, 6);
+  if (!(+mm >= 1 && +mm <= 12 && +dd >= 1 && +dd <= 31)) return null;
+  return { birth: `${century + yy}.${mm}.${dd}`, gender };
+}
+// 여러 번호에서 대표1 + 보조1 선택 (우선순위: HP → 모바일 보충 → 유선 보충)
+function parsePhonesPrimarySecondary(telCell, hpCell) {
+  const extract = (text = "") => {
+    // 괄호 '내용'을 날리지 말고 괄호 문자만 제거해 (053)도 인식되도록
+    const cleaned = String(text).replace(/[()]/g, " ");
+    const found = cleaned.match(/0\d{1,2}[- ]?\d{3,4}[- ]?\d{4}/g) || [];
+    const extra = cleaned.match(/0\d{8,10}/g) || [];
+    const nums = [...found, ...extra]
+      .map((s) => s.replace(/\D/g, ""))
+      .filter((n) => n.length >= 9 && n.length <= 11);
+    return Array.from(new Set(nums));
+  };
+  const hpNums = extract(hpCell); // 휴대폰 칼럼
+  const telNums = extract(telCell); // 유선 칼럼
+  const all = [...hpNums, ...telNums.filter((n) => !hpNums.includes(n))];
+  if (!all.length) return { display: "", prim: "", sec: "" };
+
+  const isMobile = (n) => /^01[016789]/.test(n);
+  const fmt = (n) =>
+    n.length === 11
+      ? `${n.slice(0, 3)}-${n.slice(3, 7)}-${n.slice(7)}`
+      : n.startsWith("02") && n.length === 10
+      ? `02-${n.slice(2, 5)}-${n.slice(5)}`
+      : n.length === 10
+      ? `${n.slice(0, 3)}-${n.slice(3, 6)}-${n.slice(6)}`
+      : n;
+
+  // 1) HP에서 모바일 2개까지 먼저
+  const hpMobiles = hpNums.filter(isMobile);
+  let primary = hpMobiles[0] || "";
+  let secondary = hpMobiles[1] || "";
+  // 2) 부족분은 전체에서 모바일로 보충
+  if (!primary) {
+    const m = all.find(isMobile);
+    if (m) primary = m;
+  }
+  if (!secondary) {
+    const m2 = all.find((n) => isMobile(n) && n !== primary);
+    if (m2) secondary = m2;
+  }
+  // 3) 그래도 비면 유선으로 보충
+  if (!primary) primary = all[0] || "";
+  if (!secondary) {
+    const land = all.find((n) => n !== primary) || "";
+    secondary = land;
+  }
+  const display = [primary, secondary].filter(Boolean).map(fmt).join(" / ");
+  return { display, prim: primary || "", sec: secondary || "" };
 }
 
 // ===== 내보내기 =====

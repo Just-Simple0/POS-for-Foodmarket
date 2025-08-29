@@ -1,5 +1,6 @@
 /* 페이지 전용 레이아웃 */
 .container {
+  max-width: 1400px;
   padding: 20px;
   margin: auto;
   overflow-x: hidden;
@@ -7,25 +8,56 @@
 
 /* ===== 상단 툴바 ===== */
 .customers-toolbar {
-  display: flex; justify-content: space-between; align-items: center;
-  gap: 12px; margin: 12px 0 8px;
-}
-.customers-toolbar .left, .customers-toolbar .right { display: flex; gap: 8px; align-items: center; }
-.customers-toolbar .btn { min-width: 96px; }
-
-/* 관리자 전용 표시/숨김 */
-.admin-only { display: none; }
-.is-admin .admin-only { display: initial; }
-.th-admin-only { }
-
-/* 정렬 헤더 표시 (간단 화살표) */
-#customers-thead th { cursor: pointer; user-select: none; }
-#customers-thead th.sort-asc::after  { content: " ▲"; color:#334155; }
-#customers-thead th.sort-desc::after { content: " ▼"; color:#334155; }
-
-#top-bar {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 8px;
+}
+.customers-toolbar .left,
+.customers-toolbar .right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.customers-toolbar .btn {
+  min-width: 96px;
+}
+
+/* 관리자 전용 표시/숨김 */
+.admin-only {
+  display: none;
+}
+/* 범용 요소(버튼/라벨 등)만 admin에서 보이게 — 테이블 셀엔 쓰지 않음 */
+.is-admin .admin-only {
+  display: block;
+}
+
+/* ── 테이블 전용: 관리자 컬럼(th/td)을 정확히 토글 ── */
+#customer-table th.th-admin-only,
+#customer-table td.td-admin-only {
+  display: none;
+}
+.is-admin #customer-table th.th-admin-only,
+.is-admin #customer-table td.td-admin-only {
+  display: table-cell;
+}
+
+/* 정렬 헤더 표시 (간단 화살표) */
+#customers-thead th {
+  cursor: pointer;
+  user-select: none;
+}
+#customers-thead th.sort-asc::after {
+  content: " ▲";
+  color: #334155;
+}
+#customers-thead th.sort-desc::after {
+  content: " ▼";
+  color: #334155;
+}
+
+#top-bar {
   margin-bottom: 20px;
 }
 
@@ -148,24 +180,99 @@ th:hover {
 }
 
 /* ===== 등록 모달 ===== */
-.modal--customer .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.modal--customer .tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
 .modal--customer .tab {
-  padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 999px; background: #fff; cursor: pointer;
+  padding: 6px 10px;
+  border: 2px solid #ccc;
+  color: #ccc;
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
 }
-.modal--customer .tab.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
-.modal--customer .tab-panel.hidden { display: none; }
-.modal--customer .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-@media (max-width: 640px) { .modal--customer .grid2 { grid-template-columns: 1fr; } }
-.modal--customer label { display: grid; gap: 6px; font-weight: 600; }
-.modal--customer input, .modal--customer select { font-weight: 400; }
-.modal--customer .uploader { display: grid; gap: 12px; }
+.modal--customer .tab.active {
+  background: #2d80f7;
+  color: #fff;
+  border-color: #2d80f7;
+}
+.modal--customer .tab-panel.hidden {
+  display: none;
+}
+.modal--customer .grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+@media (max-width: 640px) {
+  .modal--customer .grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+.modal--customer label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+.modal--customer input,
+.modal--customer select {
+  margin: 0;
+  font-weight: 400;
+}
+.modal--customer .uploader {
+  display: grid;
+  gap: 12px;
+}
 .modal--customer .upload-options fieldset {
-  border: 1px dashed #e5e7eb; border-radius: 8px; padding: 10px; margin: 6px 0;
+  border: 1px dashed #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  margin: 6px 0;
 }
-.modal--customer .upload-options legend { padding: 0 6px; color: #475569; }
-.modal--customer .upload-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.modal--customer .upload-options legend {
+  padding: 0 6px;
+  color: #475569;
+}
+
+.modal--customer .upload-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* 아이콘과 텍스트 사이 여백 */
+  font-weight: 500; /* 너무 두껍지 않게 */
+  margin: 4px 0;
+}
+.modal--customer .upload-options input[type="checkbox"],
+.modal--customer .upload-options input[type="radio"] {
+  width: 20px;
+  flex: 0 0 auto;
+  margin: 0; /* 기본 마진 제거 */
+}
+/* fieldset 안 라디오들도 동일하게 가로 정렬 */
+.modal--customer .upload-options fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.modal--customer .upload-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.upload-actions button {
+  background-color: #2d80f7;
+}
 .modal--customer .upload-preview {
-  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; min-height: 44px; font-weight: 600;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 44px;
+  font-weight: 600;
 }
 
 /* 반응형 */
