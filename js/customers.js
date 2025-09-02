@@ -14,6 +14,8 @@ import {
   writeBatch,
   orderBy,
   limit,
+  startAt,
+  endAt,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { showToast } from "./components/comp.js";
@@ -126,15 +128,8 @@ function bindToolbarAndCreateModal() {
     "blur",
     () => (birth.value = formatBirth(birth.value, true))
   );
-  const phone = document.getElementById("create-phone");
-  phone?.addEventListener(
-    "input",
-    () => (phone.value = formatMultiPhones(phone.value))
-  );
-  phone?.addEventListener(
-    "blur",
-    () => (phone.value = formatMultiPhones(phone.value, true))
-  );
+  // 전화번호 다중 입력 초기화
+  initPhoneList("#create-phone-wrap", "#create-phone-add");
 
   // 동명이인 모달 버튼
   document.getElementById("dup-update")?.addEventListener("click", onDupUpdate);
@@ -154,6 +149,8 @@ function openCreateModal() {
 }
 async function saveCreateDirect() {
   const email = auth.currentUser?.email || "unknown";
+  const phoneVals = getPhonesFromList("#create-phone-wrap");
+  const picked = parsePhonesPrimarySecondary(...phoneVals);
   const payload = {
     name: val("#create-name"),
     birth: formatBirth(val("#create-birth"), true),
@@ -161,12 +158,17 @@ async function saveCreateDirect() {
     status: val("#create-status") || "지원",
     region1: val("#create-region1"),
     address: val("#create-address"),
-    phone: formatMultiPhones(val("#create-phone"), true),
+    phone: picked.display,
+    phonePrimary: picked.prim || "",
+    phoneSecondary: picked.sec || "",
     type: val("#create-type"),
     category: val("#create-category"),
     note: val("#create-note"),
     updatedAt: new Date().toISOString(),
     updatedBy: email,
+    // 🔎 인덱스 필드
+    nameLower: normalize(val("#create-name")),
+    ...buildPhoneIndexFields(val("#create-phone")),
   };
   if (!payload.name || !payload.birth) {
     return showToast("이용자명/생년월일은 필수입니다.", true);
@@ -276,25 +278,16 @@ function renderTable(data) {
       <td>${c.phone || ""}</td>
       <td class="td-admin-only">${c.type || ""}</td>
       <td class="td-admin-only">${c.category || ""}</td>
-      <td>
-        ${c.note || ""}
-        <span class="row-actions">
-          <button class="icon-btn" title="수정" data-edit="${
-            c.id
-          }"><i class="fas fa-edit"></i></button>
-          <button class="icon-btn ${
-            isAdmin ? "" : "admin-only"
-          }" title="삭제" data-del="${
-      c.id
-    }"><i class="fas fa-trash-alt"></i></button>
-        </span>
+      <td>${c.note || ""}</td>
+      <td class="actions-cell">
+        <button class="icon-btn" title="수정" data-edit="${
+          c.id
+        }"><i class="fas fa-edit"></i></button>
+        <button class="icon-btn" title="삭제" data-del="${
+          c.id
+        }"><i class="fas fa-trash-alt"></i></button>
       </td>
     `;
-    if (!isAdmin) {
-      tr.querySelectorAll(".admin-only").forEach(
-        (el) => (el.style.display = "none")
-      );
-    }
     tr.addEventListener("dblclick", () => openEditModal(c));
 
     tbody.appendChild(tr);
@@ -340,18 +333,22 @@ const fieldMap = [
 ];
 document.querySelectorAll("#customers-thead th").forEach((th, index) => {
   const field = fieldMap[index];
-
-  th.style.cursor = "pointer";
-  th.addEventListener("click", () => {
-    if (currentSort.field === field) {
-      currentSort.direction = currentSort.direction === "asc" ? "desc" : "asc";
-    } else {
-      currentSort.field = field;
-      currentSort.direction = "asc";
-    }
-    renderTable(displaydData);
-    updateSortIcons();
-  });
+  if (field) {
+    th.style.cursor = "pointer";
+    th.addEventListener("click", () => {
+      if (currentSort.field === field) {
+        currentSort.direction =
+          currentSort.direction === "asc" ? "desc" : "asc";
+      } else {
+        currentSort.field = field;
+        currentSort.direction = "asc";
+      }
+      renderTable(displaydData);
+      updateSortIcons();
+    });
+  } else {
+    th.style.cursor = "default";
+  }
 });
 
 function initCustomSelect(id, inputId = null) {
@@ -388,12 +385,6 @@ function initCustomSelect(id, inputId = null) {
   }
 }
 
-// 초기화
-initCustomSelect("gender-select");
-initCustomSelect("status-select");
-initCustomSelect("type-select", "edit-type");
-initCustomSelect("category-select", "edit-category");
-
 // 모달 열기 시 데이터 설정
 function openEditModal(customer) {
   editingOriginal = { ...customer }; // 편집 취소 시 복원용
@@ -403,18 +394,20 @@ function openEditModal(customer) {
   document.getElementById("edit-birth").value = customer.birth || "";
   document.getElementById("edit-region1").value = customer.region1 || "";
   document.getElementById("edit-address").value = customer.address || "";
-  document.getElementById("edit-phone").value = customer.phone || "";
+  initPhoneList(
+    "#edit-phone-wrap",
+    "#edit-phone-add",
+    splitPhonesToArray(customer.phone)
+  );
   document.getElementById("edit-type").value = customer.type || "";
   document.getElementById("edit-category").value = customer.category || "";
   document.getElementById("edit-note").value = customer.note || "";
 
-  // 커스텀 select 초기화
-  const genderSel = document.querySelector("#gender-select .selected");
-  const statusSel = document.querySelector("#status-select .selected");
-  genderSel.textContent = customer.gender || "선택";
-  genderSel.dataset.value = customer.gender || "";
-  statusSel.textContent = customer.status || "선택";
-  statusSel.dataset.value = customer.status || "";
+  // select 값 세팅
+  const gSel = document.getElementById("edit-gender");
+  if (gSel) gSel.value = customer.gender || "";
+  const sSel = document.getElementById("edit-status");
+  if (sSel) sSel.value = customer.status || "지원";
 
   document.getElementById("edit-modal").classList.remove("hidden");
 }
@@ -426,20 +419,27 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
   const email = auth.currentUser?.email || "unknown";
 
   const ref = doc(db, "customers", id);
+  const phoneVals = getPhonesFromList("#edit-phone-wrap");
+  const picked = parsePhonesPrimarySecondary(...phoneVals);
   const updateData = {
     name: document.getElementById("edit-name").value,
     birth: formatBirth(document.getElementById("edit-birth").value, true),
-    gender:
-      document.querySelector("#gender-select .selected")?.dataset.value || "",
-    status:
-      document.querySelector("#status-select .selected")?.dataset.value || "",
+    gender: document.getElementById("edit-gender").value || "",
+    status: document.getElementById("edit-status").value || "",
     address: document.getElementById("edit-address").value,
-    phone: formatMultiPhones(document.getElementById("edit-phone").value, true),
+    phone: picked.display,
+    phonePrimary: picked.prim || "",
+    phoneSecondary: picked.sec || "",
     type: document.getElementById("edit-type").value,
     category: document.getElementById("edit-category").value,
     note: document.getElementById("edit-note").value,
     updatedAt: new Date().toISOString(),
     updatedBy: email,
+    // 🔎 인덱스 필드
+    nameLower: normalize(document.getElementById("edit-name").value),
+    ...buildPhoneIndexFields(
+      formatMultiPhones(document.getElementById("edit-phone").value, true)
+    ),
   };
 
   if (isAdmin) {
@@ -530,40 +530,107 @@ function normalize(str) {
   );
 }
 
-function filterAndRender() {
-  const globalKeyword = normalize(
-    document.getElementById("global-search").value
-  );
-  const field = document.getElementById("field-select").value;
-  const fieldValue = normalize(document.getElementById("field-search").value);
-  const exactMatch = document.getElementById("exact-match").checked;
+function buildPhoneIndexFields(displayPhones = "") {
+  const toks = [];
+  String(displayPhones)
+    .split(/[,\s/]+/)
+    .map((t) => t.replace(/\D/g, ""))
+    .filter(Boolean)
+    .forEach((d) => {
+      toks.push(d);
+      if (d.length >= 4) toks.push(d.slice(-4));
+    });
+  const phoneTokens = Array.from(new Set(toks));
+  const phoneLast4 = phoneTokens.find((t) => t.length === 4) || "";
+  return { phoneTokens, phoneLast4 };
+}
 
-  const filtered = customerData.filter((c) => {
-    const normalizeValue = (val) => normalize(val);
+// ===== 서버 질의 기반 검색(읽기 최소화) =====
+let __searchTimer = null;
+async function runServerSearch() {
+  const gInput = document.getElementById("global-search");
+  const fSelect = document.getElementById("field-select");
+  const fInput = document.getElementById("field-search");
+  const exact = document.getElementById("exact-match")?.checked;
+  const globalKeyword = normalize(gInput?.value || "");
+  const field = fSelect?.value || "";
+  const fieldRaw = (fInput?.value || "").trim();
+  const fieldValue = normalize(fieldRaw);
 
-    // ✅ 전체 필드 통합 검색
-    const matchesGlobal =
-      !globalKeyword ||
-      Object.values(c).some((v) =>
-        exactMatch
-          ? normalizeValue(v) === globalKeyword
-          : normalizeValue(v).includes(globalKeyword)
-      );
+  // 검색 조건이 없으면 원래 목록(캐시) 로드
+  if (!globalKeyword && (!field || !fieldValue)) {
+    renderTable(customerData);
+    return;
+  }
 
-    // ✅ 필드 선택 검색
-    const matchesField =
-      !field ||
-      !fieldValue ||
-      (exactMatch
-        ? normalizeValue(c[field]) === fieldValue
-        : normalizeValue(c[field]).includes(fieldValue));
+  const base = collection(db, "customers");
+  const cons = [];
+  if (!isAdmin) cons.push(where("status", "==", "지원"));
 
-    return matchesGlobal && matchesField;
-  });
+  // 1) 글로벌 키워드 우선
+  if (globalKeyword) {
+    const digits = globalKeyword.replace(/\D/g, "");
+    if (digits.length >= 3) {
+      // 전화번호 토큰 검색 (전체/부분: 최소 3자리)
+      cons.push(where("phoneTokens", "array-contains", digits));
+    } else {
+      // 이름 prefix 검색
+      cons.push(orderBy("nameLower"));
+      cons.push(startAt(globalKeyword));
+      cons.push(endAt(globalKeyword + "\uf8ff"));
+    }
+  } else if (field && fieldValue) {
+    // 2) 필드 검색
+    switch (field) {
+      case "name":
+        cons.push(orderBy("nameLower"));
+        cons.push(startAt(fieldValue));
+        cons.push(endAt(fieldValue + "\uf8ff"));
+        break;
+      case "birth":
+        cons.push(where("birth", "==", formatBirth(fieldRaw, true)));
+        break;
+      case "region1":
+        cons.push(where("region1", "==", fieldRaw));
+        break;
+      case "status":
+        cons.push(where("status", "==", fieldRaw || "지원"));
+        break;
+      case "type":
+        cons.push(where("type", "==", fieldRaw));
+        break;
+      case "category":
+        cons.push(where("category", "==", fieldRaw));
+        break;
+      case "phone":
+        // phoneTokens에 digits 포함
+        const d = fieldRaw.replace(/\D/g, "");
+        if (d.length >= 3) cons.push(where("phoneTokens", "array-contains", d));
+        else cons.push(where("phoneLast4", "==", d)); // 4자리일 때 유용
+        break;
+      default:
+        // 기타는 서버 인덱싱이 없으므로 로컬 필터 유지(최소화)
+        renderTable(
+          customerData.filter((c) =>
+            normalize(c[field] || "").includes(fieldValue)
+          )
+        );
+        return;
+    }
+  }
 
-  displaydData = filtered;
+  cons.push(limit(200));
+  const qy = query(base, ...cons);
+  const snap = await getDocs(qy);
+  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  displaydData = rows;
   currentPage = 1;
-  renderTable(displaydData);
+  renderTable(rows);
+}
+
+function filterAndRender() {
+  clearTimeout(__searchTimer);
+  __searchTimer = setTimeout(runServerSearch, 250); // 디바운스
 }
 
 document
@@ -610,8 +677,17 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// ===== 삭제 =====
+// ===== 수정, 삭제 버튼 =====
 document.addEventListener("click", async (e) => {
+  // 수정
+  const editBtn = e.target.closest("[data-edit]");
+  if (editBtn) {
+    const id = editBtn.getAttribute("data-edit");
+    const row = (customerData || []).find((x) => x.id === id);
+    if (row) openEditModal(row);
+    return;
+  }
+  // 삭제
   const del = e.target.closest("[data-del]");
   if (!del) return;
   if (isAdmin) {
@@ -770,7 +846,7 @@ async function parseAndNormalizeExcel(file, opts) {
     const p = parsePhonesPrimarySecondary(telCell, hpCell);
     const phoneDisplay = p.display; // "010-.... / 053-...." 형식
 
-    out.push({
+    const rec = {
       name,
       birth,
       gender,
@@ -785,7 +861,21 @@ async function parseAndNormalizeExcel(file, opts) {
       type,
       category,
       note,
+    };
+
+    // 🔎 인덱스 필드 추가
+    rec.nameLower = normalize(name);
+    const toks = [];
+    [p.prim, p.sec].filter(Boolean).forEach((n) => {
+      const digits = String(n).replace(/\D/g, "");
+      if (digits) {
+        toks.push(digits);
+        if (digits.length >= 4) toks.push(digits.slice(-4)); // last4도 인덱싱
+      }
     });
+    rec.phoneTokens = Array.from(new Set(toks));
+    rec.phoneLast4 = rec.phoneTokens.find((t) => t.length === 4) || "";
+    out.push(rec);
   }
   return out;
 }
@@ -1049,4 +1139,47 @@ function formatPhoneDigits(d) {
   if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`; // 1234 -> 123-4
   if (d.length <= 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`; // 12345678 -> 123-456-78
   return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7, 11)}`; // 11자리 → 3-4-4
+}
+
+// ── 전화번호 리스트 UI ──
+function initPhoneList(wrapSel, addBtnSel, initial = []) {
+  const wrap = document.querySelector(wrapSel);
+  const addBtn = document.querySelector(addBtnSel);
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  const addRow = (val = "") => {
+    const row = document.createElement("div");
+    row.className = "phone-row";
+    row.innerHTML = `<input type="text" class="phone-item" placeholder="예) 01012345678" value="${
+      val ? formatPhoneDigits(String(val).replace(/\D/g, "")) : ""
+    }">`;
+    wrap.appendChild(row);
+    const input = row.querySelector("input");
+    input.addEventListener(
+      "input",
+      () => (input.value = formatPhoneDigits(input.value.replace(/\D/g, "")))
+    );
+    input.addEventListener(
+      "blur",
+      () => (input.value = formatPhoneDigits(input.value.replace(/\D/g, "")))
+    );
+  };
+  if (initial.length) {
+    initial.forEach((v) => addRow(v));
+  } else {
+    addRow();
+  }
+  addBtn?.addEventListener("click", () => addRow());
+}
+function getPhonesFromList(wrapSel) {
+  return [...document.querySelectorAll(`${wrapSel} .phone-item`)]
+    .map((i) => i.value.trim())
+    .filter(Boolean);
+}
+function splitPhonesToArray(s) {
+  if (!s) return [];
+  return String(s)
+    .split(/[,\s/]+/)
+    .map((x) => x.replace(/\D/g, ""))
+    .filter(Boolean);
 }

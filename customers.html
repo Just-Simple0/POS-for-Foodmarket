@@ -46,11 +46,11 @@
         <div id="advanced-search" class="hidden">
           <select id="field-select">
             <option value="">필드 선택</option>
-            <option value="id">이용자ID</option>
             <option value="name">이용자명</option>
             <option value="birth">생년월일</option>
             <option value="gender">성별</option>
             <option value="status">상태</option>
+            <option value="region1">행정구역</option>
             <option value="address">주소</option>
             <option value="phone">전화번호</option>
             <option value="type">이용자구분</option>
@@ -92,6 +92,7 @@
               <th data-label="이용자구분" class="th-admin-only">이용자구분</th>
               <th data-label="이용자분류" class="th-admin-only">이용자분류</th>
               <th data-label="비고">비고</th>
+              <th data-label="작업" class="th-actions">작업</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -124,48 +125,84 @@
             <button class="tab" data-tab="upload">엑셀 업로드</button>
           </div>
           <div class="tab-panel" id="tab-direct">
-            <div class="grid2">
-              <label>이용자명<input id="create-name" type="text" /></label>
+            <!-- 사진처럼 2열 그리드 배치 -->
+            <div class="form-grid">
               <label
-                >생년월일<input
-                  id="create-birth"
-                  type="text"
-                  placeholder="YYYY.MM.DD"
+                ><span>이름</span><input id="create-name" type="text"
               /></label>
               <label
-                >성별
+                ><span>생년월일</span
+                ><input id="create-birth" type="text" placeholder="YYYY.MM.DD"
+              /></label>
+
+              <label
+                ><span>성별</span>
                 <select id="create-gender">
-                  <option value="">-</option>
+                  <option value="">선택</option>
                   <option>남</option>
                   <option>여</option>
                 </select>
               </label>
               <label
-                >상태
+                ><span>상태</span>
                 <select id="create-status">
                   <option>지원</option>
+                  <option>중단</option>
                   <option>제외</option>
                   <option>사망</option>
                 </select>
               </label>
-              <label
-                >행정구역<input
+
+              <label class="col-2"
+                ><span>행정구역</span
+                ><input
                   id="create-region1"
                   type="text"
                   placeholder="예: 두류1,2동"
               /></label>
-              <label>주소<input id="create-address" type="text" /></label>
+              <label class="col-2"
+                ><span>주소</span><input id="create-address" type="text"
+              /></label>
+
+              <!-- 전화번호(여러 개 입력 + 버튼) -->
+              <div class="col-2">
+                <div class="label-row">
+                  <span>전화번호</span>
+                  <button
+                    type="button"
+                    id="create-phone-add"
+                    class="btn btn-ghost phone-add"
+                  >
+                    + 추가
+                  </button>
+                </div>
+                <div id="create-phone-wrap" class="phone-list">
+                  <!-- 동적 입력줄 -->
+                </div>
+              </div>
+
               <label
-                >전화번호<input
-                  id="create-phone"
+                ><span>이용자구분</span>
+                <input
+                  id="create-type"
                   type="text"
-                  placeholder="010-0000-0000"
-              /></label>
-              <label>이용자구분<input id="create-type" type="text" /></label>
+                  list="type-options"
+                  placeholder="선택 또는 직접 입력"
+                />
+              </label>
               <label
-                >이용자분류<input id="create-category" type="text"
+                ><span>이용자분류</span>
+                <input
+                  id="create-category"
+                  type="text"
+                  list="category-options"
+                  placeholder="선택 또는 직접 입력"
+                />
+              </label>
+
+              <label class="col-2"
+                ><span>비고</span><input id="create-note" type="text"
               /></label>
-              <label>비고<input id="create-note" type="text" /></label>
             </div>
             <div class="modal-buttons">
               <button
@@ -240,81 +277,76 @@
         aria-modal="true"
         aria-label="edit-title"
       >
-        <h2 id="edit-title">이용자 정보 수정</h2>
+        <h2 id="edit-title"><i class="fas fa-edit"></i> 이용자 정보 수정</h2>
 
-        <label>이름 <input id="edit-name" /></label>
-        <label
-          >생년월일 <input id="edit-birth" type="text" placeholder="YYYY.MM.DD"
-        /></label>
+        <input type="hidden" id="edit-id" />
+        <div class="form-grid">
+          <label><span>이름</span><input id="edit-name" /></label>
+          <label
+            ><span>생년월일</span
+            ><input id="edit-birth" type="text" placeholder="YYYY.MM.DD"
+          /></label>
 
-        <label>
-          성별
-          <div class="custom-select" id="gender-select">
-            <div class="selected">선택</div>
-            <div class="options hidden">
-              <div data-value="남">남</div>
-              <div data-value="여">여</div>
+          <label
+            ><span>성별</span>
+            <select id="edit-gender">
+              <option value="">선택</option>
+              <option>남</option>
+              <option>여</option>
+            </select>
+          </label>
+          <label
+            ><span>상태</span>
+            <select id="edit-status">
+              <option>지원</option>
+              <option>중단</option>
+              <option>제외</option>
+              <option>사망</option>
+            </select>
+          </label>
+
+          <label class="col-2"
+            ><span>행정구역</span><input id="edit-region1"
+          /></label>
+          <label class="col-2"
+            ><span>주소</span><input id="edit-address"
+          /></label>
+
+          <div class="col-2">
+            <div class="label-row">
+              <span>전화번호</span>
+              <button
+                type="button"
+                id="edit-phone-add"
+                class="btn btn-ghost phone-add"
+              >
+                + 추가
+              </button>
             </div>
+            <div id="edit-phone-wrap" class="phone-list"></div>
           </div>
-        </label>
 
-        <label>
-          상태
-          <div class="custom-select" id="status-select">
-            <div class="selected">선택</div>
-            <div class="options hidden">
-              <div data-value="지원">지원</div>
-              <div data-value="제외">제외</div>
-              <div data-value="사망">사망</div>
-            </div>
-          </div>
-        </label>
-
-        <label>행정구역 <input id="edit-region1" /></label>
-        <label>주소 <input id="edit-address" /></label>
-        <label>전화번호 <input id="edit-phone" /></label>
-
-        <label>
-          이용자구분
-          <div class="custom-select" id="type-select">
+          <label
+            ><span>이용자구분</span>
             <input
-              type="text"
               id="edit-type"
-              placeholder="직접 입력 또는 선택"
-            />
-            <div class="options hidden">
-              <div data-value="기초생활수급자">기초생활수급자</div>
-              <div data-value="기초생활수급탈락자">기초생활수급탈락자</div>
-              <div data-value="긴급지원대상자">긴급지원대상자</div>
-              <div data-value="저소득층">저소득층</div>
-              <div data-value="차상위계층">차상위계층</div>
-            </div>
-          </div>
-        </label>
-
-        <label>
-          이용자분류
-          <div class="custom-select" id="category-select">
-            <input
               type="text"
-              id="edit-category"
-              placeholder="직접 입력 또는 선택"
+              list="type-options"
+              placeholder="선택 또는 직접 입력"
             />
-            <div class="options hidden">
-              <div data-value="기타">기타</div>
-              <div data-value="노인부부가구">노인부부가구</div>
-              <div data-value="독거노인">독거노인</div>
-              <div data-value="부부중심가구">부부중심가구</div>
-              <div data-value="재가장애인">재가장애인</div>
-              <div data-value="저소득가정">저소득가정</div>
-              <div data-value="청장년1인가구">청장년1인가구</div>
-              <div data-value="한부모가정">한부모가정</div>
-              <div data-value="일반세대">일반세대</div>
-            </div>
-          </div>
-        </label>
+          </label>
+          <label
+            ><span>이용자분류</span>
+            <input
+              id="edit-category"
+              type="text"
+              list="category-options"
+              placeholder="선택 또는 직접 입력"
+            />
+          </label>
 
-        <label>비고 <input id="edit-note" /></label>
+          <label class="col-2"><span>비고</span><input id="edit-note" /></label>
+        </div>
 
         <div class="modal-buttons">
           <button type="submit"><i class="fas fa-save"></i> 저장</button>
@@ -324,6 +356,33 @@
         </div>
       </form>
     </div>
+
+    <!-- ===== datalist (공용) : 선택지 + 자유입력 ===== -->
+    <datalist id="type-options">
+      <option value="긴급지원대상자"></option>
+      <option value="기초생활보장수급자"></option>
+      <option value="차상위계층"></option>
+      <option value="저소득층"></option>
+      <option value="기초생활보장수급탈락자"></option>
+    </datalist>
+    <datalist id="category-options">
+      <option value="결식아동"></option>
+      <option value="다분화가정"></option>
+      <option value="독거어르신"></option>
+      <option value="소년소녀가장"></option>
+      <option value="외국인노동자"></option>
+      <option value="재가장애인"></option>
+      <option value="저소득가정"></option>
+      <option value="조손가정"></option>
+      <option value="한부모가정"></option>
+      <option value="기타"></option>
+      <option value="청장년1인가구"></option>
+      <option value="미혼모부가구"></option>
+      <option value="부부중심가구"></option>
+      <option value="노인부부가구"></option>
+      <option value="새터민가구"></option>
+      <option value="공통체가구"></option>
+    </datalist>
 
     <!-- 동명이인 처리 모달 -->
     <div id="dup-modal" class="modal hidden" aria-hidden="true">

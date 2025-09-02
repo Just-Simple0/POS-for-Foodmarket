@@ -8,6 +8,11 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  collection,
+  getDocs,
+  query,
+  where,
+  limit,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // 백엔드 베이스 URL (관리자 API 호출용)
@@ -361,14 +366,29 @@ async function notifyNewAccountsOnceOnLogin(user, role) {
     if (__adminPendingModalInFlight) return;
     __adminPendingModalInFlight = true;
     const idToken = await user.getIdToken(true);
-    const res = await fetch(`${API_BASE}/api/admin/pending-summary`, {
-      headers: { Authorization: "Bearer " + idToken },
-    });
-    if (!res.ok) return; // 조용히 스킵
-    const j = await res.json();
-    const pendingUsers = Number(j?.pendingUsers || 0);
-    const productPending = Number(j?.productPending || 0);
-    const userPending = Number(j?.userPending || 0);
+    // 서버 먼저 시도 → 없거나 실패하면 Firestore 폴백
+    let pendingUsers = 0,
+      productPending = 0,
+      userPending = 0;
+    try {
+      const controller = new AbortController();
+      const to = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`${API_BASE}/api/admin/pending-summary`, {
+        headers: { Authorization: "Bearer " + idToken },
+        signal: controller.signal,
+      });
+      clearTimeout(to);
+      if (!res.ok) throw new Error(String(res.status));
+      const j = await res.json();
+      pendingUsers = Number(j?.pendingUsers || 0);
+      productPending = Number(j?.productPending || 0);
+      userPending = Number(j?.userPending || 0);
+    } catch {
+      const fb = await fallbackPendingSummaryFromFirestore();
+      pendingUsers = fb.pendingUsers;
+      productPending = fb.productPending;
+      userPending = fb.userPending;
+    }
     const total = pendingUsers + productPending + userPending;
     if (total > 0) {
       openAdminPendingSummaryModal({
@@ -526,4 +546,35 @@ export function showToast(message, isError = false) {
   toastTimeout = setTimeout(() => {
     toast.classList.remove("show");
   }, 2000);
+}
+
+// ------ Firestore 폴백 집계 ------
+async function fallbackPendingSummaryFromFirestore() {
+  try {
+    // 1) pending 사용자 수
+    const usersQ = query(
+      collection(db, "users"),
+      where("role", "==", "pending")
+    );
+    const usersSnap = await getDocs(usersQ);
+    const pendingUsers = usersSnap.size;
+
+    // 2) approvals 미승인 항목 카운트(최대 500건)
+    const apprQ = query(
+      collection(db, "approvals"),
+      where("approved", "==", false),
+      limit(500)
+    );
+    const apprSnap = await getDocs(apprQ);
+    let productPending = 0,
+      userPending = 0;
+    apprSnap.forEach((d) => {
+      const t = String(d.data()?.type || "");
+      if (t.startsWith("product_")) productPending += 1;
+      else if (t.startsWith("customer_")) userPending += 1;
+    });
+    return { pendingUsers, productPending, userPending };
+  } catch {
+    return { pendingUsers: 0, productPending: 0, userPending: 0 };
+  }
 }
