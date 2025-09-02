@@ -2,13 +2,18 @@ import { db, auth } from "./components/firebase-config.js";
 import {
   collection,
   setDoc,
+  addDoc,
   doc,
   getDocs,
+  getDoc,
   query,
   Timestamp,
   updateDoc,
   deleteDoc,
   where,
+  writeBatch,
+  orderBy,
+  limit,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { showToast } from "./components/comp.js";
@@ -22,6 +27,44 @@ const itemPerPage = 50;
 let displaydData = [];
 let currentSort = { field: null, direction: "asc" };
 
+let pendingCreatePayload = null;
+let pendingDupRef = null;
+let pendingDupData = null;
+let editingOriginal = null;
+
+// ===== 로그 유틸 =====
+async function logEvent(type, data = {}) {
+  try {
+    await addDoc(collection(db, "customerLogs"), {
+      type,
+      actor: auth.currentUser?.email || "unknown",
+      createdAt: Timestamp.now(),
+      ...data,
+    });
+  } catch (e) {
+    // 로깅 실패는 UX 차단하지 않음
+    console?.warn?.("logEvent failed:", e);
+  }
+}
+async function pruneOldCustomerLogs() {
+  try {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const q = query(
+      collection(db, "customerLogs"),
+      where("createdAt", "<", Timestamp.fromDate(cutoff)),
+      orderBy("createdAt", "asc"),
+      limit(200)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return;
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (e) {
+    console?.warn?.("pruneOldLogs skipped:", e);
+  }
+}
+
 // ===== 권한/역할 감지 & UI 토글 =====
 let isAdmin = false;
 async function applyRoleFromUser(user) {
@@ -30,7 +73,7 @@ async function applyRoleFromUser(user) {
   } else {
     const token = await user.getIdTokenResult().catch(() => null);
     const role = token?.claims?.role || "pending";
-    isAdmin = role === "admin" || role === "manager";
+    isAdmin = role === "admin";
   }
   document.documentElement.classList.toggle("is-admin", isAdmin);
 }
@@ -72,6 +115,37 @@ function bindToolbarAndCreateModal() {
     .addEventListener("click", saveCreateDirect);
   // 업로드 탭
   bindUploadTab();
+
+  // 입력 중 자동 포맷팅(직접 입력 탭)
+  const birth = document.getElementById("create-birth");
+  birth?.addEventListener(
+    "input",
+    () => (birth.value = formatBirth(birth.value))
+  );
+  birth?.addEventListener(
+    "blur",
+    () => (birth.value = formatBirth(birth.value, true))
+  );
+  const phone = document.getElementById("create-phone");
+  phone?.addEventListener(
+    "input",
+    () => (phone.value = formatMultiPhones(phone.value))
+  );
+  phone?.addEventListener(
+    "blur",
+    () => (phone.value = formatMultiPhones(phone.value, true))
+  );
+
+  // 동명이인 모달 버튼
+  document.getElementById("dup-update")?.addEventListener("click", onDupUpdate);
+  document.getElementById("dup-new")?.addEventListener("click", onDupNew);
+  document.querySelectorAll("#dup-modal [data-close]")?.forEach((b) =>
+    b.addEventListener("click", () => {
+      document.getElementById("dup-modal").classList.add("hidden");
+    })
+  );
+
+  pruneOldCustomerLogs();
 }
 function openCreateModal() {
   const modal = document.getElementById("customer-create-modal");
@@ -82,14 +156,14 @@ async function saveCreateDirect() {
   const email = auth.currentUser?.email || "unknown";
   const payload = {
     name: val("#create-name"),
-    birth: val("#create-birth"),
+    birth: formatBirth(val("#create-birth"), true),
     gender: val("#create-gender"),
-    status: isAdmin ? val("#create-status") || "지원" : "지원",
+    status: val("#create-status") || "지원",
     region1: val("#create-region1"),
     address: val("#create-address"),
-    phone: val("#create-phone"),
-    type: isAdmin ? val("#create-type") : "",
-    category: isAdmin ? val("#create-category") : "",
+    phone: formatMultiPhones(val("#create-phone"), true),
+    type: val("#create-type"),
+    category: val("#create-category"),
     note: val("#create-note"),
     updatedAt: new Date().toISOString(),
     updatedBy: email,
@@ -97,10 +171,48 @@ async function saveCreateDirect() {
   if (!payload.name || !payload.birth) {
     return showToast("이용자명/생년월일은 필수입니다.", true);
   }
-  // 문서ID를 name_birth 정규화 조합으로 생성(중복시 덮어쓰기)
+  // 동명이인 검사: 같은 name+birth 문서 존재 시 선택 모달
   const id = slugId(payload.name, payload.birth);
-  await setDoc(doc(collection(db, "customers"), id), payload);
-  showToast("등록되었습니다");
+  const ref = doc(collection(db, "customers"), id);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    pendingCreatePayload = payload;
+    pendingDupRef = ref;
+    pendingDupData = snap.data() || {};
+    document.getElementById(
+      "dup-info"
+    ).textContent = `${payload.name} / ${payload.birth} 동일 항목이 이미 존재합니다.`;
+    document.getElementById("dup-modal").classList.remove("hidden");
+    return;
+  }
+  // 중복 없음 → 권한에 따라 바로 저장/승인요청
+  if (isAdmin) {
+    await setDoc(ref, payload, { merge: true });
+    showToast("등록되었습니다");
+    await logEvent("customer_add", {
+      target: id,
+      name: payload.name,
+      birth: payload.birth,
+      status: payload.status,
+    });
+  } else {
+    if (!confirm("관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?"))
+      return;
+    await setDoc(doc(collection(db, "approvals")), {
+      type: "customer_add",
+      payload,
+      requestedBy: auth.currentUser?.email || "",
+      requestedAt: Timestamp.now(),
+      approved: false,
+    });
+    showToast("승인 요청이 전송되었습니다");
+    await logEvent("approval_request", {
+      approvalType: "customer_add",
+      name: payload.name,
+      birth: payload.birth,
+      status: payload.status,
+    });
+  }
   document.getElementById("customer-create-modal").classList.add("hidden");
   await loadCustomers();
 }
@@ -113,16 +225,14 @@ function slugId(name, birth) {
 }
 
 async function loadCustomers() {
-  const ref = collection(db, "customers");
-  const snapshot = await getDocs(query(ref));
-  const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-  // 비관리자: status !== "지원"은 화면에서 베제
-  const filtered = isAdmin
-    ? data
-    : data.filter((d) => (d.status || "") === "지원");
-  customerData = filtered;
-  displaydData = filtered;
-  renderTable(filtered);
+  const base = collection(db, "customers");
+  // 규칙과 일치하도록 쿼리 단계에서 필터링
+  const q = isAdmin ? query(base) : query(base, where("status", "==", "지원"));
+  const snap = await getDocs(q);
+  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  customerData = rows;
+  displaydData = rows;
+  renderTable(rows);
   updateSortIcons();
 }
 
@@ -286,7 +396,9 @@ initCustomSelect("category-select", "edit-category");
 
 // 모달 열기 시 데이터 설정
 function openEditModal(customer) {
-  document.getElementById("edit-id").value = customer.id;
+  editingOriginal = { ...customer }; // 편집 취소 시 복원용
+  const idInput = document.getElementById("edit-id");
+  if (idInput) idInput.value = customer.id || "";
   document.getElementById("edit-name").value = customer.name || "";
   document.getElementById("edit-birth").value = customer.birth || "";
   document.getElementById("edit-region1").value = customer.region1 || "";
@@ -316,29 +428,64 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
   const ref = doc(db, "customers", id);
   const updateData = {
     name: document.getElementById("edit-name").value,
-    birth: document.getElementById("edit-birth").value,
+    birth: formatBirth(document.getElementById("edit-birth").value, true),
     gender:
       document.querySelector("#gender-select .selected")?.dataset.value || "",
-    status: document.documentElement.classList.contains("is-admin")
-      ? document.querySelector("#status-select .selected")?.dataset.value || ""
-      : undefined,
+    status:
+      document.querySelector("#status-select .selected")?.dataset.value || "",
     address: document.getElementById("edit-address").value,
-    phone: document.getElementById("edit-phone").value,
-    type: document.documentElement.classList.contains("is-admin")
-      ? document.getElementById("edit-type").value
-      : undefined,
-    category: document.documentElement.classList.contains("is-admin")
-      ? document.getElementById("edit-category").value
-      : undefined,
+    phone: formatMultiPhones(document.getElementById("edit-phone").value, true),
+    type: document.getElementById("edit-type").value,
+    category: document.getElementById("edit-category").value,
     note: document.getElementById("edit-note").value,
     updatedAt: new Date().toISOString(),
     updatedBy: email,
   };
 
-  Object.keys(updateData).forEach(
-    (k) => updateData[k] === undefined && delete updateData[k]
-  );
-  await updateDoc(ref, updateData);
+  if (isAdmin) {
+    await updateDoc(ref, updateData);
+    showToast("수정되었습니다");
+    await logEvent("customer_update", { targetId: id, changes: updateData });
+  } else {
+    // 변경분만 추출하여 승인요청
+    const before = editingOriginal || {};
+    const changes = {};
+    [
+      "name",
+      "birth",
+      "gender",
+      "status",
+      "region1",
+      "address",
+      "phone",
+      "type",
+      "category",
+      "note",
+    ].forEach((k) => {
+      if ((updateData[k] ?? "") !== (before[k] ?? ""))
+        changes[k] = updateData[k] ?? "";
+    });
+    if (Object.keys(changes).length === 0) {
+      showToast("변경된 내용이 없습니다");
+      return;
+    }
+    if (!confirm("관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?"))
+      return;
+    await setDoc(doc(collection(db, "approvals")), {
+      type: "customer_update",
+      targetId: id,
+      changes,
+      requestedBy: auth.currentUser?.email || "",
+      requestedAt: Timestamp.now(),
+      approved: false,
+    });
+    showToast("승인 요청이 전송되었습니다");
+    await logEvent("approval_request", {
+      approvalType: "customer_update",
+      targetId: id,
+      changes,
+    });
+  }
   document.getElementById("edit-modal").classList.add("hidden");
   await loadCustomers();
 });
@@ -467,11 +614,28 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("click", async (e) => {
   const del = e.target.closest("[data-del]");
   if (!del) return;
-  if (!isAdmin) return showToast("삭제 권한이 없습니다.", true);
-  if (!confirm("이 이용자를 삭제하시겠습니까?")) return;
-  await deleteDoc(doc(db, "customers", del.dataset.del));
-  showToast("삭제되었습니다");
-  await loadCustomers();
+  if (isAdmin) {
+    if (!confirm("이 이용자를 삭제하시겠습니까?")) return;
+    await deleteDoc(doc(db, "customers", del.dataset.del));
+    showToast("삭제되었습니다");
+    await logEvent("customer_delete", { targetId: del.dataset.del });
+    await loadCustomers();
+  } else {
+    if (!confirm("관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?"))
+      return;
+    await setDoc(doc(collection(db, "approvals")), {
+      type: "customer_delete",
+      targetId: del.dataset.del,
+      requestedBy: auth.currentUser?.email || "",
+      requestedAt: Timestamp.now(),
+      approved: false,
+    });
+    showToast("삭제 승인 요청이 전송되었습니다");
+    await logEvent("approval_request", {
+      approvalType: "customer_delete",
+      targetId: del.dataset.del,
+    });
+  }
 });
 
 // ===== 업로드 탭(옵션: 상태 필드 없어도 허용 / 모두 ‘지원’) & 미리보기/실행 =====
@@ -482,23 +646,27 @@ function bindUploadTab() {
   const dryBtn = modal.querySelector("#btn-upload-dryrun");
   const execBtn = modal.querySelector("#btn-upload-exec");
   let dryRows = null;
+  let lastOptions = null;
 
   dryBtn.addEventListener("click", async () => {
     const f = fileEl.files?.[0];
     if (!f) return showToast("파일을 선택하세요.", true);
-    dryRows = await parseAndNormalizeExcel(f, {
+    lastOptions = {
       allowMissingStatus: modal.querySelector("#opt-allow-missing-status")
         .checked,
       statusMode:
         modal.querySelector("input[name='opt-status-mode']:checked")?.value ||
         "none",
-    });
+    };
+    dryRows = await parseAndNormalizeExcel(f, lastOptions);
     const total = dryRows.length;
     const keys = new Set(dryRows.map((r) => slugId(r.name, r.birth)));
-    // 기존 문서 조회(간단히 전체 fetch 후 포함여부 판단 — 현 구조 유지)
-    const all = (await getDocs(query(collection(db, "customers")))).docs.map(
-      (d) => d.id
-    );
+    // 기존 문서 조회: 권한에 맞춰 범위를 제한(비관리자는 '지원'만 읽기 가능)
+    const base = collection(db, "customers");
+    const q = isAdmin
+      ? query(base)
+      : query(base, where("status", "==", "지원"));
+    const all = (await getDocs(q)).docs.map((d) => d.id);
     let dup = 0;
     keys.forEach((k) => {
       if (all.includes(k)) dup++;
@@ -510,17 +678,42 @@ function bindUploadTab() {
 
   execBtn.addEventListener("click", async () => {
     if (!dryRows) return;
-    const email = auth.currentUser?.email || "unknown";
-    for (const r of dryRows) {
-      const id = slugId(r.name, r.birth);
-      await setDoc(
-        doc(collection(db, "customers"), id),
-        { ...r, updatedAt: new Date().toISOString(), updatedBy: email },
-        { merge: true }
-      );
+    if (isAdmin) {
+      // 관리자: 즉시 반영
+      const email = auth.currentUser?.email || "unknown";
+      for (const r of dryRows) {
+        const id = slugId(r.name, r.birth);
+        await setDoc(
+          doc(collection(db, "customers"), id),
+          { ...r, updatedAt: new Date().toISOString(), updatedBy: email },
+          { merge: true }
+        );
+      }
+      showToast("업로드가 완료되었습니다");
+      await logEvent("customer_add", { mode: "bulk", count: dryRows.length });
+      await loadCustomers();
+    } else {
+      // 비관리자: 승인요청으로 전환
+      if (
+        !confirm(
+          "관리자의 승인이 필요한 사항입니다. 승인요청을 보내시겠습니까?"
+        )
+      )
+        return;
+      await setDoc(doc(collection(db, "approvals")), {
+        type: "customer_bulk_upload",
+        payload: { rows: dryRows, options: lastOptions },
+        requestedBy: auth.currentUser?.email || "",
+        requestedAt: Timestamp.now(),
+        approved: false,
+      });
+      showToast("업로드 승인 요청이 전송되었습니다");
+      await logEvent("approval_request", {
+        approvalType: "customer_bulk_upload",
+        count: dryRows.length,
+      });
+      // 비관리자는 실제 반영이 아니므로 목록 재조회만(또는 그대로 유지)
     }
-    showToast("업로드가 완료되었습니다");
-    await loadCustomers();
   });
 }
 
@@ -730,4 +923,130 @@ function dateStamp() {
   return `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}_${z(
     d.getHours()
   )}${z(d.getMinutes())}`;
+}
+
+// ===== 동명이인 모달 동작 =====
+async function onDupUpdate() {
+  const payload = pendingCreatePayload;
+  const ref = pendingDupRef;
+  const before = pendingDupData || {};
+  if (!payload || !ref) return;
+  if (isAdmin) {
+    await updateDoc(ref, payload);
+    showToast("기존 정보가 업데이트되었습니다");
+    await logEvent("customer_update", {
+      targetId: ref.id,
+      changes: payload,
+      mode: "dup_update",
+    });
+  } else {
+    // 변경분만 추려 승인요청
+    const changes = {};
+    [
+      "name",
+      "birth",
+      "gender",
+      "status",
+      "region1",
+      "address",
+      "phone",
+      "type",
+      "category",
+      "note",
+    ].forEach((k) => {
+      if ((payload[k] ?? "") !== (before[k] ?? ""))
+        changes[k] = payload[k] ?? "";
+    });
+    if (!confirm("관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?"))
+      return;
+    await setDoc(doc(collection(db, "approvals")), {
+      type: "customer_update",
+      targetId: ref.id,
+      changes,
+      requestedBy: auth.currentUser?.email || "",
+      requestedAt: Timestamp.now(),
+      approved: false,
+    });
+    showToast("승인 요청이 전송되었습니다");
+    await logEvent("approval_request", {
+      approvalType: "customer_update",
+      targetId: ref.id,
+      changes,
+      mode: "dup_update",
+    });
+  }
+  document.getElementById("dup-modal").classList.add("hidden");
+  document.getElementById("customer-create-modal").classList.add("hidden");
+  pendingCreatePayload = pendingDupRef = pendingDupData = null;
+  await loadCustomers();
+}
+async function onDupNew() {
+  const payload = pendingCreatePayload;
+  if (!payload) return;
+  if (isAdmin) {
+    await setDoc(doc(collection(db, "customers")), payload);
+    showToast("동명이인 신규로 등록되었습니다");
+    await logEvent("customer_add", {
+      name: payload.name,
+      birth: payload.birth,
+      mode: "dup_new",
+    });
+  } else {
+    if (!confirm("관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?"))
+      return;
+    await setDoc(doc(collection(db, "approvals")), {
+      type: "customer_add",
+      payload,
+      mode: "create_new",
+      requestedBy: auth.currentUser?.email || "",
+      requestedAt: Timestamp.now(),
+      approved: false,
+    });
+    showToast("승인 요청이 전송되었습니다");
+    await logEvent("approval_request", {
+      approvalType: "customer_add",
+      name: payload.name,
+      birth: payload.birth,
+      mode: "dup_new",
+    });
+  }
+  document.getElementById("dup-modal").classList.add("hidden");
+  document.getElementById("customer-create-modal").classList.add("hidden");
+  pendingCreatePayload = pendingDupRef = pendingDupData = null;
+  await loadCustomers();
+}
+
+// ===== 입력 보조: 자동 포맷 =====
+function formatBirth(v, strict = false) {
+  const d = String(v || "")
+    .replace(/\D/g, "")
+    .slice(0, 8);
+  if (d.length <= 4) return d;
+  if (d.length <= 6) return `${d.slice(0, 4)}.${d.slice(4)}`;
+  return `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}`;
+}
+function formatMultiPhones(text, strict = false) {
+  // 쉼표/슬래시/공백으로 분리된 여러 번호를 각각 포맷
+  const tokens = String(text || "")
+    .split(/[,\s/]+/)
+    .filter(Boolean);
+  if (!tokens.length) return "";
+  return tokens.map((t) => formatPhoneDigits(t.replace(/\D/g, ""))).join(", ");
+}
+function formatPhoneDigits(d) {
+  // 진행형 하이픈: 02 지역번호 케이스와 일반(휴대/지역 3자리) 케이스
+  if (!d) return "";
+  if (d.startsWith("02")) {
+    if (d.length <= 2) return d;
+    if (d.length <= 6) return `02-${d.slice(2)}`;
+    // 02-XXXX-YYYY (마지막 4자리 고정, 진행형)
+    const last = d.length >= 6 ? d.slice(-4) : "";
+    const mid = d.slice(2, d.length - last.length);
+    return last ? `02-${mid}-${last}` : `02-${mid}`;
+  }
+  // 일반 번호
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`; // 1234 -> 123-4
+  if (d.length <= 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`; // 12345678 -> 123-456-78
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7, 11)}`; // 11자리 → 3-4-4
 }

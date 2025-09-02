@@ -1,4 +1,20 @@
-import { auth } from "./components/firebase-config.js";
+import { auth, db } from "./components/firebase-config.js";
+import {
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  getDoc,
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  Timestamp,
+  addDoc,
+  where,
+  writeBatch,
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { showToast, openCaptchaModal } from "./components/comp.js";
 
@@ -131,13 +147,60 @@ const els = {
   c7Roles: document.getElementById("c7-roles"),
   c7Disable: document.getElementById("c7-disable"),
   c7Reset: document.getElementById("c7-reset"),
+  // tabs
+  tabUsersBtn: document.querySelector('.tabbar .tab[data-tab="users"]'),
+  tabAprBtn: document.querySelector('.tabbar .tab[data-tab="approvals"]'),
+  tabUsersWrap: document.getElementById("tab-users"),
+  aprCard: document.getElementById("approvals-card"),
+  // approvals
+  aprRefresh: document.getElementById("apr-refresh"),
+  aprApprove: document.getElementById("apr-approve"),
+  aprReject: document.getElementById("apr-reject"),
+  aprAll: document.getElementById("apr-all"),
+  aprTbody: document.getElementById("approvals-tbody"),
+  // customer logs
+  cLogsRefresh: document.getElementById("clogs-refresh"),
+  cLogsTbody: document.getElementById("clogs-tbody"),
 };
 
 let nextPageToken = null;
 let latestQuery = "";
 let latestFilters = { role: "", provider: "", sort: "lastSignInTime:desc" };
 let currentUsers = []; // 현재 화면 데이터(엑셀/선택용)
+let approvals = []; // 승인 요청 목록
+let cLogs = []; // 고객 로그 목록(30일)
 
+// ===== 로그 유틸 =====
+async function logEvent(type, data = {}) {
+  try {
+    await addDoc(collection(db, "'customerlogs"), {
+      type,
+      actor: auth.currentUser?.email || "unknown",
+      createdAt: Timestamp.now(),
+      ...data,
+    });
+  } catch (e) {
+    console?.warn?.("logEvent failed:", e);
+  }
+}
+async function pruneOldCustomerLogs() {
+  try {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const q = query(
+      collection(db, "customerlogs"),
+      where("createdAt", "<", Timestamp.fromDate(cutoff)),
+      orderBy("createdAt", "asc"),
+      limit(300)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return;
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (e) {
+    console?.warn?.("pruneOldLogs skipped:", e);
+  }
+}
 // (9) 가상 스크롤(200행↑에서만 가동)
 const VIRTUAL_THRESHOLD = 200;
 let rowHeight = 44;
@@ -171,6 +234,13 @@ function fmtServerTimestamp(ts) {
     if (typeof ts === "string") return new Date(ts).toLocaleString("ko-KR");
   } catch {}
   return "";
+}
+
+// 고객 문서 id 규칙(이름+생일)
+function slugId(name, birth) {
+  const n = String(name || "").replace(/\s+/g, "");
+  const b = String(birth || "").replace(/\D/g, "");
+  return `${n}_${b}`;
 }
 
 function roleOptions(selected) {
@@ -589,8 +659,300 @@ onAuthStateChanged(auth, (user) => {
     } catch {}
     fetchUsers("", false).catch((e) => showToast(e.message || String(e), true));
     loadCounters().catch(() => {});
+    // 승인 탭 초기화
+    bindTabs();
   })();
 });
+
+/* =======================
++   승인 요청 탭
++   ======================= */
+function bindTabs() {
+  if (!els.tabUsersBtn || !els.tabAprBtn) return;
+  const act = (which) => {
+    const u = which === "users";
+    els.tabUsersBtn.classList.toggle("active", u);
+    els.tabAprBtn.classList.toggle("active", !u);
+    if (els.tabUsersWrap) els.tabUsersWrap.hidden = !u;
+    if (els.aprCard) els.aprCard.hidden = u;
+    if (!u) loadApprovals.catch(() => {});
+  };
+  els.tabUsersBtn.addEventListener("click", () => act("users"));
+  els.tabAprBtn.addEventListener("click", () => act("approvals"));
+  // 기본은 users 탭
+  act("users");
+
+  // 승인 테이블 버튼들
+  els.aprRefresh?.addEventListener("click", () => loadApprovals());
+  els.aprApprove?.addEventListener("click", () => bulkApprove());
+  els.aprReject?.addEventListener("click", () => bulkReject());
+  els.aprAll?.addEventListener("change", () => {
+    const on = els.aprAll.checked;
+    document
+      .querySelectorAll("#approvals-tbody .apr-chk")
+      .forEach((cb) => (cb.checked = on));
+  });
+  els.aprTbody?.addEventListener("click", (e) => {
+    const btnA = e.target.closest("[data-approve]");
+    const btnR = e.target.closest("[data-reject]");
+    if (btnA)
+      approveOne(btnA.getAttribute("data-approve")).catch((err) =>
+        showToast(err.message || String(err), true)
+      );
+    if (btnR)
+      rejectOne(btnR.getAttribute("data-reject")).catch((err) =>
+        showToast(err.message || String(err), true)
+      );
+  });
+  els.cLogsRefresh?.addEventListener("click", () => {
+    pruneOldCustomerLogs();
+    loadCustomerLogs();
+  });
+}
+
+async function loadApprovals() {
+  if (!els.aprTbody) return;
+  const snap = await getDocs(
+    query(
+      collection(db, "approvals"),
+      orderBy("requestedAt", "desc"),
+      limit(100)
+    )
+  );
+  approvals = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  renderApprovals();
+}
+function renderApprovals() {
+  if (!approvals.length) {
+    els.aprTbody.innerHTML = `<tr><td colspan="7">대기중인 요청이 없습니다.</td></tr>`;
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const a of approvals) {
+    const tr = document.createElement("tr");
+    const target = a.targetId
+      ? a.targetId
+      : a.payload
+      ? `${a.payload.name || ""}/${a.payload.birth || ""}`
+      : "-";
+    const summary = summarizeApproval(a);
+    tr.innerHTML = `
+      <td><input type="checkbox" class="apr-chk" data-id="${a.id}"></td>
+      <td>${fmtServerTimestamp(a.requestedAt) || "-"}</td>
+      <td>${a.requestedBy || "-"}</td>
+      <td>${a.type || "-"}</td>
+      <td>${target}</td>
+      <td>${summary}</td>
+      <td class="row-actions">
+        <button class="btn btn-ghost" data-approve="${a.id}">승인</button>
+        <button class="btn btn-ghost" data-reject="${a.id}">거부</button>
+      </td>`;
+    frag.appendChild(tr);
+  }
+  els.aprTbody.innerHTML = "";
+  els.aprTbody.appendChild(frag);
+}
+function summarizeApproval(a) {
+  try {
+    if (a.type === "customer_add") {
+      const p = a.payload || {};
+      return `추가: ${p.name || ""} / ${p.birth || ""} / ${p.status || ""}`;
+    }
+    if (a.type === "customer_update") {
+      const ch = Object.keys(a.changes || {})
+        .slice(0, 5)
+        .map((k) => `${k}→${a.changes[k]}`)
+        .join(", ");
+      return `수정: ${ch}${
+        Object.keys(a.changes || {}).length > 5 ? " …" : ""
+      }`;
+    }
+    if (a.type === "customer_delete") {
+      return `삭제: ${a.targetId}`;
+    }
+  } catch {}
+  return "-";
+}
+async function approveOne(id) {
+  const item = approvals.find((x) => x.id === id);
+  if (!item) return;
+  // 고객 반영
+  if (item.type === "customer_add") {
+    const p = item.payload || {};
+    const docId = item.targetId || slugId(p.name, p.birth);
+    await setDoc(
+      doc(collection(db, "customers"), docId),
+      {
+        ...p,
+        updatedAt: Timestamp.now(),
+        updatedBy: auth.currentUser?.email || "",
+      },
+      { merge: true }
+    );
+    await logEvent("approval_approve", {
+      approvalType: "customer_add",
+      targetId: docId,
+      name: p.name,
+      birth: p.birth,
+    });
+  } else if (item.type === "customer_update") {
+    if (!item.targetId) throw new Error("targetId 누락");
+    await updateDoc(doc(collection(db, "customers"), item.targetId), {
+      ...(item.changes || {}),
+      updatedAt: Timestamp.now(),
+      updatedBy: auth.currentUser?.email || "",
+    });
+    await logEvent("approval_approve", {
+      approvalType: "customer_update",
+      targetId: item.targetId,
+      changes: item.changes || {},
+    });
+  } else if (item.type === "customer_delete") {
+    if (!item.targetId) throw new Error("targetId 누락");
+    await deleteDoc(doc(collection(db, "customers"), item.targetId));
+    await logEvent("approval_approve", {
+      approvalType: "customer_delete",
+      targetId: item.targetId,
+    });
+  } else {
+    throw new Error("알 수 없는 유형");
+  }
+  // 요청 제거
+  await deleteDoc(doc(collection(db, "approvals"), id));
+  showToast("승인되었습니다.");
+  await loadApprovals();
+}
+async function rejectOne(id) {
+  const item = approvals.find((x) => x.id === id);
+  await deleteDoc(doc(collection(db, "approvals"), id));
+  showToast("거부 처리되었습니다.");
+  if (item) {
+    await logEvent("approval_reject", {
+      approvalType: item.type,
+      targetId: item.targetId || null,
+      name: item?.payload?.name,
+      birth: item?.payload?.birth,
+    });
+  }
+  await loadApprovals();
+}
+
+/* =======================
+   승인 탭: 고객 활동 로그 (30일)
+   ======================= */
+async function loadCustomerLogs() {
+  if (!els.cLogsTbody) return;
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const qLogs = query(
+    collection(db, "customerLogs"),
+    where("createdAt", ">=", Timestamp.fromDate(cutoff)),
+    orderBy("createdAt", "desc"),
+    limit(300)
+  );
+  const snap = await getDocs(qLogs);
+  cLogs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  renderCustomerLogs();
+}
+function renderCustomerLogs() {
+  if (!cLogs.length) {
+    els.cLogsTbody.innerHTML = `<tr><td colspan="5">최근 30일 활동 로그가 없습니다.</td></tr>`;
+    return;
+  }
+  const rows = cLogs
+    .map((l) => {
+      const time = fmtServerTimestamp(l.createdAt) || "-";
+      const actor = l.actor || "-";
+      const type = mapLogType(l.type);
+      const target =
+        l.targetId || (l.name && l.birth ? `${l.name}/${l.birth}` : "-");
+      const detail = summarizeCustomerLog(l);
+      return `<tr>
+      <td>${time}</td>
+      <td>${actor}</td>
+      <td>${type}</td>
+      <td>${target}</td>
+      <td>${detail}</td>
+    </tr>`;
+    })
+    .join("");
+  els.cLogsTbody.innerHTML = rows;
+}
+function mapLogType(t) {
+  switch (t) {
+    case "approval_request":
+      return "승인요청";
+    case "approval_approve":
+      return "승인";
+    case "approval_reject":
+      return "거부";
+    case "customer_add":
+      return "등록";
+    case "customer_update":
+      return "수정";
+    case "customer_delete":
+      return "삭제";
+    default:
+      return t || "-";
+  }
+}
+function summarizeCustomerLog(l) {
+  try {
+    if (l.type === "approval_request") {
+      const s = l.approvalType || "";
+      if (s === "customer_add")
+        return `요청: 추가 · ${safe(l.name)} / ${safe(l.birth)}`;
+      if (s === "customer_update")
+        return `요청: 수정 · 변경=${sliceObj(l.changes)}`;
+      if (s === "customer_delete") return `요청: 삭제`;
+    }
+    if (l.type === "approval_approve") {
+      const s = l.approvalType || "";
+      if (s === "customer_add") return `승인: 추가`;
+      if (s === "customer_update") return `승인: 수정`;
+      if (s === "customer_delete") return `승인: 삭제`;
+    }
+    if (l.type === "approval_reject") {
+      return `거부: ${safe(l.approvalType)}`;
+    }
+    if (l.type === "customer_add") {
+      return `직접 등록`;
+    }
+    if (l.type === "customer_update") {
+      return `직접 수정 · ${sliceObj(l.changes)}`;
+    }
+    if (l.type === "customer_delete") {
+      return `직접 삭제`;
+    }
+  } catch (e) {}
+  return "-";
+}
+function safe(v) {
+  return (v == null ? "" : String(v)).replace(/[<>&"]/g, " ");
+}
+function sliceObj(o) {
+  const keys = Object.keys(o || {});
+  const head = keys
+    .slice(0, 4)
+    .map((k) => `${k}→${o[k]}`)
+    .join(", ");
+  return head + (keys.length > 4 ? " …" : "");
+}
+
+function getCheckedApprovalIds() {
+  return [
+    ...document.querySelectorAll("#approvals-tbody .apr-chk:checked"),
+  ].map((cb) => cb.getAttribute("data-id"));
+}
+async function bulkApprove() {
+  const ids = getCheckedApprovalIds();
+  if (!ids.length) return showToast("선택된 요청이 없습니다.", true);
+  for (const id of ids) await approveOne(id);
+}
+async function bulkReject() {
+  const ids = getCheckedApprovalIds();
+  if (!ids.length) return showToast("선택된 요청이 없습니다.", true);
+  for (const id of ids) await rejectOne(id);
+}
 
 // ===== STS 유틸: 관리자 세션(15분) + 갱신(강제) =====
 async function ensureAdminSession(force = false) {

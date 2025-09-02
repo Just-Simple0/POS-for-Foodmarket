@@ -228,6 +228,49 @@
   }
 }
 
+/* ==== 탭 ==== */
+.tabbar{
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  margin:20px 0;
+}
+.tab{
+  padding:10px 20px;
+  border:2px solid #ccc;
+  background-color:#fff;
+  color:#ccc;
+  border-radius:10px;
+  font-weight:bold;
+  cursor:pointer;
+  transition:all .2s ease;
+}
+.tab.active{
+  background-color:#007bff;
+  color:#fff;
+  border-color:#007bff;
+}
+.tab:not(.active):hover{
+  background-color:#e0e0e0;
+  color:#000;
+}
+
+/* 승인 테이블 가독성 보강 */
+#approvals-table td,
+#approvals-table th {
+  vertical-align: middle;
+}
+#approvals-table .row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+#c-logs-table td,
+#c-logs-table th {
+  vertical-align: middle;
+}
+
 @media (max-width: 480px) {
   /* 카드 간 여백 살짝 축소 */
   .card {

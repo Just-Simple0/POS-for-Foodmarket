@@ -30,137 +30,209 @@
   <body>
     <div id="header-container"></div>
     <main class="container">
-      <h2>계정 관리 · 권한 부여</h2>
+      <!-- 탭바 -->
+      <nav class="tabbar">
+        <button class="tab active" data-tab="users">사용자 관리</button>
+        <button class="tab" data-tab="approvals">승인 요청</button>
+      </nav>
 
-      <!-- (6) 요약 위젯 -->
-      <section class="card counters">
-        <div class="counter-card">
-          <div class="k">오늘</div>
-          <div class="v">
-            <span id="c-roles">0</span> 역할변경 ·
-            <span id="c-disable">0</span> 비활성 ·
-            <span id="c-reset">0</span> 초기화
+      <div id="tab-users">
+        <h2>계정 관리 · 권한 부여</h2>
+
+        <!-- (6) 요약 위젯 -->
+        <section class="card counters">
+          <div class="counter-card">
+            <div class="k">오늘</div>
+            <div class="v">
+              <span id="c-roles">0</span> 역할변경 ·
+              <span id="c-disable">0</span> 비활성 ·
+              <span id="c-reset">0</span> 초기화
+            </div>
+          </div>
+          <div class="counter-card">
+            <div class="k">최근 7일</div>
+            <span id="c7-roles">0</span> 역할변경 ·
+            <span id="c7-disable">0</span> 비활성 ·
+            <span id="c7-reset">0</span> 초기화
+          </div>
+        </section>
+
+        <section class="card">
+          <!-- 필터 바 -->
+          <div class="card-header admin-filterbar search-bar">
+            <input
+              id="q"
+              type="text"
+              placeholder="이메일/이름/UID 검색"
+              class="input"
+            />
+            <select id="f-role" class="input">
+              <option value="">역할(전체)</option>
+              <option value="admin">admin</option>
+              <option value="manager">manager</option>
+              <option value="user">user</option>
+              <option value="pending">pending</option>
+            </select>
+            <input
+              id="f-provider"
+              type="text"
+              placeholder="수단 필터(ex: google)"
+              class="input"
+            />
+            <select id="f-sort" class="input">
+              <option value="lastSignInTime:desc">최근로그인 ↓</option>
+              <option value="lastSignInTime:asc">최근로그인 ↑</option>
+              <option value="email:asc">이메일 ↑</option>
+              <option value="email:desc">이메일 ↓</option>
+            </select>
+            <button id="btn-search" class="btn">검색</button>
+          </div>
+
+          <!-- 액션 바 -->
+          <div class="admin-actionbar">
+            <label class="muted">선택: <span id="sel-count">0</span>명</label>
+            <select id="bulk-role" class="input small">
+              <option value="">역할 일괄 변경…</option>
+              <option value="admin">admin</option>
+              <option value="manager">manager</option>
+              <option value="user">user</option>
+              <option value="pending">pending</option>
+            </select>
+            <button id="btn-bulk-role" class="btn btn-ghost">적용</button>
+            <button id="btn-disable" class="btn btn-ghost">비활성화</button>
+            <button id="btn-enable" class="btn btn-ghost">활성화</button>
+            <button id="btn-reset" class="btn btn-ghost">비번 초기화</button>
+            <button id="btn-revoke" class="btn btn-ghost">전원 로그아웃</button>
+            <button id="btn-export-xlsx" class="btn">XLSX 내보내기</button>
+          </div>
+
+          <div class="table-wrap">
+            <table id="admin-user-table" class="table-base">
+              <thead>
+                <tr>
+                  <th style="width: 36px">
+                    <input id="chk-all" type="checkbox" />
+                  </th>
+                  <th>이메일</th>
+                  <th>이름</th>
+                  <th>역할</th>
+                  <th>최근 로그인</th>
+                  <th>수단</th>
+                  <th>이상</th>
+                  <th>작업</th>
+                </tr>
+              </thead>
+              <tbody id="admin-user-tbody">
+                <tr>
+                  <td colspan="8">검색 후 결과가 표시됩니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card-footer">
+            <button id="btn-more" class="btn btn-ghost">더 보기</button>
+          </div>
+        </section>
+
+        <!-- 로그 탐색 -->
+        <section class="card" id="logs-card">
+          <div class="card-header logs-filter search-bar">
+            <h3>감사 로그(최근 60일)</h3>
+            <div class="logs-filter">
+              <input
+                id="log-uid"
+                class="input"
+                type="text"
+                placeholder="UID(선택)"
+              />
+              <select id="log-action" class="input">
+                <option value="">액션(전체)</option>
+                <option value="setRole">역할 설정</option>
+                <option value="setRoleBulk">다량 역할 설정</option>
+                <option value="disableUser">사용자 비활성화</option>
+                <option value="enableUser">사용자 활성화</option>
+                <option value="forcePasswordReset">강제 비밀번호 초기화</option>
+              </select>
+              <button id="btn-logs" class="btn">조회</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="table-base" id="logs-table">
+              <thead>
+                <tr>
+                  <th>시각</th>
+                  <th>행위자</th>
+                  <th>액션</th>
+                  <th>대상</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody id="logs-tbody">
+                <tr>
+                  <td colspan="5">필터 후 조회하세요.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+      <!-- ===== 승인/거부 탭 ===== -->
+      <section class="card" id="approvals-card" hidden>
+        <div class="card-header">
+          <h3>승인 요청</h3>
+          <div class="search-bar">
+            <button id="apr-refresh" class="btn">새로고침</button>
+            <button id="apr-approve" class="btn btn-ghost">선택 승인</button>
+            <button id="apr-reject" class="btn btn-ghost">선택 거부</button>
           </div>
         </div>
-        <div class="counter-card">
-          <div class="k">최근 7일 </div>
-          <span id="c7-roles">0</span> 역할변경 · <span id="c7-disable">0</span> 비활성 ·
-          <span id="c7-reset">0</span> 초기화
-        </div>
-      </section>
-
-      <section class="card">
-        <!-- 필터 바 -->
-        <div class="card-header admin-filterbar search-bar">
-          <input
-            id="q"
-            type="text"
-            placeholder="이메일/이름/UID 검색"
-            class="input"
-          />
-          <select id="f-role" class="input">
-            <option value="">역할(전체)</option>
-            <option value="admin">admin</option>
-            <option value="manager">manager</option>
-            <option value="user">user</option>
-            <option value="pending">pending</option>
-          </select>
-          <input
-            id="f-provider"
-            type="text"
-            placeholder="수단 필터(ex: google)"
-            class="input"
-          />
-          <select id="f-sort" class="input">
-            <option value="lastSignInTime:desc">최근로그인 ↓</option>
-            <option value="lastSignInTime:asc">최근로그인 ↑</option>
-            <option value="email:asc">이메일 ↑</option>
-            <option value="email:desc">이메일 ↓</option>
-          </select>
-          <button id="btn-search" class="btn">검색</button>
-        </div>
-
-        <!-- 액션 바 -->
-        <div class="admin-actionbar">
-          <label class="muted">선택: <span id="sel-count">0</span>명</label>
-          <select id="bulk-role" class="input small">
-            <option value="">역할 일괄 변경…</option>
-            <option value="admin">admin</option>
-            <option value="manager">manager</option>
-            <option value="user">user</option>
-            <option value="pending">pending</option>
-          </select>
-          <button id="btn-bulk-role" class="btn btn-ghost">적용</button>
-          <button id="btn-disable" class="btn btn-ghost">비활성화</button>
-          <button id="btn-enable" class="btn btn-ghost">활성화</button>
-          <button id="btn-reset" class="btn btn-ghost">비번 초기화</button>
-          <button id="btn-revoke" class="btn btn-ghost">전원 로그아웃</button>
-          <button id="btn-export-xlsx" class="btn">XLSX 내보내기</button>
-        </div>
-
         <div class="table-wrap">
-          <table id="admin-user-table" class="table-base">
+          <table class="table-base" id="approvals-table">
             <thead>
               <tr>
                 <th style="width: 36px">
-                  <input id="chk-all" type="checkbox" />
+                  <input type="checkbox" id="apr-all" />
                 </th>
-                <th>이메일</th>
-                <th>이름</th>
-                <th>역할</th>
-                <th>최근 로그인</th>
-                <th>수단</th>
-                <th>이상</th>
-                <th>작업</th>
+                <th style="width: 160px">요청시각</th>
+                <th style="width: 220px">요청자</th>
+                <th style="width: 140px">유형</th>
+                <th style="width: 200px">대상</th>
+                <th>내용</th>
+                <th style="width: 180px">작업</th>
               </tr>
             </thead>
-            <tbody id="admin-user-tbody">
+            <tbody id="approvals-tbody">
               <tr>
-                <td colspan="8">검색 후 결과가 표시됩니다.</td>
+                <td colspan="7">대기중인 요청이 없습니다.</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <div class="card-footer">
-          <button id="btn-more" class="btn btn-ghost">더 보기</button>
-        </div>
-      </section>
-
-      <!-- 로그 탐색 -->
-      <section class="card" id="logs-card">
-        <div class="card-header logs-filter search-bar">
-          <h3>감사 로그(최근 60일)</h3>
-          <div class="logs-filter">
-            <input id="log-uid" class="input" type="text" placeholder="UID(선택)" />
-            <select id="log-action" class="input">
-              <option value="">액션(전체)</option>
-              <option value="setRole">setRole</option>
-              <option value="setRoleBulk">setRoleBulk</option>
-              <option value="disableUser">disableUser</option>
-              <option value="enableUser">enableUser</option>
-              <option value="forcePasswordReset">forcePasswordReset</option>
-              <option value="sales.refund">sales.refund</option>
-              <option value="product.delete">product.delete</option>
-              <option value="product.priceChange">product.priceChange</option>
-            </select>
-            <button id="btn-logs" class="btn">조회</button>
+        <hr
+          style="margin: 16px 0; border: none; border-top: 1px solid #e5e7eb"
+        />
+        <div class="card-header" style="margin-top: 0">
+          <h3>최근 활동 로그 (30일)</h3>
+          <div class="search-bar">
+            <button id="clogs-refresh" class="btn">조회</button>
           </div>
         </div>
         <div class="table-wrap">
-          <table class="table-base" id="logs-table">
+          <table class="table-base" id="c-logs-table">
             <thead>
               <tr>
-                <th>시각</th>
-                <th>행위자</th>
-                <th>액션</th>
-                <th>대상</th>
-                <th>상태</th>
+                <th style="width: 160px">시간</th>
+                <th style="width: 220px">계정</th>
+                <th style="width: 140px">유형</th>
+                <th style="width: 220px">대상</th>
+                <th>상세</th>
               </tr>
             </thead>
-            <tbody id="logs-tbody">
+            <tbody id="c-logs-tbody">
               <tr>
-                <td colspan="5">필터 후 조회하세요.</td>
+                <td colspan="5">최근 30일 활동 로그가 없습니다.</td>
               </tr>
             </tbody>
           </table>

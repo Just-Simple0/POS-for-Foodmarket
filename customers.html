@@ -152,7 +152,7 @@
                 >행정구역<input
                   id="create-region1"
                   type="text"
-                  placeholder="예: 서울특별시"
+                  placeholder="예: 두류1,2동"
               /></label>
               <label>주소<input id="create-address" type="text" /></label>
               <label
@@ -242,8 +242,6 @@
       >
         <h2 id="edit-title">이용자 정보 수정</h2>
 
-        <input type="hidden" id="edit-id" />
-
         <label>이름 <input id="edit-name" /></label>
         <label
           >생년월일 <input id="edit-birth" type="text" placeholder="YYYY.MM.DD"
@@ -325,6 +323,36 @@
           </button>
         </div>
       </form>
+    </div>
+
+    <!-- 동명이인 처리 모달 -->
+    <div id="dup-modal" class="modal hidden" aria-hidden="true">
+      <div
+        class="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dup-modal-title"
+      >
+        <div class="modal-header">
+          <h2 id="dup-modal-title">동명이인 처리</h2>
+        </div>
+        <div class="modal-body">
+          <p id="dup-info" style="margin-bottom: 10px"></p>
+          <ol style="margin: 0 0 8px 18px">
+            <li><b>기존 정보 업데이트</b> — 기존 문서에 입력한 값으로 갱신</li>
+            <li>
+              <b>동명이인 신규로 등록</b> — 동일한 이름·생년월일로 새 문서 추가
+            </li>
+          </ol>
+        </div>
+        <div class="modal-footer">
+          <button id="dup-update" class="btn btn-primary">
+            기존 정보 업데이트
+          </button>
+          <button id="dup-new" class="btn">동명이인 신규로 등록</button>
+          <button class="btn" data-close>취소</button>
+        </div>
+      </div>
     </div>
 
     <div id="footer-container"></div>
