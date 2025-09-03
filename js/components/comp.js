@@ -267,6 +267,62 @@ export function loadFooter(containerID = null) {
 }
 
 /**
+ * A안 커서 기반 페이지네이터 렌더러
+ * - totalCount 없이 현재까지 ‘발견된’ 페이지 범위만 숫자 버튼을 노출
+ * - params:
+ *   container: HTMLElement (#...pagination)
+ *   state: { current:number, pagesKnown:number, hasPrev:boolean, hasNext:boolean }
+ *   handlers: { goFirst:fn, goPrev:fn, goPage:(n)=>void, goNext:fn }
+ *   options?: { window:number }  // 숫자버튼 표시 개수(기본 5)
+ */
+export function renderCursorPager(container, state, handlers, options={}) {
+  if (!container) return;
+  const windowSize = options.window ?? 5;
+  const { current, pagesKnown, hasPrev, hasNext } = state;
+  const { goFirst, goPrev, goPage, goNext } = handlers;
+
+  // 현재 창 계산
+  let start = Math.max(1, current - Math.floor(windowSize/2));
+  let end = Math.min(pagesKnown, start + windowSize - 1);
+  if (end - start + 1 < windowSize) start = Math.max(1, end - windowSize + 1);
+
+  const btn = (label, disabled, dataAct, aria) =>
+    `<button class="pager-btn" ${disabled ? "disabled": ""} data-act="${dataAct||""}" aria-label="${aria||label}">${label}</button>`;
+
+  let html = '';
+  html += btn('처음', !hasPrev, 'first', 'first page');
+  html += btn('이전', !hasPrev, 'prev', 'previous page');
+  html += `<span class="pager-pages">`;
+  for (let n = start; n <= end; n++) {
+    html += `<button class="pager-num ${n===current?'active':''}" data-page="${n}">${n}</button>`;
+  }
+  html += `</span>`;
+  html += btn('다음', !hasNext, 'next', 'next page');
+  // (총페이지 불명 → ‘끝’ 버튼은 생략 혹은 disable 운영을 권장)
+
+  container.innerHTML = html;
+  // 이벤트 바인딩
+  container.querySelector('[data-act="first"]')?.addEventListener('click', () => goFirst?.());
+  container.querySelector('[data-act="prev"]')?.addEventListener('click', () => goPrev?.());
+  container.querySelectorAll('.pager-num')?.forEach(el=>{
+    el.addEventListener('click', () => {
+      const n = Number(el.getAttribute('data-page'));
+      if (!Number.isNaN(n)) goPage?.(n);
+    });
+  });
+  container.querySelector('[data-act="next"]')?.addEventListener('click', () => goNext?.());
+}
+
+/** 페이지 사이즈 셀렉트 공통 초기화 */
+export function initPageSizeSelect(selectEl, onChange) {
+  if (!selectEl) return;
+  selectEl.addEventListener('change', () => {
+    const v = Number(selectEl.value);
+    onChange?.(Number.isFinite(v) ? v : 25);
+  });
+}
+
+/**
  * Turnstile 모달을 띄워 토큰을 받는다(보이는 위젯).
  * @param {{action?: string, title?: string, subtitle?: string}} opts
  * @returns {Promise<string|null>}

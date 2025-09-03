@@ -68,9 +68,10 @@
         </div>
       </div>
 
-      <div class="list-header">
-        <h2>이용자 목록</h2>
-        <!-- 상단 툴바 -->
+      <h2>이용자 목록</h2>
+
+      <!-- 표시 수: 상단 우측 버튼들의 하단에 배치 -->
+      <div class="customer-top-bar">
         <div class="customers-toolbar">
           <div class="left">
             <button id="btn-customer-create" class="btn btn-primary">
@@ -80,10 +81,17 @@
               <i class="fas fa-file-export"></i> 내보내기
             </button>
           </div>
-          <div class="right admin-only" title="관리자 전용">
-            <!-- 선택 삭제는 이후 확장 가능, 일단 행별 삭제 아이콘 제공 -->
-          </div>
         </div>
+
+        <label class="pagesize-label"
+          >표시 수:
+          <select id="page-size">
+            <option value="10">10개</option>
+            <option value="25" selected>25개</option>
+            <option value="50">50개</option>
+            <option value="100">100개</option>
+          </select>
+        </label>
       </div>
 
       <div class="table-wrapper">
@@ -108,7 +116,8 @@
         </table>
       </div>
 
-      <div id="pagination" class="pagination"></div>
+      <!-- A안: 공통 커서 페이저가 렌더될 자리 -->
+      <div id="pagination" class="pagebar" aria-label="페이지네이션"></div>
     </main>
 
     <!-- 등록하기 모달 (직접 입력 / 엑셀 업로드) -->
@@ -267,8 +276,9 @@
                       value="all-support-stop-others"
                     />
                     <span
-                      >업로드 전원 ‘지원’ 및 업로드 <b style="color: red;">제외</b>된 인원
-                      <b style="color: red;">‘중단’</b></span
+                      >업로드 전원 ‘지원’ 및 업로드
+                      <b style="color: red">제외</b>된 인원
+                      <b style="color: red">‘중단’</b></span
                     >
                   </label>
                 </fieldset>

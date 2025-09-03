@@ -16,15 +16,19 @@ import {
   limit,
   startAt,
   endAt,
+  startAfter,
+  documentId,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { showToast } from "./components/comp.js";
+import {
+  showToast,
+  renderCursorPager,
+  initPageSizeSelect,
+} from "./components/comp.js";
 
 // 🔍 검색용 메모리 저장
 let customerData = [];
-
-let currentPage = 1;
-const itemPerPage = 50;
+let pagesKnown = 1; // A안: 지금까지 '알려진' 페이지 개수
 
 let displaydData = [];
 let currentSort = { field: null, direction: "asc" };
@@ -33,6 +37,95 @@ let pendingCreatePayload = null;
 let pendingDupRef = null;
 let pendingDupData = null;
 let editingOriginal = null;
+
+// ===== 서버 페이지네이션 상태 =====
+let pageSize = 25;
+let pageCursors = [null]; // 각 페이지의 "startAfter" 기준(이전 페이지의 lastDoc Snapshot)
+let currentPageIndex = 0; // 0-based
+let lastPageCount = 0; // 마지막으로 가져온 문서 수
+let currentQueryIdentity = ""; // 검색/정렬/필터 조합 식별자. 바뀌면 커서 초기화
+let buildCurrentQuery = null; // () => QueryConstraints[] (pageCursors[currentPageIndex] 참조)
+
+function roleConstraint() {
+  return isAdmin ? [] : [where("status", "==", "지원")];
+}
+
+function resetPager(identity, builder) {
+  currentQueryIdentity = identity;
+  buildCurrentQuery = builder;
+  pageCursors = [null];
+  currentPageIndex = 0;
+  lastPageCount = 0;
+  pagesKnown = 1; // 새 쿼리 시작 시 창 초기화
+  fetchAndRenderPage(); // 집계 없이 즉시 페이지 로드
+}
+
+async function fetchAndRenderPage() {
+  if (!buildCurrentQuery) return;
+  const base = collection(db, "customers");
+  const cons = buildCurrentQuery(); // orderBy()/where()/limit()/startAfter() 포함
+  const snap = await getDocs(query(base, ...cons));
+  lastPageCount = snap.size;
+  const rows = snap.docs.map((d) => {
+    const data = { id: d.id, ...d.data() };
+    data.lastVisit = computeLastVisit(data);
+    return data;
+  });
+  displaydData = rows;
+  renderTable(rows);
+  updatePagerUI();
+  // 다음 페이지를 위한 커서(현재 페이지의 lastDoc)를 기록
+  pageCursors[currentPageIndex + 1] = snap.docs[snap.docs.length - 1] || null;
+}
+
+function updatePagerUI() {
+  const pagEl = document.getElementById("pagination");
+  // A안: 페이지 상태 계산
+  const current = currentPageIndex + 1;
+  const hasPrev = currentPageIndex > 0;
+  const hasNext = lastPageCount >= pageSize; // 다음 페이지가 더 있을 가능성
+  // '알려진 페이지'를 점진적으로 확장(예: 1, 2, 3 ... )
+  pagesKnown = Math.max(pagesKnown, current + (hasNext ? 1 : 0));
+
+  renderCursorPager(
+    pagEl,
+    { current, pagesKnown, hasPrev, hasNext },
+    {
+      goFirst: () => {
+        if (currentPageIndex === 0) return;
+        currentPageIndex = 0;
+        fetchAndRenderPage();
+      },
+      goPrev: () => {
+        if (!hasPrev) return;
+        goPrevPage();
+      },
+      // 서버 커서 특성상 임의 점프는 어려움 → 인접 숫자만 허용
+      goPage: (n) => {
+        if (n === current) return;
+        if (n === current - 1 && hasPrev) return goPrevPage();
+        if (n === current + 1 && hasNext) return goNextPage();
+        // 멀리 점프는 비활성(원한다면 next를 반복 호출하는 큐 구현 가능)
+      },
+      goNext: () => {
+        if (!hasNext) return;
+        goNextPage();
+      },
+    },
+    { window: 5 }
+  );
+}
+
+function goNextPage() {
+  if (!buildCurrentQuery || lastPageCount < pageSize) return; // 다음 없음
+  currentPageIndex += 1;
+  fetchAndRenderPage();
+}
+function goPrevPage() {
+  if (!buildCurrentQuery || currentPageIndex === 0) return;
+  currentPageIndex -= 1;
+  fetchAndRenderPage();
+}
 
 // ===== IndexedDB (지원자 캐시) =====
 const IDB_NAME = "pos_customers";
@@ -400,18 +493,18 @@ function computeLastVisit(c) {
 }
 
 async function loadCustomers() {
-  const base = collection(db, "customers");
-  // 규칙과 일치하도록 쿼리 단계에서 필터링
-  const q = isAdmin ? query(base) : query(base, where("status", "==", "지원"));
-  const snap = await getDocs(q);
-  const rows = snap.docs.map((d) => {
-    const data = { id: d.id, ...d.data() };
-    data.lastVisit = computeLastVisit(data);
-    return data;
+  // 기본 목록: nameLower ASC, 서버 페이지네이션
+  resetPager("list:nameLower:asc", () => {
+    const after = pageCursors[currentPageIndex];
+    const cons = [
+      ...roleConstraint(),
+      orderBy("nameLower"),
+      orderBy(documentId()),
+      limit(pageSize),
+    ];
+    if (after) cons.push(startAfter(after));
+    return cons;
   });
-  customerData = rows;
-  displaydData = rows;
-  renderTable(rows);
   updateSortIcons();
   try {
     await syncSupportCache();
@@ -421,6 +514,8 @@ async function loadCustomers() {
 function renderTable(data) {
   const tbody = document.querySelector("#customer-table tbody");
   tbody.innerHTML = "";
+  // 현재 화면 데이터 보관(수정 버튼 등에서 사용)
+  customerData = data;
 
   let sorted = [...data];
 
@@ -440,11 +535,7 @@ function renderTable(data) {
     });
   }
 
-  const start = (currentPage - 1) * itemPerPage;
-  const end = start + itemPerPage;
-  const paginated = sorted.slice(start, end);
-
-  paginated.forEach((c) => {
+  sorted.forEach((c) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${c.name || ""}</td>
@@ -474,31 +565,9 @@ function renderTable(data) {
     tbody.appendChild(tr);
   });
 
-  renderPagination(sorted.length);
+  updatePagerUI();
 }
 
-function renderPagination(totalItems) {
-  const totalPages = Math.ceil(totalItems / itemPerPage);
-  const container = document.getElementById("pagination");
-
-  container.innerHTML = `
-    <button ${currentPage === 1 ? "disabled" : ""} id="prev-btn">이전</button>
-    <span> ${currentPage} / ${totalPages} </span>
-    <button ${
-      currentPage === totalPages ? "disabled" : ""
-    } id="next-btn">다음</button>
-  `;
-
-  document.getElementById("prev-btn")?.addEventListener("click", () => {
-    currentPage--;
-    renderTable(displaydData);
-  });
-
-  document.getElementById("next-btn").addEventListener("click", () => {
-    currentPage++;
-    renderTable(displaydData);
-  });
-}
 // thead 정렬: 새 컬럼 순서에 맞춰 매핑
 const fieldMap = [
   "name",
@@ -693,6 +762,7 @@ function updateSortIcons() {
     "phone",
     "type",
     "category",
+    "lastVisit",
     "note",
   ];
 
@@ -743,9 +813,19 @@ async function runServerSearch() {
   const fieldRaw = (fInput?.value || "").trim();
   const fieldValue = normalize(fieldRaw);
 
-  // 검색 조건이 없으면 원래 목록(캐시) 로드
+  // 검색 조건이 없으면 서버 페이지 목록 초기화
   if (!globalKeyword && (!field || !fieldValue)) {
-    renderTable(customerData);
+    resetPager("list:nameLower:asc", () => {
+      const after = pageCursors[currentPageIndex];
+      const cons = [
+        ...roleConstraint(),
+        orderBy("nameLower"),
+        orderBy(documentId()),
+        limit(pageSize),
+      ];
+      if (after) cons.push(startAfter(after));
+      return cons;
+    });
     return;
   }
 
@@ -757,8 +837,13 @@ async function runServerSearch() {
   if (globalKeyword) {
     const localRows = await localUnifiedSearch(globalKeyword);
     displaydData = localRows;
-    currentPage = 1;
     renderTable(localRows);
+    // 로컬 검색이므로 서버 페이지네이션 비활성화 및 페이저 초기화
+    buildCurrentQuery = null;
+    currentPageIndex = 0;
+    lastPageCount = 0;
+    pagesKnown = 1;
+    updatePagerUI();
     // 관리자일 때 0건이면 고급 검색 유도 배너 노출
     const hint = document.getElementById("search-hint");
     if (hint) {
@@ -797,52 +882,67 @@ async function runServerSearch() {
     }
     return; // 로컬로 처리했으니 서버 질의 종료
   } else if (field && fieldValue) {
-    // 2) 필드 검색
-    switch (field) {
-      case "name":
-        cons.push(orderBy("nameLower"));
-        cons.push(startAt(fieldValue));
-        cons.push(endAt(fieldValue + "\uf8ff"));
-        break;
-      case "birth":
-        cons.push(where("birth", "==", formatBirth(fieldRaw, true)));
-        break;
-      case "region1":
-        cons.push(where("region1", "==", fieldRaw));
-        break;
-      case "status":
-        cons.push(where("status", "==", fieldRaw || "지원"));
-        break;
-      case "type":
-        cons.push(where("type", "==", fieldRaw));
-        break;
-      case "category":
-        cons.push(where("category", "==", fieldRaw));
-        break;
-      case "phone":
-        // phoneTokens에 digits 포함
-        const d = fieldRaw.replace(/\D/g, "");
-        if (d.length >= 3) cons.push(where("phoneTokens", "array-contains", d));
-        else cons.push(where("phoneLast4", "==", d)); // 4자리일 때 유용
-        break;
-      default:
-        // 기타는 서버 인덱싱이 없으므로 로컬 필터 유지(최소화)
-        renderTable(
-          customerData.filter((c) =>
-            normalize(c[field] || "").includes(fieldValue)
-          )
-        );
-        return;
-    }
+    // 2) 필드 검색 → 서버 페이지네이션으로 전환
+    const identityParts = [];
+    if (!isAdmin) identityParts.push("role:user");
+    identityParts.push(`field:${field}`, `value:${fieldValue}`);
+    const identity = identityParts.join("|");
+    resetPager(identity, () => {
+      const after = pageCursors[currentPageIndex];
+      const cons2 = [...roleConstraint()];
+      switch (field) {
+        case "name":
+          cons2.push(orderBy("nameLower"), orderBy(documentId()));
+          cons2.push(startAt(fieldValue), endAt(fieldValue + "\uf8ff"));
+          break;
+        case "birth":
+          cons2.push(where("birth", "==", formatBirth(fieldRaw, true)));
+          cons2.push(orderBy(documentId()));
+          break;
+        case "region1":
+          cons2.push(where("region1", "==", fieldRaw));
+          cons2.push(orderBy(documentId()));
+          break;
+        case "status":
+          cons2.push(where("status", "==", fieldRaw || "지원"));
+          cons2.push(orderBy(documentId()));
+          break;
+        case "type":
+          cons2.push(where("type", "==", fieldRaw));
+          cons2.push(orderBy(documentId()));
+          break;
+        case "category":
+          cons2.push(where("category", "==", fieldRaw));
+          cons2.push(orderBy(documentId()));
+          break;
+        case "phone": {
+          const d = fieldRaw.replace(/\D/g, "");
+          if (d.length >= 3)
+            cons2.push(where("phoneTokens", "array-contains", d));
+          else cons2.push(where("phoneLast4", "==", d));
+          cons2.push(orderBy(documentId()));
+          break;
+        }
+        default:
+          // 서버 인덱스가 없는 필드는 로컬 필터(최소화)
+          buildCurrentQuery = null;
+          renderTable(
+            customerData.filter((c) =>
+              normalize(c[field] || "").includes(fieldValue)
+            )
+          );
+          // 로컬 결과이므로 페이저를 초기화
+          currentPageIndex = 0;
+          lastPageCount = 0;
+          pagesKnown = 1;
+          updatePagerUI();
+          return [];
+      }
+      cons2.push(limit(pageSize));
+      if (after) cons2.push(startAfter(after));
+      return cons2;
+    });
   }
-
-  cons.push(limit(200));
-  const qy = query(base, ...cons);
-  const snap = await getDocs(qy);
-  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  displaydData = rows;
-  currentPage = 1;
-  renderTable(rows);
   // 필드 검색은 서버 질의이므로 배너 숨김
   const hint = document.getElementById("search-hint");
   if (hint) {
@@ -901,7 +1001,27 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     }
-    await loadCustomers();
+    await loadCustomers(); // 서버 페이지네이션 첫 페이지 + 캐시 동기화
+  });
+  // 페이지 사이즈 공통 초기화(A안)
+  initPageSizeSelect(document.getElementById("page-size"), (n) => {
+    pageSize = n;
+    // 커서 초기화 및 첫 페이지 로드 (집계 없이)
+    const id = currentQueryIdentity || "list:nameLower:asc";
+    const builder =
+      buildCurrentQuery ||
+      (() => {
+        const after = pageCursors[currentPageIndex];
+        const cons = [
+          ...roleConstraint(),
+          orderBy("nameLower"),
+          orderBy(documentId()),
+          limit(pageSize),
+        ];
+        if (after) cons.push(startAfter(after));
+        return cons;
+      });
+    resetPager(id, builder);
   });
 });
 

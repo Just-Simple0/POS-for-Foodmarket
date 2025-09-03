@@ -13,7 +13,11 @@ import {
   startAt,
   limit,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { showToast } from "./components/comp.js";
+import {
+  showToast,
+  renderCursorPager,
+  initPageSizeSelect,
+} from "./components/comp.js";
 
 /* =====================================================
  * State
@@ -25,7 +29,7 @@ let lifeData = [];
 let provisionCurrentPage = 1;
 let visitCurrentPage = 1;
 let lifeCurrentPage = 1;
-let itemsPerPage = 20;
+let itemsPerPage = 20; // #item-count-select와 연동
 
 /* Life fallback (dev only). In production, keep false to avoid full scans */
 const LIFE_DEBUG_FALLBACK = false;
@@ -111,6 +115,27 @@ function setLoading(sectionId, on) {
 }
 
 /* =====================================================
+ * 공통: pagebar(A안) 렌더 도우미
+ * ===================================================== */
+function renderSimplePagerA(containerId, current, totalPages, onMove) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const hasPrev = current > 1;
+  const hasNext = current < totalPages;
+  renderCursorPager(
+    el,
+    { current, pagesKnown: totalPages, hasPrev, hasNext },
+    {
+      goFirst: () => onMove(1),
+      goPrev: () => onMove(Math.max(1, current - 1)),
+      goPage: (n) => onMove(Math.min(Math.max(1, n), totalPages)),
+      goNext: () => onMove(Math.min(totalPages, current + 1)),
+    },
+    { window: 5 }
+  );
+}
+
+/* =====================================================
  * Provision: server-side pagination (cursor)
  * ===================================================== */
 let provCursor = {
@@ -119,6 +144,8 @@ let provCursor = {
   lastDoc: null,
   prevStack: [],
   serverMode: false,
+  page: 1,
+  pagesKnown: 1,
 };
 
 function isProvisionClientFilteringOn() {
@@ -286,12 +313,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const itemCountSelect = document.getElementById("item-count-select");
   itemCountSelect?.addEventListener("change", (e) => {
-    itemsPerPage = parseInt(e.target.value);
+    itemsPerPage = parseInt(e.target.value, 10) || 20;
     if (btnProvision?.classList.contains("active")) {
-      renderProvisionTable();
+      if (provCursor.serverMode) {
+        provCursor.prevStack = [];
+        provCursor.lastDoc = null;
+        provCursor.page = 1;
+        provCursor.pagesKnown = 1;
+        loadProvisionPage("init");
+      } else {
+        provisionCurrentPage = 1;
+        renderProvisionTable();
+      }
     } else if (btnVisit?.classList.contains("active")) {
+      visitCurrentPage = 1;
       renderVisitTable();
     } else {
+      lifeCurrentPage = 1;
       renderLifeTable();
     }
   });
@@ -593,6 +631,8 @@ async function loadProvisionHistoryByRange(startDate, endDate) {
   provCursor.serverMode = !isProvisionClientFilteringOn();
   provCursor.lastDoc = null;
   provCursor.prevStack = [];
+  provCursor.page = 1;
+  provCursor.pagesKnown = 1;
 
   console.log(
     "[Provision] range:",
@@ -657,6 +697,7 @@ async function loadProvisionPage(direction) {
       limit(itemsPerPage)
     );
     provCursor.prevStack = [];
+    provCursor.page = 1;
   } else if (direction === "next" && provCursor.lastDoc) {
     provCursor.prevStack.push(provCursor.lastDoc);
     qy = query(
@@ -666,6 +707,7 @@ async function loadProvisionPage(direction) {
       startAfter(provCursor.lastDoc),
       limit(itemsPerPage)
     );
+    provCursor.page += 1;
   } else if (direction === "prev") {
     const prevCursor = provCursor.prevStack.pop();
     if (!prevCursor) return;
@@ -676,6 +718,7 @@ async function loadProvisionPage(direction) {
       startAt(prevCursor),
       limit(itemsPerPage)
     );
+    provCursor.page = Math.max(1, provCursor.page - 1);
   } else {
     return;
   }
@@ -699,13 +742,16 @@ async function loadProvisionPage(direction) {
       });
     });
     provisionData = rows;
-    provisionCurrentPage = 1;
+    provisionCurrentPage = 1; // 서버 페이지 결과는 한 화면 분량 그대로
     provCursor.lastDoc = snap.docs[snap.docs.length - 1] || null;
-    renderProvisionTable(provisionData);
-    updateProvisionPagerButtons(
-      !!provCursor.prevStack.length,
-      !!provCursor.lastDoc
+    // 알려진 페이지 갱신(다음이 있으면 +1)
+    const hasNext = !!provCursor.lastDoc;
+    provCursor.pagesKnown = Math.max(
+      provCursor.pagesKnown,
+      provCursor.page + (hasNext ? 1 : 0)
     );
+    renderProvisionTable(provisionData);
+    renderProvisionPagerA();
   } catch (e) {
     console.error(e);
     showToast?.("제공 내역(페이지)을 불러오지 못했습니다.");
@@ -714,13 +760,43 @@ async function loadProvisionPage(direction) {
   }
 }
 
-function updateProvisionPagerButtons(hasPrev, hasNext) {
-  const box = document.getElementById("provision-pagination");
-  if (!box) return;
-  const btns = box.querySelectorAll("button");
-  const [prevBtn, , nextBtn] = btns; // prev, (info span), next
-  if (prevBtn) prevBtn.disabled = !hasPrev;
-  if (nextBtn) nextBtn.disabled = !hasNext;
+// A안: Provision 서버 페이저 렌더
+function renderProvisionPagerA() {
+  const boxId = "provision-pagination";
+  const current = provCursor.page || 1;
+  const hasPrev = (provCursor.prevStack?.length || 0) > 0;
+  const hasNext = !!provCursor.lastDoc;
+  const known = Math.max(
+    provCursor.pagesKnown || 1,
+    current + (hasNext ? 1 : 0)
+  );
+  renderCursorPager(
+    document.getElementById(boxId),
+    { current, pagesKnown: known, hasPrev, hasNext },
+    {
+      goFirst: () => {
+        if (!hasPrev && current === 1) return;
+        provCursor.prevStack = [];
+        provCursor.lastDoc = null;
+        provCursor.page = 1;
+        provCursor.pagesKnown = 1;
+        loadProvisionPage("init");
+      },
+      goPrev: () => {
+        if (hasPrev) loadProvisionPage("prev");
+      },
+      goNext: () => {
+        if (hasNext) loadProvisionPage("next");
+      },
+      goPage: (n) => {
+        // 서버 커서는 인접 페이지만 직접 이동 허용
+        if (n === current) return;
+        if (n === current - 1 && hasPrev) return loadProvisionPage("prev");
+        if (n === current + 1 && hasNext) return loadProvisionPage("next");
+      },
+    },
+    { window: 5 }
+  );
 }
 
 /* =====================================================
@@ -845,7 +921,7 @@ function renderProvisionTable(data = provisionData) {
   tbody.innerHTML = "";
   const start = (provisionCurrentPage - 1) * itemsPerPage;
   const end = start + itemsPerPage;
-  const pageItems = data.slice(start, end);
+  const pageItems = provCursor.serverMode ? data : data.slice(start, end);
 
   pageItems.forEach((row) => {
     const tr = document.createElement("tr");
@@ -861,13 +937,18 @@ function renderProvisionTable(data = provisionData) {
 
   // 서버 페이지네이션 모드면 버튼만 토글, 아닌 경우 기존 페이지네이션
   if (provCursor.serverMode) {
-    updatePagination("provision", itemsPerPage, 1);
-    updateProvisionPagerButtons(
-      !!provCursor.prevStack.length,
-      !!provCursor.lastDoc
-    );
+    renderProvisionPagerA();
   } else {
-    updatePagination("provision", data.length, provisionCurrentPage);
+    const totalPages = Math.max(1, Math.ceil(data.length / itemsPerPage));
+    renderSimplePagerA(
+      "provision-pagination",
+      provisionCurrentPage,
+      totalPages,
+      (to) => {
+        provisionCurrentPage = to;
+        renderProvisionTable(data);
+      }
+    );
   }
 }
 
@@ -889,7 +970,11 @@ function renderVisitTable(data = visitData) {
     tbody.appendChild(tr);
   });
 
-  updatePagination("visit", data.length, visitCurrentPage);
+  const totalPages = Math.max(1, Math.ceil(data.length / itemsPerPage));
+  renderSimplePagerA("visit-pagination", visitCurrentPage, totalPages, (to) => {
+    visitCurrentPage = to;
+    renderVisitTable(data);
+  });
 }
 
 function renderLifeTable(data = lifeData) {
@@ -912,7 +997,11 @@ function renderLifeTable(data = lifeData) {
     tbody.appendChild(tr);
   });
 
-  updatePagination("life", data.length, lifeCurrentPage);
+  const totalPages = Math.max(1, Math.ceil(data.length / itemsPerPage));
+  renderSimplePagerA("life-pagination", lifeCurrentPage, totalPages, (to) => {
+    lifeCurrentPage = to;
+    renderLifeTable(data);
+  });
 }
 
 /* =====================================================
@@ -928,87 +1017,4 @@ function exportRowsXLSX(rows, headerMap, filename) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
   XLSX.writeFile(wb, filename);
-}
-
-/* =====================================================
- * Pagination UI
- * ===================================================== */
-function updatePagination(type, totalItems, currentPage) {
-  const container = document.getElementById(`${type}-pagination`);
-  if (!container) return;
-  container.innerHTML = "";
-
-  const serverMode = type === "provision" && provCursor.serverMode;
-  const totalPages = serverMode ? 1 : Math.ceil(totalItems / itemsPerPage) || 1;
-
-  const prevBtn = document.createElement("button");
-  prevBtn.textContent = "이전";
-  prevBtn.disabled = serverMode
-    ? !provCursor.prevStack.length
-    : currentPage === 1;
-  prevBtn.addEventListener("click", () => {
-    if (type === "provision") {
-      if (serverMode) {
-        loadProvisionPage("prev");
-      } else {
-        provisionCurrentPage--;
-        renderProvisionTable();
-      }
-    } else if (type === "visit") {
-      visitCurrentPage--;
-      renderVisitTable();
-    } else {
-      lifeCurrentPage--;
-      renderLifeTable();
-    }
-  });
-
-  const nextBtn = document.createElement("button");
-  nextBtn.textContent = "다음";
-  nextBtn.disabled = serverMode
-    ? !provCursor.lastDoc
-    : currentPage === totalPages;
-  nextBtn.addEventListener("click", () => {
-    if (type === "provision") {
-      if (serverMode) {
-        loadProvisionPage("next");
-      } else {
-        provisionCurrentPage++;
-        renderProvisionTable();
-      }
-    } else if (type === "visit") {
-      visitCurrentPage++;
-      renderVisitTable();
-    } else {
-      lifeCurrentPage++;
-      renderLifeTable();
-    }
-  });
-
-  const info = document.createElement("span");
-  info.innerHTML = serverMode
-    ? `서버 페이지네이션`
-    : `<input type="number" min="1" max="${totalPages}" value="${currentPage}" style="width:40px"> / ${totalPages} 페이지`;
-  const input = info.querySelector("input");
-  if (input) {
-    input.addEventListener("change", (e) => {
-      let val = parseInt(e.target.value);
-      if (val >= 1 && val <= totalPages) {
-        if (type === "provision") {
-          provisionCurrentPage = val;
-          renderProvisionTable();
-        } else if (type === "visit") {
-          visitCurrentPage = val;
-          renderVisitTable();
-        } else {
-          lifeCurrentPage = val;
-          renderLifeTable();
-        }
-      }
-    });
-  }
-
-  container.appendChild(prevBtn);
-  container.appendChild(info);
-  container.appendChild(nextBtn);
 }

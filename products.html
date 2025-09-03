@@ -100,15 +100,29 @@
       </section>
 
       <h2 style="margin-top: 24px">상품 목록</h2>
-      <select id="sort-select">
-        <option value="price">가격순</option>
-        <option value="name">이름순</option>
-        <option value="barcode">바코드순</option>
-        <option value="date">등록순</option>
-      </select>
+      <div class="list-bar">
+        <select id="sort-select">
+          <option value="price">가격순</option>
+          <option value="name">이름순</option>
+          <option value="barcode">바코드순</option>
+          <option value="date">등록순</option>
+        </select>
+        <div class="pagesize-row">
+          <label class="pagesize-label"
+            >표시 수:
+            <select id="page-size">
+              <option value="10">10개</option>
+              <option value="25" selected>25개</option>
+              <option value="50">50개</option>
+              <option value="100">100개</option>
+            </select>
+          </label>
+        </div>
+      </div>
 
       <div id="product-list" class="product-list"></div>
-      <div id="pagination" class="pagination"></div>
+      <!-- A안 커서 페이저가 그려질 자리 -->
+      <div id="pagination" class="pagebar" aria-label="페이지네이션"></div>
 
       <div id="edit-modal" class="modal hidden">
         <form id="edit-form" class="modal-content">

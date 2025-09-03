@@ -323,35 +323,37 @@ main {
   background-color: #f9f9f9;
 }
 
-/* 페이지네이션 공통 */
-.pagination {
-  margin-top: 20px;
+/* ===== A안 공통 커서 페이저(.pagebar) ===== */
+.pagebar {
+  margin-top: 12px;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
-.pagination button {
-  padding: 5px 12px;
+.pagebar .pager-btn,
+.pagebar .pager-num {
+  padding: 6px 10px;
   border: 1px solid #ccc;
   background-color: #fff;
   color: #333;
   border-radius: 4px;
-  transition: background-color 0.2s;
+  font-size: 14px;
 }
-.pagination button:hover:not(:disabled) {
-  background-color: #f0f0f0;
+.pagebar .pager-num.active {
+  background-color: #1976d2;
+  color: #fff;
+  border-color: #1976d2;
+  font-weight: 700;
 }
-.pagination button:disabled {
+.pagebar .pager-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.pagination input[type="number"] {
-  width: 48px;
-  text-align: center;
-  padding: 4px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+.pagebar .pager-pages {
+  display: inline-flex;
+  gap: 4px;
 }
 
 /* Loading states */
