@@ -34,6 +34,139 @@ let pendingDupRef = null;
 let pendingDupData = null;
 let editingOriginal = null;
 
+// ===== IndexedDB (지원자 캐시) =====
+const IDB_NAME = "pos_customers";
+const IDB_STORE = "support_only";
+let idbReady = null;
+function openIDB() {
+  if (idbReady) return idbReady;
+  idbReady = new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        const st = db.createObjectStore(IDB_STORE, { keyPath: "id" });
+        st.createIndex("nameLower", "nameLower", { unique: false });
+        st.createIndex("regionLower", "regionLower", { unique: false });
+        // phoneTokens는 배열 → 인덱스 대신 전체 스캔(600건 규모 OK)
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return idbReady;
+}
+async function idbPutAll(rows) {
+  const dbi = await openIDB();
+  return await new Promise((resolve) => {
+    const tx = dbi.transaction(IDB_STORE, "readwrite");
+    const st = tx.objectStore(IDB_STORE);
+    rows.forEach((r) => st.put(r));
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => resolve(false);
+  });
+}
+async function idbClear() {
+  const dbi = await openIDB();
+  return await new Promise((resolve) => {
+    const tx = dbi.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).clear();
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => resolve(false);
+  });
+}
+async function idbGetAll() {
+  const dbi = await openIDB();
+  return await new Promise((resolve) => {
+    const tx = dbi.transaction(IDB_STORE, "readonly");
+    const st = tx.objectStore(IDB_STORE);
+    const out = [];
+    st.openCursor().onsuccess = (e) => {
+      const cur = e.target.result;
+      if (cur) {
+        out.push(cur.value);
+        cur.continue();
+      } else resolve(out);
+    };
+  });
+}
+function toCacheShape(c) {
+  // 서버 문서에 인덱스 필드가 없어도 로컬에서 보정 (통합검색: 전필드 대상)
+  const lower = (s) => normalize(s || "");
+  const nameLower = lower(c.name);
+  const regionLower = lower(c.region1);
+  const addressLower = lower(c.address);
+  const typeLower = lower(c.type);
+  const categoryLower = lower(c.category);
+  const noteLower = lower(c.note);
+  const genderLower = lower(c.gender);
+  const birthDigits = String(c.birth || "").replace(/\D/g, "");
+  const display = c.phone || "";
+  const { phoneTokens, phoneLast4 } = buildPhoneIndexFields(display);
+  return {
+    id: c.id,
+    name: c.name || "",
+    birth: c.birth || "",
+    gender: c.gender || "",
+    status: c.status || "",
+    region1: c.region1 || "",
+    address: c.address || "",
+    phone: display,
+    type: c.type || "",
+    category: c.category || "",
+    note: c.note || "",
+    updatedAt: c.updatedAt || "",
+    updatedBy: c.updatedBy || "",
+    // 로컬 인덱스
+    nameLower,
+    regionLower,
+    addressLower,
+    typeLower,
+    categoryLower,
+    noteLower,
+    genderLower,
+    birthDigits,
+    phoneTokens,
+    phoneLast4,
+  };
+}
+async function syncSupportCache() {
+  // 관리자/일반 공통: status=="지원"만 로컬 캐시
+  const base = collection(db, "customers");
+  const snap = await getDocs(query(base, where("status", "==", "지원")));
+  const rows = snap.docs.map((d) => toCacheShape({ id: d.id, ...d.data() }));
+  await idbClear();
+  await idbPutAll(rows);
+}
+
+// 통합검색(로컬 캐시 전필드 OR, 규칙 없이 부분 포함/숫자 포함)
+async function localUnifiedSearch(keyword) {
+  const key = normalize(keyword || "");
+  if (!key) return [];
+  const rows = await idbGetAll();
+  const digits = key.replace(/\D/g, "");
+  return rows
+    .filter((r) => {
+      // 숫자: 전화 토큰/끝 4자리/생년월일 숫자에 포함되면 매칭
+      const numHit =
+        !!digits &&
+        ((r.phoneTokens || []).some((t) => t.includes(digits)) ||
+          (r.phoneLast4 || "") === digits ||
+          (r.birthDigits || "").includes(digits));
+      // 텍스트: 모든 인덱스 필드에 부분 포함이면 매칭
+      const txtHit =
+        (r.nameLower || "").includes(key) ||
+        (r.regionLower || "").includes(key) ||
+        (r.addressLower || "").includes(key) ||
+        (r.typeLower || "").includes(key) ||
+        (r.categoryLower || "").includes(key) ||
+        (r.noteLower || "").includes(key) ||
+        (r.genderLower || "").includes(key);
+      return numHit || txtHit;
+    })
+    .slice(0, 200); // 안전 상한
+}
+
 // ===== 로그 유틸 =====
 async function logEvent(type, data = {}) {
   try {
@@ -168,7 +301,8 @@ async function saveCreateDirect() {
     updatedBy: email,
     // 🔎 인덱스 필드
     nameLower: normalize(val("#create-name")),
-    ...buildPhoneIndexFields(val("#create-phone")),
+    regionLower: normalize(val("#create-region1")),
+    ...buildPhoneIndexFields(picked.display),
   };
   if (!payload.name || !payload.birth) {
     return showToast("이용자명/생년월일은 필수입니다.", true);
@@ -191,6 +325,10 @@ async function saveCreateDirect() {
   if (isAdmin) {
     await setDoc(ref, payload, { merge: true });
     showToast("등록되었습니다");
+    try {
+      if (payload.status === "지원")
+        await idbPutAll([toCacheShape({ id, ...payload })]);
+    } catch {}
     await logEvent("customer_add", {
       target: id,
       name: payload.name,
@@ -226,16 +364,58 @@ function slugId(name, birth) {
   return `${(name || "").trim()}_${(birth || "").replace(/[.\-]/g, "")}`;
 }
 
+// 날짜 표시 YYYY.MM.DD
+function fmtYMD(dateStr) {
+  if (!dateStr) return "";
+  // 2025-09-03 또는 ISO → YYYY.MM.DD
+  const s = String(dateStr);
+  const m = s.match(/^(\d{4})[-/.]?(\d{2})[-/.]?(\d{2})/);
+  if (m) return `${m[1]}.${m[2]}.${m[3]}`;
+  try {
+    const d = new Date(s);
+    if (!isNaN(d)) {
+      const y = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${y}.${mm}.${dd}`;
+    }
+  } catch {}
+  return s;
+}
+// visits 맵에서 가장 최신 날짜(문자열) 추출
+function computeLastVisit(c) {
+  const v = c?.visits;
+  if (!v || typeof v !== "object") return "";
+  let latest = "";
+  for (const k of Object.keys(v)) {
+    const arr = Array.isArray(v[k]) ? v[k] : [];
+    for (const s of arr) {
+      if (!s) continue;
+      // 비교를 위해 YYYY-MM-DD를 우선 사용
+      const iso = String(s).replace(/\./g, "-");
+      if (!latest || iso > latest) latest = iso;
+    }
+  }
+  return latest ? fmtYMD(latest) : "";
+}
+
 async function loadCustomers() {
   const base = collection(db, "customers");
   // 규칙과 일치하도록 쿼리 단계에서 필터링
   const q = isAdmin ? query(base) : query(base, where("status", "==", "지원"));
   const snap = await getDocs(q);
-  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const rows = snap.docs.map((d) => {
+    const data = { id: d.id, ...d.data() };
+    data.lastVisit = computeLastVisit(data);
+    return data;
+  });
   customerData = rows;
   displaydData = rows;
   renderTable(rows);
   updateSortIcons();
+  try {
+    await syncSupportCache();
+  } catch {}
 }
 
 function renderTable(data) {
@@ -278,6 +458,7 @@ function renderTable(data) {
       <td>${c.phone || ""}</td>
       <td class="td-admin-only">${c.type || ""}</td>
       <td class="td-admin-only">${c.category || ""}</td>
+      <td>${c.lastVisit || ""}</td>
       <td>${c.note || ""}</td>
       <td class="actions-cell">
         <button class="icon-btn" title="수정" data-edit="${
@@ -329,6 +510,7 @@ const fieldMap = [
   "phone",
   "type",
   "category",
+  "lastVisit",
   "note",
 ];
 document.querySelectorAll("#customers-thead th").forEach((th, index) => {
@@ -437,14 +619,18 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
     updatedBy: email,
     // 🔎 인덱스 필드
     nameLower: normalize(document.getElementById("edit-name").value),
-    ...buildPhoneIndexFields(
-      formatMultiPhones(document.getElementById("edit-phone").value, true)
-    ),
+    regionLower: normalize(document.getElementById("edit-region1").value),
+    ...buildPhoneIndexFields(picked.display),
   };
 
   if (isAdmin) {
     await updateDoc(ref, updateData);
     showToast("수정되었습니다");
+    try {
+      if (updateData.status === "지원")
+        await idbPutAll([toCacheShape({ id, ...updateData })]);
+    } catch {}
+
     await logEvent("customer_update", { targetId: id, changes: updateData });
   } else {
     // 변경분만 추출하여 승인요청
@@ -545,7 +731,7 @@ function buildPhoneIndexFields(displayPhones = "") {
   return { phoneTokens, phoneLast4 };
 }
 
-// ===== 서버 질의 기반 검색(읽기 최소화) =====
+// =====  검색 =====
 let __searchTimer = null;
 async function runServerSearch() {
   const gInput = document.getElementById("global-search");
@@ -567,18 +753,49 @@ async function runServerSearch() {
   const cons = [];
   if (!isAdmin) cons.push(where("status", "==", "지원"));
 
-  // 1) 글로벌 키워드 우선
+  // 1) 글로벌 키워드(로컬 캐시에서 통합검색) 우선
   if (globalKeyword) {
-    const digits = globalKeyword.replace(/\D/g, "");
-    if (digits.length >= 3) {
-      // 전화번호 토큰 검색 (전체/부분: 최소 3자리)
-      cons.push(where("phoneTokens", "array-contains", digits));
-    } else {
-      // 이름 prefix 검색
-      cons.push(orderBy("nameLower"));
-      cons.push(startAt(globalKeyword));
-      cons.push(endAt(globalKeyword + "\uf8ff"));
+    const localRows = await localUnifiedSearch(globalKeyword);
+    displaydData = localRows;
+    currentPage = 1;
+    renderTable(localRows);
+    // 관리자일 때 0건이면 고급 검색 유도 배너 노출
+    const hint = document.getElementById("search-hint");
+    if (hint) {
+      if (isAdmin && localRows.length === 0) {
+        hint.classList.remove("hidden");
+        const raw = (
+          document.getElementById("global-search").value || ""
+        ).trim();
+        hint.innerHTML =
+          `지원 대상 캐시에서 0건입니다.` +
+          ` <span class="link" id="open-adv">전체 데이터에서 필드 검색하기</span>`;
+        hint.querySelector("#open-adv")?.addEventListener("click", () => {
+          const adv = document.getElementById("advanced-search");
+          adv.classList.remove("hidden");
+          const btn = document.getElementById("toggle-advanced-search");
+          if (btn) btn.textContent = "고급 검색 닫기";
+          // 휴리스틱: 숫자→전화 / '동|구' 포함→행정구역 / 기타→이름
+          const digits = raw.replace(/\D/g, "");
+          const sel = document.getElementById("field-select");
+          const inp = document.getElementById("field-search");
+          if (digits.length >= 3) {
+            sel.value = "phone";
+            inp.value = raw;
+          } else if (/[동구읍면]$/.test(raw)) {
+            sel.value = "region1";
+            inp.value = raw;
+          } else {
+            sel.value = "name";
+            inp.value = raw;
+          }
+        });
+      } else {
+        hint.classList.add("hidden");
+        hint.innerHTML = "";
+      }
     }
+    return; // 로컬로 처리했으니 서버 질의 종료
   } else if (field && fieldValue) {
     // 2) 필드 검색
     switch (field) {
@@ -626,11 +843,20 @@ async function runServerSearch() {
   displaydData = rows;
   currentPage = 1;
   renderTable(rows);
+  // 필드 검색은 서버 질의이므로 배너 숨김
+  const hint = document.getElementById("search-hint");
+  if (hint) {
+    hint.classList.add("hidden");
+    hint.innerHTML = "";
+  }
 }
 
-function filterAndRender() {
+function filterAndRenderField() {
   clearTimeout(__searchTimer);
-  __searchTimer = setTimeout(runServerSearch, 250); // 디바운스
+  __searchTimer = setTimeout(runServerSearch, 200);
+}
+async function runGlobalSearchNow() {
+  await runServerSearch(); // 내부에서 로컬 통합검색 수행
 }
 
 document
@@ -644,19 +870,22 @@ document
       ? "고급 검색 열기"
       : "고급 검색 닫기";
   });
+document
+  .getElementById("btn-run-search")
+  ?.addEventListener("click", runGlobalSearchNow);
 
 document
-  .getElementById("global-search")
-  .addEventListener("input", filterAndRender);
-document
-  .getElementById("exact-match")
-  .addEventListener("change", filterAndRender);
-document
   .getElementById("field-select")
-  .addEventListener("change", filterAndRender);
+  .addEventListener("change", filterAndRenderField);
+document.getElementById("field-search").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    filterAndRenderField();
+  }
+});
 document
-  .getElementById("field-search")
-  .addEventListener("input", filterAndRender);
+  .getElementById("btn-run-field-search")
+  ?.addEventListener("click", filterAndRenderField);
 
 // 초기 로딩: 인증 준비(onAuthStateChanged) 후 역할/목록 로드
 document.addEventListener("DOMContentLoaded", () => {
@@ -665,15 +894,14 @@ document.addEventListener("DOMContentLoaded", () => {
     bindToolbarAndCreateModal();
     const searchInput = document.getElementById("global-search");
     if (searchInput) {
-      searchInput.focus();
       searchInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
-          filterAndRender();
+          runGlobalSearchNow();
         }
       });
     }
-    loadCustomers();
+    await loadCustomers();
   });
 });
 
@@ -694,6 +922,12 @@ document.addEventListener("click", async (e) => {
     if (!confirm("이 이용자를 삭제하시겠습니까?")) return;
     await deleteDoc(doc(db, "customers", del.dataset.del));
     showToast("삭제되었습니다");
+    // 캐시 제거
+    try {
+      const dbi = await openIDB();
+      const tx = dbi.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).delete(del.dataset.del);
+    } catch {}
     await logEvent("customer_delete", { targetId: del.dataset.del });
     await loadCustomers();
   } else {
@@ -723,6 +957,7 @@ function bindUploadTab() {
   const execBtn = modal.querySelector("#btn-upload-exec");
   let dryRows = null;
   let lastOptions = null;
+  let lastDeactivateTargets = [];
 
   dryBtn.addEventListener("click", async () => {
     const f = fileEl.files?.[0];
@@ -748,7 +983,20 @@ function bindUploadTab() {
       if (all.includes(k)) dup++;
     });
     const newCnt = total - dup;
-    preview.textContent = `총 ${total}건 · 신규 ${newCnt}건 · 중복 ${dup}건`;
+    // ‘업로드 제외 기존 지원 → 중단’ 대상 계산(해당 모드일 때만)
+    lastDeactivateTargets = [];
+    if (lastOptions.statusMode === "all-support-stop-others") {
+      const supportIds = (
+        await getDocs(query(base, where("status", "==", "지원")))
+      ).docs.map((d) => d.id);
+      lastDeactivateTargets = supportIds.filter((id) => !keys.has(id));
+    }
+    const stopCnt = lastDeactivateTargets.length;
+    preview.textContent =
+      `총 ${total}건 · 신규 ${newCnt}건 · 중복 ${dup}건` +
+      (lastOptions.statusMode === "all-support-stop-others"
+        ? ` · ‘중단’ 대상 ${stopCnt}건`
+        : "");
     execBtn.disabled = false;
   });
 
@@ -765,6 +1013,16 @@ function bindUploadTab() {
           { merge: true }
         );
       }
+      // 옵션: 업로드에 포함되지 않은 기존 ‘지원’을 일괄 ‘중단’으로 변경
+      if (
+        lastOptions?.statusMode === "all-support-stop-others" &&
+        lastDeactivateTargets?.length
+      ) {
+        await batchUpdateStatus(lastDeactivateTargets, "중단", email);
+        await logEvent("customer_bulk_deactivate", {
+          count: lastDeactivateTargets.length,
+        });
+      }
       showToast("업로드가 완료되었습니다");
       await logEvent("customer_add", { mode: "bulk", count: dryRows.length });
       await loadCustomers();
@@ -778,7 +1036,15 @@ function bindUploadTab() {
         return;
       await setDoc(doc(collection(db, "approvals")), {
         type: "customer_bulk_upload",
-        payload: { rows: dryRows, options: lastOptions },
+        payload: {
+          rows: dryRows,
+          options: lastOptions,
+          // 관리자가 승인 처리 시 사용할 ‘중단’ 대상
+          deactivateTargets:
+            lastOptions?.statusMode === "all-support-stop-others"
+              ? lastDeactivateTargets
+              : [],
+        },
         requestedBy: auth.currentUser?.email || "",
         requestedAt: Timestamp.now(),
         approved: false,
@@ -787,6 +1053,8 @@ function bindUploadTab() {
       await logEvent("approval_request", {
         approvalType: "customer_bulk_upload",
         count: dryRows.length,
+        deactivateOthers: lastOptions?.statusMode === "all-support-stop-others",
+        deactivateCount: lastDeactivateTargets?.length || 0,
       });
       // 비관리자는 실제 반영이 아니므로 목록 재조회만(또는 그대로 유지)
     }
@@ -817,8 +1085,7 @@ async function parseAndNormalizeExcel(file, opts) {
       "센터"
     );
     const address = pick(row, "주소");
-    const telCell = pick(row, "전화", "연락처", "집", "연락처1"); // 유선
-    const hpCell = pick(row, "핸드폰", "휴대폰", "모바일", "연락처2"); // 휴대폰
+    const { telCell, hpCell } = pickPhonesFromRow(row);
     const category = pick(row, "이용자분류", "분류", "세대유형");
     const type = pick(row, "이용자구분", "구분", "지원자격");
     const note = pick(row, "비고", "메모", "특이사항");
@@ -834,12 +1101,22 @@ async function parseAndNormalizeExcel(file, opts) {
         if (!gender) gender = d.gender;
       }
     }
+    birth = formatBirth(birth, true, rrn);
     if (!birth) continue; // 생년월일은 필수
 
     // 상태 기본값(옵션/파일명 기반)
     if (!status) {
-      if (opts.statusMode === "all-support") status = "지원";
+      if (
+        opts.statusMode === "all-support" ||
+        opts.statusMode === "all-support-stop-others"
+      )
+        status = "지원";
       else if (opts.allowMissingStatus) status = "지원";
+    } else if (
+      opts.statusMode === "all-support" ||
+      opts.statusMode === "all-support-stop-others"
+    ) {
+      status = "지원";
     }
 
     // 연락처 파싱: 대표 1개  보조 1개
@@ -865,6 +1142,7 @@ async function parseAndNormalizeExcel(file, opts) {
 
     // 🔎 인덱스 필드 추가
     rec.nameLower = normalize(name);
+    rec.regionLower = normalize(region1 || "");
     const toks = [];
     [p.prim, p.sec].filter(Boolean).forEach((n) => {
       const digits = String(n).replace(/\D/g, "");
@@ -913,6 +1191,54 @@ function pick(obj, ...keys) {
   }
   return "";
 }
+
+// 헤더 정규화: 소문자, 공백/괄호/구분자 제거
+function _normHeader(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[\s\(\)\[\]\{\}\-_:]/g, "");
+}
+// 연락처 헤더 자동 감지
+function pickPhonesFromRow(row) {
+  const keys = Object.keys(row || {});
+  const hpVals = [];
+  const telVals = [];
+  for (const k of keys) {
+    const nk = _normHeader(k);
+    const val = row[k];
+    if (val == null || val === "") continue;
+    // 대표 패턴
+    const hasMobile =
+      /휴대|핸드폰|모바일|cell|handphone|hp/.test(nk) ||
+      (/연락처\d*$/.test(nk) && /1$/.test(nk)); // 연락처1 → 휴대 우선
+    const hasTel =
+      (/전화|연락처|자택|집/.test(nk) && !/휴대|핸드폰|모바일/.test(nk)) ||
+      /전화번호\d*$/.test(nk) ||
+      (/연락처\d*$/.test(nk) && /2$/.test(nk)); // 연락처2 → 유선 쪽
+    if (hasMobile) hpVals.push(val);
+    else if (hasTel) telVals.push(val);
+    // 애매하면 보류(모두 스캔 후 부족분 보충)
+  }
+  // 보충: 아무 것도 못 찾았으면 전체 열에서 숫자 포함 칸을 긁어 통합
+  const concat = (arr) =>
+    arr
+      .map((v) => String(v))
+      .filter((s) => /\d{2,}/.test(s))
+      .join(" ");
+  let hpCell = concat(hpVals);
+  let telCell = concat(telVals);
+  if (!hpCell && !telCell) {
+    const any = keys
+      .map((k) => row[k])
+      .map((v) => String(v))
+      .filter((s) => /\d{2,}/.test(s))
+      .join(" ");
+    // 휴대/유선 구분 없이 한 뭉치라도 넘겨서 파서가 모바일 우선으로 뽑게
+    return { hpCell: any, telCell: "" };
+  }
+  return { hpCell, telCell };
+}
+
 // 이름 앞의 "7." 등 제거
 function cleanName(v) {
   return String(v || "")
@@ -1107,14 +1433,83 @@ async function onDupNew() {
 }
 
 // ===== 입력 보조: 자동 포맷 =====
-function formatBirth(v, strict = false) {
-  const d = String(v || "")
-    .replace(/\D/g, "")
-    .slice(0, 8);
-  if (d.length <= 4) return d;
-  if (d.length <= 6) return `${d.slice(0, 4)}.${d.slice(4)}`;
-  return `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}`;
+// 생년월일 표준화(YYYY.MM.DD)
+function _pad2(s) {
+  s = String(s || "");
+  return s.length === 1 ? "0" + s : s.slice(0, 2);
 }
+function _clampMD(y, m, d) {
+  const mm = parseInt(m, 10),
+    dd = parseInt(d, 10);
+  if (!(mm >= 1 && mm <= 12) || !(dd >= 1 && dd <= 31)) return null;
+  return { y, m: _pad2(m), d: _pad2(d) };
+}
+// 주민번호에서 출생/성별 추출(YYMMDD-1/2/3/4… 형태, 최소 앞6+뒤1)
+function extractBirthGenderFromRRN(rrn) {
+  const m = String(rrn || "")
+    .replace(/[^\d]/g, "")
+    .match(/^(\d{2})(\d{2})(\d{2})(\d)/);
+  if (!m) return null;
+  const [, yy, mm, dd, gStr] = m;
+  const g = Number(gStr);
+  const cent = g === 1 || g === 2 ? "19" : g === 3 || g === 4 ? "20" : null;
+  if (!cent) return null;
+  const chk = _clampMD(cent + yy, mm, dd);
+  if (!chk) return null;
+  const gender = g === 1 || g === 3 ? "남" : "여";
+  return { birth: `${chk.y}.${chk.m}.${chk.d}`, gender };
+}
+/**
+ * 다양한 입력을 YYYY.MM.DD 로 표준화
+ * - rrnHint 제공 시 세기(1900/2000)를 rrn으로 판단
+ * - 8자리(YYYYMMDD), 6자리(YYMMDD), 구분자 포함 형태 모두 지원
+ * - 6자리일 때는 관례상 30~99 → 19xx, 00~29 → 20xx 로 추정
+ */
+function formatBirth(input, force = true, rrnHint = null) {
+  const s = String(input || "").trim();
+  if (!s && rrnHint) {
+    const by = extractBirthGenderFromRRN(rrnHint);
+    if (by?.birth) return by.birth;
+    return "";
+  }
+  // 같은 칸에 RRN이 섞여 들어온 경우도 처리
+  const fromSelf = extractBirthGenderFromRRN(s);
+  if (fromSelf?.birth) return fromSelf.birth;
+
+  const digits = s.replace(/\D/g, "");
+  if (digits.length >= 8) {
+    // YYYYMMDD
+    const y = digits.slice(0, 4),
+      m = digits.slice(4, 6),
+      d = digits.slice(6, 8);
+    const chk = _clampMD(y, m, d);
+    if (chk) return `${chk.y}.${chk.m}.${chk.d}`;
+  }
+  if (digits.length === 6) {
+    // YYMMDD → 세기 추정 또는 rrnHint 이용
+    if (rrnHint) {
+      const by = extractBirthGenderFromRRN(rrnHint);
+      if (by?.birth) return by.birth;
+    }
+    const yy = digits.slice(0, 2),
+      m = digits.slice(2, 4),
+      d = digits.slice(4, 6);
+    const y = (parseInt(yy, 10) >= 30 ? "19" : "20") + yy;
+    const chk = _clampMD(y, m, d);
+    if (chk) return `${chk.y}.${chk.m}.${chk.d}`;
+  }
+  // 분리자 포함: 1999-1-3, 1999.01.03, 99/01/03 등
+  const parts = s.split(/[.\-\/\s]+/).filter(Boolean);
+  if (parts.length === 3) {
+    let [y, m, d] = parts;
+    if (y.length === 2) y = (parseInt(y, 10) >= 30 ? "19" : "20") + y;
+    const chk = _clampMD(y, m, d);
+    if (chk) return `${chk.y}.${chk.m}.${chk.d}`;
+  }
+  // 진행형 입력 중엔 그대로 두고, blur/저장 시 강제 표준화
+  return s;
+}
+
 function formatMultiPhones(text, strict = false) {
   // 쉼표/슬래시/공백으로 분리된 여러 번호를 각각 포맷
   const tokens = String(text || "")
@@ -1182,4 +1577,23 @@ function splitPhonesToArray(s) {
     .split(/[,\s/]+/)
     .map((x) => x.replace(/\D/g, ""))
     .filter(Boolean);
+}
+
+// ── 상태 일괄 변경(배치, 500 제한 고려) ───────────────────────────────
+async function batchUpdateStatus(ids = [], nextStatus = "중단", email = "") {
+  if (!ids.length) return;
+  const CHUNK = 450; // 안전 여유
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const slice = ids.slice(i, i + CHUNK);
+    const batch = writeBatch(db);
+    slice.forEach((id) => {
+      const ref = doc(db, "customers", id);
+      batch.update(ref, {
+        status: nextStatus,
+        updatedAt: new Date().toISOString(),
+        updatedBy: email || auth.currentUser?.email || "unknown",
+      });
+    });
+    await batch.commit();
+  }
 }

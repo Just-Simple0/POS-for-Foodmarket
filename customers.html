@@ -34,14 +34,21 @@
       <h2>이용자 조회</h2>
       <div id="top-bar">
         <div class="search-bar">
-          <input id="global-search" placeholder="전체 검색 (이름, 주소 등)" />
-
-          <label>
-            <input type="checkbox" id="exact-match" /> 정확한 검색
-          </label>
-
-          <button id="toggle-advanced-search">고급 검색 열기</button>
+          <input
+            id="global-search"
+            placeholder="이름/행정구역 접두 또는 전화 숫자"
+          />
+          <button id="btn-run-search" class="btn">검색</button>
+          <button id="toggle-advanced-search" class="btn btn-ghost">
+            고급 검색 열기
+          </button>
         </div>
+        <!-- 로컬 캐시 0건 시 서버 필드 검색 유도 배너 -->
+        <div
+          id="search-hint"
+          class="search-hint hidden"
+          aria-live="polite"
+        ></div>
 
         <div id="advanced-search" class="hidden">
           <select id="field-select">
@@ -57,6 +64,7 @@
             <option value="category">이용자분류</option>
           </select>
           <input id="field-search" placeholder="선택 필드 검색" />
+          <button id="btn-run-field-search" class="btn">조회</button>
         </div>
       </div>
 
@@ -91,6 +99,7 @@
               <th data-label="전화번호">전화번호</th>
               <th data-label="이용자구분" class="th-admin-only">이용자구분</th>
               <th data-label="이용자분류" class="th-admin-only">이용자분류</th>
+              <th data-label="최근 방문일자">최근 방문일자</th>
               <th data-label="비고">비고</th>
               <th data-label="작업" class="th-actions">작업</th>
             </tr>
@@ -247,8 +256,21 @@
                       name="opt-status-mode"
                       value="all-support"
                     />
-                    <span>업로드된 인원 전부 ‘지원’</span></label
+                    <span>업로드 전원 ‘지원’</span></label
                   >
+                  <label
+                    title="업로드 전원 ‘지원’으로 저장하고, 이번 업로드에 포함되지 않은 기존 ‘지원’ 인원은 모두 ‘중단’으로 변경"
+                  >
+                    <input
+                      type="radio"
+                      name="opt-status-mode"
+                      value="all-support-stop-others"
+                    />
+                    <span
+                      >업로드 전원 ‘지원’ 및 업로드 <b style="color: red;">제외</b>된 인원
+                      <b style="color: red;">‘중단’</b></span
+                    >
+                  </label>
                 </fieldset>
               </div>
               <div class="upload-preview" id="upload-preview"></div>

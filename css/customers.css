@@ -66,6 +66,21 @@
   margin-bottom: 15px;
 }
 
+/* 로컬 캐시 0건 안내 배너 */
+.search-hint {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff7cc;
+  color: #7a5b00;
+  font-weight: 600;
+}
+.search-hint .link {
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 6px;
+}
+
 /* 고급 검색 배치만 보조 */
 #advanced-search {
   align-items: center;
@@ -102,6 +117,9 @@
   min-width: 980px;
   border-collapse: collapse;
   table-layout: auto;
+}
+#customer-table th {
+  white-space: nowrap;
 }
 #customer-table td:nth-child(6) {
   text-align: left;
@@ -318,6 +336,7 @@ th:hover {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 6px;
+  font-weight: 600;
 }
 .phone-list {
   display: flex;
