@@ -110,6 +110,27 @@
   background: #f5faff;
   transition: background 0.15s ease;
 }
+
+/* 비활성화 사용자 행(회색 처리 + 조작막기) */
+tr.is-disabled {
+  opacity: 0.6;
+  filter: grayscale(1);
+}
+tr.is-disabled .btn,
+tr.is-disabled .role-select {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* 경고 톤 버튼(삭제용) - 간단 테마 */
+.btn-warn {
+  border: 1px solid #e11d48;
+  color: #e11d48;
+}
+.btn-warn:hover {
+  background: #fee2e2;
+}
+
 /* (9) 가상 스크롤용 스페이서 */
 .vspacer td {
   padding: 0 !important;
@@ -229,30 +250,30 @@
 }
 
 /* ==== 탭 ==== */
-.tabbar{
-  display:flex;
-  justify-content:center;
-  gap:10px;
-  margin:20px 0;
+.tabbar {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0;
 }
-.tab{
-  padding:10px 20px;
-  border:2px solid #ccc;
-  background-color:#fff;
-  color:#ccc;
-  border-radius:10px;
-  font-weight:bold;
-  cursor:pointer;
-  transition:all .2s ease;
+.tab {
+  padding: 10px 20px;
+  border: 2px solid #ccc;
+  background-color: #fff;
+  color: #ccc;
+  border-radius: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
-.tab.active{
-  background-color:#007bff;
-  color:#fff;
-  border-color:#007bff;
+.tab.active {
+  background-color: #007bff;
+  color: #fff;
+  border-color: #007bff;
 }
-.tab:not(.active):hover{
-  background-color:#e0e0e0;
-  color:#000;
+.tab:not(.active):hover {
+  background-color: #e0e0e0;
+  color: #000;
 }
 
 /* 승인 테이블 가독성 보강 */

@@ -16,7 +16,7 @@ import {
   writeBatch,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { showToast, openCaptchaModal } from "./components/comp.js";
+import { showToast, openCaptchaModal, openConfirm } from "./components/comp.js";
 
 let ADMIN_STS = sessionStorage.getItem("admin_sts") || "";
 let __adminSessionPromise = null; // 동시 실행 가드
@@ -148,9 +148,11 @@ const els = {
   cRoles: document.getElementById("c-roles"),
   cDisable: document.getElementById("c-disable"),
   cReset: document.getElementById("c-reset"),
+  cDelete: document.getElementById("c-delete"),
   c7Roles: document.getElementById("c7-roles"),
   c7Disable: document.getElementById("c7-disable"),
   c7Reset: document.getElementById("c7-reset"),
+  c7Delete: document.getElementById("c7-delete"),
   // tabs
   tabUsersBtn: document.querySelector('.tabbar .tab[data-tab="users"]'),
   tabAprBtn: document.querySelector('.tabbar .tab[data-tab="approvals"]'),
@@ -286,19 +288,23 @@ function renderRows(users) {
 
 function renderRow(u) {
   const tr = document.createElement("tr");
+  if (u.disabled) tr.classList.add("is-disabled");
   tr.innerHTML = `
     <td><input type="checkbox" class="row-chk" data-uid="${u.uid}"></td>
     <td>${u.email || "-"}</td>
     <td>${u.displayName || "-"}</td>
-    <td><select class="input role-select" data-uid="${u.uid}">${roleOptions(
-    u.role
-  )}</select></td>
+    <td><select class="input role-select" data-uid="${u.uid}" ${
+    u.disabled ? "disabled" : ""
+  }>${roleOptions(u.role)}</select></td>
     <td>${fmtTime(u.lastSignInTime)}</td>
     <td>${(u.providers || []).join(", ") || "-"}</td>
     <td><span class="badge small muted" data-anom="${u.uid}">확인</span></td>
-    <td><button class="btn btn-ghost btn-apply" data-uid="${
-      u.uid
-    }">적용</button></td>`;
+    <td>
+      <button class="btn btn-ghost btn-apply" data-uid="${u.uid}" ${
+    u.disabled ? "disabled" : ""
+  }>적용</button>
+      <button class="btn btn-warn btn-delete" data-uid="${u.uid}">삭제</button>
+    </td>`;
   return tr;
 }
 
@@ -411,6 +417,11 @@ async function disableEnable(uidList, disabled) {
     const data = await res.json();
     if (!res.ok || !data.ok) return showToast("일부 처리 실패", true);
   }
+  // 화면 반영 (회색 처리/컨트롤 비활성)
+  currentUsers = currentUsers.map((u) =>
+    uidList.includes(u.uid) ? { ...u, disabled } : u
+  );
+  renderRows(currentUsers);
   showToast(disabled ? "비활성화 완료" : "활성화 완료");
 }
 
@@ -489,16 +500,25 @@ async function loadCounters() {
     if (els.cDisable)
       els.cDisable.textContent = String(today.usersDisabled || 0);
     if (els.cReset) els.cReset.textContent = String(today.passwordResets || 0);
+    if (els.cDelete) els.cDelete.textContent = String(today.userDeleted || 0);
     if (els.c7Roles) els.c7Roles.textContent = String(week.rolesChanged || 0);
     if (els.c7Disable)
       els.c7Disable.textContent = String(week.usersDisabled || 0);
     if (els.c7Reset) els.c7Reset.textContent = String(week.passwordResets || 0);
+    if (els.c7Delete) els.c7Delete.textContent = String(week.userDeleted || 0);
   } catch {
-    ["cRoles", "cDisable", "cReset", "c7Roles", "c7Disable", "c7Reset"].forEach(
-      (id) => {
-        if (els[id]) els[id].textContent = "0";
-      }
-    );
+    [
+      "cRoles",
+      "cDisable",
+      "cReset",
+      "cDelete",
+      "c7Roles",
+      "c7Disable",
+      "c7Reset",
+      "c7Delete",
+    ].forEach((id) => {
+      if (els[id]) els[id].textContent = "0";
+    });
   }
 }
 
@@ -535,15 +555,27 @@ els.tbody?.addEventListener("change", (e) => {
 // 키보드 조작/라벨 클릭 등 change 이벤트 케이스까지 커버하기 위해 추가합니다.
 
 async function fetchLogs() {
+  // ✅ 쿼리스트링 구성
+  const params = new URLSearchParams();
+  const uid = (els.logUid?.value || "").trim();
+  const action = (els.logAction?.value || "").trim();
+  if (uid) params.set("uid", uid); // 특정 UID 필터 (선택)
+  if (action) params.set("action", action); // 액션 필터 (선택)
+  params.set("limit", "50"); // 기본 50건 (서버 최대 100)
+
+  // 요청
   const res = await adminFetch(`/api/admin/logs?` + params.toString());
   const data = await res.json();
   if (!res.ok || !data.ok) return showToast("로그 조회 실패", true);
+
   const logs = data.logs || [];
   const frag = document.createDocumentFragment();
+
   if (!logs.length) {
     els.logsTbody.innerHTML = `<tr><td colspan="5">결과 없음</td></tr>`;
     return;
   }
+
   for (const l of logs) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -555,8 +587,7 @@ async function fetchLogs() {
         (Array.isArray(l.targets) ? l.targets.join(", ") : "") ||
         "-"
       }</td>
-      <td>${l.status || "-"}</td>
-    `;
+      <td>${l.status || "-"}</td>`;
     frag.appendChild(tr);
   }
   els.logsTbody.innerHTML = "";
@@ -603,6 +634,40 @@ els.tbody?.addEventListener("click", async (e) => {
     if (!ok) return;
   }
   applyRole(uid, role).catch((e) => showToast(e.message || String(e), true));
+});
+
+// 삭제 버튼
+els.tbody?.addEventListener("click", async (e) => {
+  const del = e.target.closest(".btn-delete");
+  if (!del) return;
+  const uid = del.getAttribute("data-uid");
+  const ok = await openConfirm({
+    title: "계정 삭제",
+    message: "정말 이 계정을 삭제할까요? 되돌릴 수 없습니다.",
+    variant: "warn",
+    confirmText: "삭제",
+    cancelText: "취소",
+  });
+  if (!ok) return;
+  try {
+    const res = await adminFetch(`/api/admin/deleteUser`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data?.message || "삭제 실패");
+    // UI 제거 & 상태 갱신
+    currentUsers = currentUsers.filter((u) => u.uid !== uid);
+    els.tbody
+      .querySelector(`button[data-uid="${uid}"]`)
+      ?.closest("tr")
+      ?.remove();
+    updateSelectionUI();
+    showToast("삭제 완료");
+  } catch (err) {
+    showToast(err.message || "삭제 실패", true);
+  }
 });
 
 // 이상 징후 뱃지 클릭 → on-demand 조회
