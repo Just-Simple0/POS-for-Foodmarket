@@ -604,6 +604,179 @@ export function showToast(message, isError = false) {
   }, 2000);
 }
 
+// ---------------- Confirm / Alert Modals (Reusable) ----------------
+const CM_ICONS = {
+  info: "fa-circle-info",
+  warn: "fa-triangle-exclamation",
+  danger: "fa-circle-exclamation",
+};
+const CM_FOCUSABLE =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+function cm_trapFocus(modalEl, e) {
+  if (e.key !== "Tab") return;
+  const els = modalEl.querySelectorAll(CM_FOCUSABLE);
+  if (!els.length) return;
+  const first = els[0];
+  const last = els[els.length - 1];
+  if (e.shiftKey) {
+    if (document.activeElement === first) {
+      last.focus();
+      e.preventDefault();
+    }
+  } else if (document.activeElement === last) {
+    first.focus();
+    e.preventDefault();
+  }
+}
+
+function cm_buildDialog({
+  title = "알림",
+  message = "",
+  variant = "info", // 'info' | 'warn' | 'danger'
+  confirmText = "확인",
+  cancelText = "취소",
+  showCancel = true,
+}) {
+  const overlay = document.createElement("div");
+  overlay.className = `modal modal--confirm cm-variant-${variant}`;
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-labelledby", "cm-title");
+  overlay.setAttribute("aria-describedby", "cm-desc");
+  overlay.tabIndex = -1;
+
+  const dlg = document.createElement("div");
+  dlg.className = "cm-dialog";
+  dlg.innerHTML = `
+    <div class="cm-header">
+      <i class="fa-solid ${CM_ICONS[variant] || CM_ICONS.info}" aria-hidden="true"></i>
+      <h3 id="cm-title" class="cm-title">${title}</h3>
+    </div>
+    <div id="cm-desc" class="cm-body">${message}</div>
+    <div class="cm-footer">
+      ${
+        showCancel
+          ? `<button type="button" class="cm-btn cm-btn-ghost" data-act="cancel"> ${cancelText}</button>`
+          : ""
+      }
+      <button type="button" class="cm-btn ${
+        variant === "danger" ? "cm-btn-danger" : "cm-btn-primary"
+      }" data-act="confirm">${confirmText}</button>
+    </div>
+  `;
+  overlay.appendChild(dlg);
+  return { overlay, dlg };
+}
+
+/** 열려 있는 순서 유지/포커스 복귀 */
+function cm_openBase({
+  title,
+  message,
+  variant,
+  confirmText,
+  cancelText,
+  showCancel,
+  allowOutsideClose = false,
+  allowEscapeClose = true,
+  defaultFocus = "confirm", // 'confirm' | 'cancel'
+}) {
+  const { overlay, dlg } = cm_buildDialog({
+    title,
+    message,
+    variant,
+    confirmText,
+    cancelText,
+    showCancel,
+  });
+  document.body.appendChild(overlay);
+
+  const last = document.activeElement;
+  // 포커스 진입
+  requestAnimationFrame(() => {
+    const target =
+      defaultFocus === "cancel"
+        ? dlg.querySelector('[data-act="cancel"]')
+        : dlg.querySelector('[data-act="confirm"]');
+    (target || dlg).focus();
+  });
+
+  return new Promise((resolve) => {
+    const cleanup = (val) => {
+      overlay.removeEventListener("keydown", onKey);
+      overlay.removeEventListener("mousedown", onDown);
+      overlay.remove();
+      if (last && typeof last.focus === "function") last.focus();
+      resolve(val);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape" && allowEscapeClose) return cleanup(false);
+      if (e.key === "Tab") cm_trapFocus(overlay, e);
+    };
+    const onDown = (e) => {
+      if (!allowOutsideClose) return;
+      if (e.target === overlay) cleanup(false);
+    };
+    overlay.addEventListener("keydown", onKey);
+    overlay.addEventListener("mousedown", onDown);
+    overlay.addEventListener("click", (e) => {
+      const act = e.target?.dataset?.act;
+      if (act === "confirm") cleanup(true);
+      if (act === "cancel") cleanup(false);
+    });
+  });
+}
+
+/** 확인 모달: confirm/취소 → boolean */
+export function openConfirm(opts = {}) {
+  const {
+    title = "확인",
+    message = "",
+    variant = "info",
+    confirmText = "확인",
+    cancelText = "취소",
+    allowOutsideClose = false,
+    allowEscapeClose = true,
+    defaultFocus = variant === "danger" ? "cancel" : "confirm",
+  } = opts;
+  return cm_openBase({
+    title,
+    message,
+    variant,
+    confirmText,
+    cancelText,
+    showCancel: true,
+    allowOutsideClose,
+    allowEscapeClose,
+    defaultFocus,
+  });
+}
+
+/** 알림 모달: 확인만 → void */
+export function openAlert(opts = {}) {
+  const {
+    title = "알림",
+    message = "",
+    variant = "info",
+    confirmText = "확인",
+    allowOutsideClose = true,
+    allowEscapeClose = true,
+    defaultFocus = "confirm",
+  } = opts;
+  return cm_openBase({
+    title,
+    message,
+    variant,
+    confirmText,
+    cancelText: "",
+    showCancel: false,
+    allowOutsideClose,
+    allowEscapeClose,
+    defaultFocus,
+  }).then(() => {});
+}
+
+
 // ------ Firestore 폴백 집계 ------
 async function fallbackPendingSummaryFromFirestore() {
   try {

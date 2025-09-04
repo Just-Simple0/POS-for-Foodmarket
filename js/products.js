@@ -4,11 +4,13 @@ import {
   getDocs,
   getDoc,
   addDoc,
+  setDoc,
   deleteDoc,
   updateDoc,
   doc,
   serverTimestamp,
   writeBatch,
+  arrayUnion,
   query,
   where,
   orderBy,
@@ -22,6 +24,7 @@ import {
   showToast,
   renderCursorPager,
   initPageSizeSelect,
+  openConfirm,
 } from "./components/comp.js";
 
 const productsCol = collection(db, "products");
@@ -39,9 +42,109 @@ let editingProductId = null; // 수정할 상품 ID
 // ✅ 엑셀 업로드용 상태
 let parsedRows = []; // 파싱된 행 (정상 데이터만)
 let parsedIssues = []; // 누락/형식오류 등 스킵된 행
+// 수정 모달 변경 감지용 스냅샷
+let editInitial = null;
 
 const productList = document.getElementById("product-list");
 const pagination = document.getElementById("pagination");
+
+/* ---------------------------
+  카테고리 인덱스 (meta/categories_products)
+   - 진입 시 1회 로드(+ localStorage TTL 캐시)
+   - 새 카테고리 등장 시에만 arrayUnion로 1회 업데이트
+---------------------------- */
+const CAT_DOC = doc(db, "meta", "categories_products");
+const CAT_CACHE_KEY = "catIndex:products:v1";
+let categoriesCache = [];
+
+function normalizeCategory(c) {
+  return String(c || "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+function injectCategoriesToDOM(list) {
+  const sel = document.getElementById("filter-category");
+  if (sel) {
+    const prev = sel.value;
+    // 첫 옵션(전체 분류) 제외 삭제
+    for (let i = sel.options.length - 1; i >= 1; i--) sel.remove(i);
+    list.forEach((cat) => {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      sel.appendChild(opt);
+    });
+    if (prev && list.includes(prev)) sel.value = prev;
+  }
+  const dl = document.getElementById("category-presets");
+  if (dl) {
+    dl.innerHTML = "";
+    list.forEach((cat) => {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      dl.appendChild(opt);
+    });
+  }
+}
+async function loadCategoryIndex({ ttlMs = 86400000 } = {}) {
+  const now = Date.now();
+  try {
+    const cached = JSON.parse(localStorage.getItem(CAT_CACHE_KEY) || "null");
+    if (
+      cached &&
+      Array.isArray(cached.list) &&
+      typeof cached.cachedAt === "number" &&
+      now - cached.cachedAt < ttlMs
+    ) {
+      categoriesCache = cached.list;
+      injectCategoriesToDOM(categoriesCache);
+      return categoriesCache;
+    }
+  } catch {}
+  try {
+    const snap = await getDoc(CAT_DOC);
+    const list =
+      snap.exists() && Array.isArray(snap.data().list) ? snap.data().list : [];
+    categoriesCache = list;
+    injectCategoriesToDOM(list);
+    localStorage.setItem(
+      CAT_CACHE_KEY,
+      JSON.stringify({ list, cachedAt: now })
+    );
+    return list;
+  } catch (e) {
+    console.error(e);
+    return [];
+  }
+}
+async function addCategoriesToIndex(cats) {
+  const norm = Array.from(
+    new Set((cats || []).map(normalizeCategory).filter(Boolean))
+  );
+  if (!norm.length) return;
+  try {
+    await updateDoc(CAT_DOC, {
+      list: arrayUnion(...norm),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (e) {
+    // 문서가 없으면 생성(merge)
+    await setDoc(
+      CAT_DOC,
+      { list: arrayUnion(...norm), updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+  }
+  // 로컬 캐시/DOM 즉시 갱신(추가 읽기 없이)
+  categoriesCache = Array.from(new Set([...categoriesCache, ...norm]));
+  injectCategoriesToDOM(categoriesCache);
+  try {
+    localStorage.setItem(
+      CAT_CACHE_KEY,
+      JSON.stringify({ list: categoriesCache, cachedAt: Date.now() })
+    );
+  } catch {}
+}
 
 /* ---------------------------
    서버 커서 페이징(A안)
@@ -60,21 +163,26 @@ function buildProductQuery(direction = "init") {
     document.getElementById("product-name")?.value.trim() || "";
   const barcodeFilter =
     document.getElementById("product-barcode")?.value.trim() || "";
-  const sortBy = document.getElementById("sort-select")?.value || "price";
+  const sortBy = document.getElementById("sort-select")?.value || "date";
+  const categoryFilter =
+    document.getElementById("filter-category")?.value.trim() || "";
 
   const cons = [];
   // 필터 우선순위: barcode ===, 없으면 name 접두, 둘 다 없으면 정렬만
   let orders = [];
   if (barcodeFilter) {
+    if (categoryFilter) cons.push(where("category", "==", categoryFilter));
     cons.push(where("barcode", "==", barcodeFilter));
     orders = [orderBy(documentId())]; // where== 필터 시 보조 정렬
   } else if (nameFilter) {
     // 이름 접두 검색: name 기준(대소문자 구분)
+    if (categoryFilter) cons.push(where("category", "==", categoryFilter));
     cons.push(orderBy("name"));
     cons.push(startAt(nameFilter));
     cons.push(endAt(nameFilter + "\uf8ff"));
   } else {
     // 정렬 옵션
+    if (categoryFilter) cons.push(where("category", "==", categoryFilter));
     if (sortBy === "price") orders = [orderBy("price", "asc")];
     else if (sortBy === "name") orders = [orderBy("name", "asc")];
     else if (sortBy === "barcode") orders = [orderBy("barcode", "asc")];
@@ -119,15 +227,19 @@ function renderList() {
       (p) => `
     <div class="product-card" data-id="${p.id}">
       <div class="name">${escapeHtml(p.name || "")}</div>
+      <div class="category">분류: ${escapeHtml(p.category || "-")}</div>
       <div class="price">${Number(p.price || 0).toLocaleString()} 포인트</div>
       <div class="barcode">바코드: ${escapeHtml(p.barcode || "")}</div>
-      <div>
-        <button class="edit" data-id="${
-          p.id
-        }"><i class="fas fa-pen"></i> 수정</button>
-        <button class="delete-btn" data-id="${
-          p.id
-        }"><i class="fas fa-trash"></i> 삭제</button>
+      <div><button class="edit" data-id="${
+        p.id
+      }" aria-label="상품 수정: ${escapeHtml(p.name || "")}">
+          <i class="fas fa-pen"></i> 수정
+        </button>
+       <button class="delete-btn" data-id="${
+         p.id
+       }" aria-label="상품 삭제: ${escapeHtml(p.name || "")}">
+          <i class="fas fa-trash"></i> 삭제
+        </button>
       </div>
     </div>
   `
@@ -205,52 +317,207 @@ document.getElementById("reset-btn").addEventListener("click", async () => {
   showToast(`초기화 완료 <i class='fas fa-check'></i>`);
 });
 
+// ====== 등록 모달(직접 입력 / 엑셀 업로드) ======
+function resetCreateModal() {
+  const m = document.getElementById("product-create-modal");
+  if (!m) return;
+  // 탭 초기화: '직접 입력' 활성
+  const tabs = m.querySelectorAll(".tab");
+  tabs.forEach((t) => t.classList.remove("active"));
+  m.querySelector('.tab[data-tab="direct"]')?.classList.add("active");
+  m.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
+  m.querySelector("#tab-direct")?.classList.remove("hidden");
+  // 폼/파일/미리보기 초기화
+  document.getElementById("create-name")?.closest("form")?.reset?.();
+  const file = document.getElementById("excel-file-input");
+  if (file) file.value = "";
+  const importBtn = document.getElementById("excel-import-btn");
+  if (importBtn) importBtn.disabled = true;
+  const preview = document.getElementById("excel-preview");
+  const progress = document.getElementById("excel-progress");
+  if (preview) preview.textContent = "";
+  if (progress) progress.textContent = "";
+  // 파싱 캐시 초기화
+  parsedRows = [];
+  parsedIssues = [];
+}
+
+function isCreateDirty() {
+  const has = (v) => v != null && String(v).trim() !== "";
+  const name = document.getElementById("create-name")?.value ?? "";
+  const priceVal = document.getElementById("create-price")?.value ?? "";
+  const barcode = document.getElementById("create-barcode")?.value ?? "";
+  const category = document.getElementById("create-category")?.value ?? "";
+  const fileVal = document.getElementById("excel-file-input")?.value ?? "";
+  const previewText =
+    document.getElementById("excel-preview")?.textContent ?? "";
+  const hasParsed = Array.isArray(parsedRows) && parsedRows.length > 0;
+  return (
+    has(name) ||
+    has(priceVal) ||
+    has(barcode) ||
+    has(category) ||
+    has(fileVal) ||
+    has(previewText) ||
+    hasParsed
+  );
+}
+async function attemptCloseCreate() {
+  const modal = document.getElementById("product-create-modal");
+  if (!modal || modal.classList.contains("hidden")) return;
+  if (isCreateDirty()) {
+    const ok = await openConfirm({
+      title: "변경사항 경고",
+      message: "입력/업로드 중인 내용이 있습니다. 닫으면 사라집니다. 닫을까요?",
+      variant: "warn",
+      confirmText: "닫기",
+      cancelText: "계속 작성",
+      allowOutsideClose: false,
+      defaultFocus: "cancel",
+    });
+    if (!ok) return;
+  }
+  closeCreate();
+}
+
+const openCreate = () => {
+  const m = document.getElementById("product-create-modal");
+  resetCreateModal();
+  m.classList.remove("hidden");
+  m.setAttribute("aria-hidden", "false");
+};
+const closeCreate = () => {
+  const m = document.getElementById("product-create-modal");
+  m.classList.add("hidden");
+  m.setAttribute("aria-hidden", "true");
+  resetCreateModal();
+};
+
 document
-  .getElementById("product-form")
-  .addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = document.getElementById("product-name").value.trim();
-    const price = toInt(document.getElementById("product-price").value);
-    const barcode = document.getElementById("product-barcode").value.trim();
-    const createdAt = serverTimestamp();
-    const lastestAt = serverTimestamp();
-
+  .getElementById("btn-product-create")
+  ?.addEventListener("click", openCreate);
+document
+  .getElementById("product-create-close")
+  ?.addEventListener("click", attemptCloseCreate);
+document
+  .getElementById("product-create-close-2")
+  ?.addEventListener("click", attemptCloseCreate);
+// 탭 스위치
+document.querySelectorAll("#product-create-modal .tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    const modal = document.getElementById("product-create-modal");
+    modal.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    modal
+      .querySelectorAll(".tab-panel")
+      .forEach((p) => p.classList.add("hidden"));
+    modal.querySelector("#tab-" + tab.dataset.tab).classList.remove("hidden");
+  });
+});
+// 직접 저장
+document
+  .getElementById("product-create-save")
+  ?.addEventListener("click", async () => {
+    const name = (document.getElementById("create-name")?.value || "").trim();
+    const price = toNumber(
+      document.getElementById("create-price")?.value || ""
+    );
+    const barcode = (
+      document.getElementById("create-barcode")?.value || ""
+    ).trim();
+    const category = (
+      document.getElementById("create-category")?.value || ""
+    ).trim();
+    const normCat = normalizeCategory(category);
     if (!name || !barcode || !isValidPrice(price)) {
-      showToast("상품명, 바코드는 필수이며 가격은 1 이상이어야 합니다.", true);
-      return;
+      return showToast("상품명/바코드/가격을 확인해주세요.", true);
     }
-
-    // 서버에서 중복 바코드 검사
-    const dupSnap = await getDocs(
+    if (!isValidBarcode13(barcode)) {
+      return showToast("유효한 바코드가 아닙니다.", true);
+    }
+    const dup = await getDocs(
       query(productsCol, where("barcode", "==", barcode), limit(1))
     );
-    if (!dupSnap.empty) {
-      showToast("⚠ 이미 등록된 바코드입니다.", true);
-      return;
-    }
-
+    if (!dup.empty) return showToast("⚠ 이미 등록된 바코드입니다.", true);
+    const ts = serverTimestamp();
     await addDoc(productsCol, {
       name,
       price,
       barcode,
-      createdAt,
-      lastestAt,
+      category: normCat,
+      createdAt: ts,
+      lastestAt: ts,
     });
-    e.target.reset();
+    if (normCat) await addCategoriesToIndex([normCat]);
+    showToast("등록되었습니다");
+    closeCreate();
     resetProdPager();
     await loadProducts("init");
   });
+// ===== 수정 모달 변경 감지/닫기 보조 =====
+function readEditSnapshot() {
+  const name = (document.getElementById("edit-name")?.value || "").trim();
+  const price = String(
+    toNumber(document.getElementById("edit-price")?.value || "")
+  );
+  const barcode = (document.getElementById("edit-barcode")?.value || "").trim();
+  const category = (
+    document.getElementById("edit-category")?.value || ""
+  ).trim();
+  const normCat = normalizeCategory(category);
+  return { name, price, barcode, category };
+}
+function isEditDirty() {
+  if (!editInitial) return false;
+  const cur = readEditSnapshot();
+  return ["name", "price", "barcode", "category"].some(
+    (k) => (editInitial[k] ?? "") !== (cur[k] ?? "")
+  );
+}
+async function attemptCloseEdit() {
+  const modal = document.getElementById("edit-modal");
+  if (!modal || modal.classList.contains("hidden")) return;
+  if (isEditDirty()) {
+    const ok = await openConfirm({
+      title: "변경사항 경고",
+      message: "변경사항이 저장되지 않았습니다. 닫을까요?",
+      variant: "warn",
+      confirmText: "닫기",
+      cancelText: "계속 작성",
+      allowOutsideClose: false,
+      defaultFocus: "cancel",
+    });
+    if (!ok) return;
+  }
+  modal.classList.add("hidden");
+  editingProductId = null;
+  editInitial = null;
+}
 
 productList.addEventListener("click", async (e) => {
-  const id = e.target.dataset.id;
-  if (e.target.classList.contains("delete-btn")) {
-    if (confirm("정말 삭제하시겠습니까?")) {
-      await deleteDoc(doc(db, "products", id));
-      // 현재 페이지 재조회
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const id = btn.dataset.id;
+  if (btn.classList.contains("delete-btn")) {
+    const shouldGoPrev = currentRows.length === 1 && prodPage > 1;
+    const ok = await openConfirm({
+      title: "삭제 확인",
+      message: "정말 삭제하시겠습니까?",
+      variant: "danger",
+      confirmText: "삭제",
+      cancelText: "취소",
+    });
+    if (!ok) return;
+    await deleteDoc(doc(db, "products", id));
+    if (shouldGoPrev) {
+      // 말단 페이지의 마지막 1건이었다면 이전 페이지로 이동(추가 읽기 없이 페이지 인덱스만 조정)
+      prodPage = Math.max(1, prodPage - 1);
+      await loadProducts("prev");
+    } else {
       await loadProducts("init");
     }
   }
-  if (e.target.classList.contains("edit")) {
+  if (btn.classList.contains("edit")) {
     let product = currentRows.find((p) => p.id === id);
     if (!product) {
       const snap = await getDoc(doc(db, "products", id));
@@ -258,9 +525,17 @@ productList.addEventListener("click", async (e) => {
       product = { id: snap.id, ...snap.data() };
     }
     document.getElementById("edit-name").value = product.name;
+    const ec = document.getElementById("edit-category");
+    if (ec) ec.value = product.category || "";
     document.getElementById("edit-price").value = product.price;
     document.getElementById("edit-barcode").value = product.barcode;
     editingProductId = id;
+    editInitial = {
+      name: product.name || "",
+      price: String(product.price ?? ""),
+      barcode: product.barcode || "",
+      category: product.category || "",
+    };
     document.getElementById("edit-modal").classList.remove("hidden");
   }
 });
@@ -268,7 +543,10 @@ productList.addEventListener("click", async (e) => {
 document.getElementById("edit-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = document.getElementById("edit-name").value.trim();
-  const price = toInt(document.getElementById("edit-price").value);
+  const category = (
+    document.getElementById("edit-category")?.value || ""
+  ).trim();
+  const price = toNumber(document.getElementById("edit-price").value);
   const barcode = document.getElementById("edit-barcode").value.trim();
   const updatedAt = serverTimestamp();
   const lastestAt = serverTimestamp();
@@ -277,25 +555,31 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
     showToast("수정값을 확인하세요.", true);
     return;
   }
+  if (!isValidBarcode13(barcode)) {
+    showToast("유효한 바코드가 아닙니다.", true);
+    return;
+  }
 
   const ref = doc(db, "products", editingProductId);
   await updateDoc(ref, {
     name,
+    category: normCat,
     price,
     barcode,
     updatedAt,
     lastestAt,
   });
+  if (normCat) await addCategoriesToIndex([normCat]);
 
   document.getElementById("edit-modal").classList.add("hidden");
   editingProductId = null;
+  editInitial = null;
   await loadProducts("init");
 });
 
-document.getElementById("cancel-btn").addEventListener("click", () => {
-  document.getElementById("edit-modal").classList.add("hidden");
-  editingProductId = null;
-});
+document
+  .getElementById("cancel-btn")
+  .addEventListener("click", attemptCloseEdit);
 
 /* ---------------------------
    엑셀 업로드 (신규)
@@ -306,7 +590,6 @@ const $importBtn = document.getElementById("excel-import-btn");
 const $tmplBtn = document.getElementById("excel-template-btn");
 const $preview = document.getElementById("excel-preview");
 const $progress = document.getElementById("excel-progress");
-const $updateDup = document.getElementById("excel-update-duplicates");
 
 $tmplBtn.addEventListener("click", downloadTemplate);
 $parseBtn.addEventListener("click", handleParse);
@@ -316,9 +599,9 @@ $importBtn.addEventListener("click", handleImport);
 function downloadTemplate() {
   /* global XLSX */
   const ws = XLSX.utils.aoa_to_sheet([
-    ["name", "price", "barcode"],
-    ["콜라 500ml", 1200, "8801234567890"],
-    ["초코파이", 500, "8809876543210"],
+    ["name", "category", "price", "barcode"],
+    ["콜라 500ml", "음료", 1200, "8801234567890"],
+    ["초코파이", "과자", 500, "8809876543210"],
   ]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "products");
@@ -372,12 +655,15 @@ async function handleParse() {
     const sample = parsedRows
       .slice(0, 5)
       .map(
-        (r) => `${escapeHtml(r.name)} / ${r.price} / ${escapeHtml(r.barcode)}`
+        (r) =>
+          `${escapeHtml(r.name)} / ${escapeHtml(r.category || "-")} / ${
+            r.price
+          } / ${escapeHtml(r.barcode)}`
       )
       .join("<br/>");
     $preview.innerHTML = `
       <div>미리보기: ${msg}</div>
-      <div style="margin-top:6px; font-family:ui-monospace,Menlo,Consolas,monospace; color:#333;">${sample}</div>
+      <div style="margin-top:6px; color:#333;">${sample}</div>
     `;
 
     $importBtn.disabled = parsedRows.length === 0;
@@ -402,7 +688,6 @@ async function handleImport() {
     parsedRows.map((r) => r.barcode)
   );
 
-  const doUpdate = $updateDup.checked;
   let created = 0,
     updated = 0,
     skipped = 0;
@@ -426,23 +711,22 @@ async function handleImport() {
         const existing = byBarcode.get(row.barcode);
         const ts = serverTimestamp();
         if (existing) {
-          if (doUpdate) {
-            const ref = doc(db, "products", existing.id);
-            batch.update(ref, {
-              name: row.name,
-              price: row.price,
-              barcode: row.barcode,
-              updatedAt: ts,
-              lastestAt: ts,
-            });
-            updated++;
-          } else {
-            skipped++;
-          }
+          // ✅ 기존 바코드면 항상 업데이트(분류 포함)
+          const ref = doc(db, "products", existing.id);
+          batch.update(ref, {
+            name: row.name,
+            category: row.category, // ← 추가
+            price: row.price,
+            barcode: row.barcode,
+            updatedAt: ts,
+            lastestAt: ts,
+          });
+          updated++;
         } else {
           const ref = doc(productsCol); // 랜덤 ID
           batch.set(ref, {
             name: row.name,
+            category: row.category,
             price: row.price,
             barcode: row.barcode,
             createdAt: ts,
@@ -459,12 +743,20 @@ async function handleImport() {
       )} / ${parsedRows.length} 처리 중...`;
     }
 
+    // 업로드에 포함된 새 카테고리를 한 번에 인덱스에 합치기(쓰기 1회)
+    const catsToIndex = Array.from(
+      new Set(
+        parsedRows.map((r) => normalizeCategory(r.category)).filter(Boolean)
+      )
+    );
+    if (catsToIndex.length) await addCategoriesToIndex(catsToIndex);
+
+    $progress.textContent = `완료: 추가 ${created.toLocaleString()} · 업데이트 ${updated.toLocaleString()}`;
+    showToast(`엑셀 업로드 완료 (${created} 추가 / ${updated} 업데이트)`);
+    // ✅ 업로드 성공 후 모달 닫기 + 초기화
+    closeCreate();
     resetProdPager();
     await loadProducts("init");
-    $progress.textContent = `완료: 추가 ${created.toLocaleString()} · 업데이트 ${updated.toLocaleString()} · 스킵 ${skipped.toLocaleString()}`;
-    showToast(
-      `엑셀 업로드 완료 (${created} 추가 / ${updated} 업데이트 / ${skipped} 스킵)`
-    );
   } catch (e) {
     console.error(e);
     showToast("엑셀 업로드 중 오류가 발생했습니다.", true);
@@ -519,7 +811,7 @@ function readExcel(file) {
 }
 
 /** 헤더 매핑 + 형식 검증
- *  허용 헤더: name/상품명, price/가격, barcode/바코드
+ *  허용 헤더: name/상품명, category/분류, price/가격, barcode/바코드
  */
 function normalizeRows(rows) {
   const valid = [];
@@ -532,15 +824,23 @@ function normalizeRows(rows) {
       obj[k.trim().toLowerCase()] = raw[k];
     }
     const name = String(obj.name ?? obj["상품명"] ?? "").trim();
+    const category = normalizeCategory(
+      String(obj.category ?? obj["분류"] ?? "")
+    );
     const barcode = String(obj.barcode ?? obj["바코드"] ?? "").trim();
     const priceRaw = obj.price ?? obj["가격"];
-    const price = toInt(priceRaw);
+    const price = toNumber(priceRaw);
 
-    if (!name || !barcode || !isValidPrice(price)) {
+    if (
+      !name ||
+      !barcode ||
+      !isValidPrice(price) ||
+      !isValidBarcode13(barcode)
+    ) {
       issues.push({ name, price: priceRaw, barcode, reason: "필수/형식 오류" });
       continue;
     }
-    valid.push({ name, price, barcode });
+    valid.push({ name, category, price, barcode });
   }
 
   // 파일 내 바코드 중복 → 마지막 값으로 사용 (또는 건너뛰기 전략 가능)
@@ -549,14 +849,28 @@ function normalizeRows(rows) {
   return { valid: Array.from(seen.values()), issues };
 }
 
-function toInt(v) {
-  if (typeof v === "number") return Math.round(v);
-  if (typeof v === "string") return Math.round(parseFloat(v.replace(/,/g, "")));
+function toNumber(v) {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") return parseFloat(v.replace(/,/g, ""));
   return NaN;
 }
 function isValidPrice(n) {
-  return Number.isFinite(n) && n > 0;
+  return Number.isFinite(n) && n >= 0;
 }
+
+// EAN-13 체크섬 검증: 12자리 가중합(1,3 반복)의 보정값이 마지막 자리와 일치
+function isValidBarcode13(s) {
+  const str = String(s || "").trim();
+  if (!/^\d{13}$/.test(str)) return false;
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    const n = str.charCodeAt(i) - 48; // fast parse
+    sum += i % 2 === 0 ? n : n * 3;
+  }
+  const check = (10 - (sum % 10)) % 10;
+  return check === str.charCodeAt(12) - 48;
+}
+
 function countDuplicatesBy(arr, key) {
   const map = {};
   arr.forEach((o) => {
@@ -573,16 +887,35 @@ function countDuplicatesBy(arr, key) {
    초기 포커스/엔터 검색 및 로딩
 --------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
-  const searchInput = document.getElementById("global-search");
-  if (searchInput) {
-    searchInput.focus();
-    searchInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        document.getElementById("search-btn")?.click();
-      }
-    });
-  }
+  // 카테고리 인덱스 로드(캐시 우선, 미스 시 1회 읽기)
+  loadCategoryIndex().catch(console.error);
+  // 이름/바코드에서 Enter → 검색
+  ["product-name", "product-barcode"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el)
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          document.getElementById("search-btn")?.click();
+        }
+      });
+  });
+  // 🧯 모달 바깥 클릭으로 닫기 (등록/수정 모달 공통)
+  const createOverlay = document.getElementById("product-create-modal");
+  createOverlay?.addEventListener("click", (e) => {
+    if (e.target === createOverlay) attemptCloseCreate();
+  });
+  const editOverlay = document.getElementById("edit-modal");
+
+  editOverlay?.addEventListener("click", (e) => {
+    if (e.target === editOverlay) attemptCloseEdit();
+  });
+  // Esc로 닫기
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!createOverlay?.classList.contains("hidden")) attemptCloseCreate();
+    if (!editOverlay?.classList.contains("hidden")) attemptCloseEdit();
+  });
   // 페이지 사이즈 셀렉트(A안 공통)
   initPageSizeSelect(document.getElementById("page-size"), (n) => {
     prodPageSize = n;
@@ -594,6 +927,12 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 document.getElementById("sort-select").addEventListener("change", () => {
+  resetProdPager();
+  loadProducts("init");
+});
+
+// 분류 필터 변경 시 즉시 서버 쿼리 (읽기 최소화를 위해 클라이언트 후처리 없음)
+document.getElementById("filter-category")?.addEventListener("change", () => {
   resetProdPager();
   loadProducts("init");
 });

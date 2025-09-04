@@ -23,7 +23,7 @@ import {
   limit,
   onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { showToast, openCaptchaModal } from "./components/comp.js";
+import { showToast, openCaptchaModal, openConfirm } from "./components/comp.js";
 
 const AUTH_SERVER =
   location.hostname === "localhost" || location.hostname === "127.0.0.1"
@@ -197,8 +197,15 @@ async function startLink(provider) {
 async function unlink(provider) {
   const user = auth.currentUser;
   if (!user) return showToast("로그인을 먼저 해주세요.", true);
-  if (!confirm(`${provider} 연동을 해지하시겠습니까?`)) return;
-
+  const ok = await openConfirm({
+    title: "연동 해지",
+    message: `${provider} 연동을 해지하시겠습니까?`,
+    variant: "danger",
+    confirmText: "해지",
+    cancelText: "취소",
+    defaultFocus: "cancel",
+  });
+  if (!ok) return;
   try {
     setBusy(ui.unlinkBtn[provider], true);
     const idToken = await user.getIdToken(true);

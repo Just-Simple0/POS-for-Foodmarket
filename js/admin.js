@@ -100,9 +100,13 @@ function scheduleStsRenewal() {
     const remain = Math.max(0, exp * 1000 - Date.now());
     const mins = Math.floor(remain / 60000),
       secs = Math.floor((remain % 60000) / 1000);
-    const ok = confirm(
-      `관리자 인증이 ${mins}분 ${secs}초 후 만료됩니다. 지금 갱신할까요?`
-    );
+    const ok = await openConfirm({
+      title: "관리자 인증 만료 예정",
+      message: `관리자 인증이 ${mins}분 ${secs}초 후 만료됩니다. 지금 갱신할까요?`,
+      variant: "info",
+      confirmText: "지금 갱신",
+      cancelText: "나중에",
+    });
     if (!ok) return;
     try {
       await ensureAdminSession(true); // 강제 갱신
@@ -577,7 +581,7 @@ els.btnMore?.addEventListener("click", () => {
   );
 });
 
-els.tbody?.addEventListener("click", (e) => {
+els.tbody?.addEventListener("click", async (e) => {
   // 역할 적용 버튼
   const btn = e.target.closest(".btn-apply");
   if (!btn) return;
@@ -587,12 +591,16 @@ els.tbody?.addEventListener("click", (e) => {
   if (!uid || !role) return;
   // self-demote 방지(선택): 본인 UID이면 admin->user로 내리는 것을 한번 더 확인
   if (auth.currentUser?.uid === uid && role !== "admin") {
-    if (
-      !confirm(
-        "본인의 권한을 낮추시겠습니까? 관리자 페이지 접근이 제한될 수 있습니다."
-      )
-    )
-      return;
+    const ok = await openConfirm({
+      title: "권한 변경 확인",
+      message:
+        "본인의 권한을 낮추시겠습니까? 관리자 페이지 접근이 제한될 수 있습니다.",
+      variant: "warn",
+      confirmText: "적용",
+      cancelText: "취소",
+      defaultFocus: "cancel",
+    });
+    if (!ok) return;
   }
   applyRole(uid, role).catch((e) => showToast(e.message || String(e), true));
 });

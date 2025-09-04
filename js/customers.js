@@ -24,6 +24,7 @@ import {
   showToast,
   renderCursorPager,
   initPageSizeSelect,
+  openConfirm,
 } from "./components/comp.js";
 
 // 🔍 검색용 메모리 저장
@@ -429,8 +430,15 @@ async function saveCreateDirect() {
       status: payload.status,
     });
   } else {
-    if (!confirm("관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?"))
-      return;
+    const ok = await openConfirm({
+      title: "승인 요청",
+      message: "관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?",
+      variant: "warn",
+      confirmText: "승인 요청",
+      cancelText: "취소",
+      defaultFocus: "cancel",
+    });
+    if (!ok) return;
     await setDoc(doc(collection(db, "approvals")), {
       type: "customer_add",
       payload,
@@ -724,8 +732,15 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
       showToast("변경된 내용이 없습니다");
       return;
     }
-    if (!confirm("관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?"))
-      return;
+    const ok = await openConfirm({
+      title: "승인 요청",
+      message: "관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?",
+      variant: "warn",
+      confirmText: "승인 요청",
+      cancelText: "취소",
+      defaultFocus: "cancel",
+    });
+    if (!ok) return;
     await setDoc(doc(collection(db, "approvals")), {
       type: "customer_update",
       targetId: id,
@@ -1039,7 +1054,14 @@ document.addEventListener("click", async (e) => {
   const del = e.target.closest("[data-del]");
   if (!del) return;
   if (isAdmin) {
-    if (!confirm("이 이용자를 삭제하시겠습니까?")) return;
+    const ok = await openConfirm({
+      title: "삭제 확인",
+      message: "이 이용자를 삭제하시겠습니까?",
+      variant: "danger",
+      confirmText: "삭제",
+      cancelText: "취소",
+    });
+    if (!ok) return;
     await deleteDoc(doc(db, "customers", del.dataset.del));
     showToast("삭제되었습니다");
     // 캐시 제거
@@ -1051,8 +1073,15 @@ document.addEventListener("click", async (e) => {
     await logEvent("customer_delete", { targetId: del.dataset.del });
     await loadCustomers();
   } else {
-    if (!confirm("관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?"))
-      return;
+    const ok = await openConfirm({
+      title: "승인 요청",
+      message: "관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?",
+      variant: "warn",
+      confirmText: "승인 요청",
+      cancelText: "취소",
+      defaultFocus: "cancel",
+    });
+    if (!ok) return;
     await setDoc(doc(collection(db, "approvals")), {
       type: "customer_delete",
       targetId: del.dataset.del,
@@ -1148,12 +1177,16 @@ function bindUploadTab() {
       await loadCustomers();
     } else {
       // 비관리자: 승인요청으로 전환
-      if (
-        !confirm(
-          "관리자의 승인이 필요한 사항입니다. 승인요청을 보내시겠습니까?"
-        )
-      )
-        return;
+      const ok = await openConfirm({
+        title: "승인 요청",
+        message:
+          "관리자의 승인이 필요한 사항입니다. 승인요청을 보내시겠습니까?",
+        variant: "warn",
+        confirmText: "승인 요청",
+        cancelText: "취소",
+        defaultFocus: "cancel",
+      });
+      if (!ok) return;
       await setDoc(doc(collection(db, "approvals")), {
         type: "customer_bulk_upload",
         payload: {
@@ -1493,8 +1526,15 @@ async function onDupUpdate() {
       if ((payload[k] ?? "") !== (before[k] ?? ""))
         changes[k] = payload[k] ?? "";
     });
-    if (!confirm("관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?"))
-      return;
+    const ok = await openConfirm({
+      title: "승인 요청",
+      message: "관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?",
+      variant: "warn",
+      confirmText: "승인 요청",
+      cancelText: "취소",
+      defaultFocus: "cancel",
+    });
+    if (!ok) return;
     await setDoc(doc(collection(db, "approvals")), {
       type: "customer_update",
       targetId: ref.id,
@@ -1528,8 +1568,15 @@ async function onDupNew() {
       mode: "dup_new",
     });
   } else {
-    if (!confirm("관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?"))
-      return;
+    const ok = await openConfirm({
+      title: "승인 요청",
+      message: "관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?",
+      variant: "warn",
+      confirmText: "승인 요청",
+      cancelText: "취소",
+      defaultFocus: "cancel",
+    });
+    if (!ok) return;
     await setDoc(doc(collection(db, "approvals")), {
       type: "customer_add",
       payload,

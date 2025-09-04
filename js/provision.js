@@ -9,7 +9,7 @@ import {
   updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { showToast } from "./components/comp.js";
+import { showToast, openConfirm } from "./components/comp.js";
 import { getQuarterKey, updateCustomerLifeLove } from "./utils/lifelove.js";
 
 const lookupInput = document.getElementById("customer-id");
@@ -234,13 +234,19 @@ resetProductsBtn.addEventListener("click", () => {
   showToast("물품 목록이 초기화되었습니다.");
 });
 
-resetAllBtn.addEventListener("click", () => {
-  if (confirm("전체 초기화하시겠습니까?")) {
-    resetForm(); // 고객/상품 전체 초기화
-    undoStack = [];
-    redoStack = [];
-    showToast("전체 초기화 완료");
-  }
+resetAllBtn.addEventListener("click", async () => {
+  const ok = await openConfirm({
+    title: "전체 초기화",
+    message: "전체 초기화하시겠습니까?",
+    variant: "warn",
+    confirmText: "초기화",
+    cancelText: "취소",
+  });
+  if (!ok) return;
+  resetForm(); // 고객/상품 전체 초기화
+  undoStack = [];
+  redoStack = [];
+  showToast("전체 초기화 완료");
 });
 
 document.addEventListener("keydown", (e) => {

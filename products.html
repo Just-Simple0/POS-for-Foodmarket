@@ -35,69 +35,29 @@
     <div id="header-container"></div>
 
     <main class="container">
-      <h2>상품 등록 및 조회</h2>
+      <h2>상품 조회</h2>
 
-      <!-- 기본 단건 등록/검색 폼 (기존) -->
-      <form id="product-form">
+      <!-- 🔍 검색 전용 폼(이름/바코드) + 등록 모달 오픈 버튼 -->
+      <form id="search-form">
         <div class="form-row">
-          <input type="text" id="product-name" placeholder="상품명" required />
-          <input type="number" id="product-price" placeholder="가격" required />
-          <input
-            type="text"
-            id="product-barcode"
-            placeholder="바코드"
-            required
-          />
+          <input type="text" id="product-name" placeholder="상품명" />
+          <input type="text" id="product-barcode" placeholder="바코드" />
+          <select id="filter-category" title="분류 필터">
+            <option value="">전체 분류</option>
+          </select>
         </div>
         <div class="form-buttons">
-          <button type="submit"><i class="fas fa-plus"></i> 등록</button>
-          <button type="reset" id="reset-btn">
-            <i class="fas fa-undo"></i> 초기화
-          </button>
           <button type="button" id="search-btn">
             <i class="fas fa-search"></i> 검색
           </button>
+          <button type="reset" id="reset-btn">
+            <i class="fas fa-undo"></i> 초기화
+          </button>
+          <button type="button" id="btn-product-create">
+            <i class="fas fa-plus"></i> 등록하기
+          </button>
         </div>
       </form>
-
-      <!-- ✅ 엑셀 업로드 섹션 (신규) -->
-      <section class="card" style="margin-top: 16px">
-        <h3 style="margin: 0 0 8px 0">엑셀 업로드로 일괄 등록</h3>
-        <p style="margin: 0 0 10px 0; color: #555">
-          지원 포맷: <strong>.xlsx, .xls, .csv</strong> • 헤더 예시:
-          <code>name, price, barcode</code> 또는
-          <code>상품명, 가격, 바코드</code>
-        </p>
-
-        <div class="form-row" style="align-items: center; gap: 10px">
-          <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" />
-          <label style="display: flex; align-items: center; gap: 6px">
-            <input type="checkbox" id="excel-update-duplicates" />
-            <span>동일 바코드가 있으면 <b>업데이트</b> (없으면 새로 추가)</span>
-          </label>
-        </div>
-
-        <div class="form-buttons" style="margin-top: 10px; gap: 8px">
-          <button type="button" id="excel-parse-btn">
-            <i class="fas fa-file-import"></i> 미리보기
-          </button>
-          <button type="button" id="excel-import-btn" disabled>
-            <i class="fas fa-upload"></i> 업로드 실행
-          </button>
-          <button type="button" id="excel-template-btn">
-            <i class="fas fa-download"></i> 템플릿 다운로드
-          </button>
-        </div>
-
-        <div
-          id="excel-preview"
-          style="margin-top: 10px; font-size: 14px; color: #333"
-        ></div>
-        <div
-          id="excel-progress"
-          style="margin-top: 6px; font-size: 13px; color: #666"
-        ></div>
-      </section>
 
       <h2 style="margin-top: 24px">상품 목록</h2>
       <div class="list-bar">
@@ -105,7 +65,7 @@
           <option value="price">가격순</option>
           <option value="name">이름순</option>
           <option value="barcode">바코드순</option>
-          <option value="date">등록순</option>
+          <option value="date" selected>등록순</option>
         </select>
         <div class="pagesize-row">
           <label class="pagesize-label"
@@ -124,11 +84,123 @@
       <!-- A안 커서 페이저가 그려질 자리 -->
       <div id="pagination" class="pagebar" aria-label="페이지네이션"></div>
 
+      <!-- 🧩 등록하기 모달(직접 입력 / 엑셀 업로드 탭) -->
+      <div
+        id="product-create-modal"
+        class="modal hidden modal--product"
+        aria-hidden="true"
+      >
+        <div
+          class="modal-content"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="product-create-title"
+        >
+          <div class="modal-header">
+            <h2 id="product-create-title">
+              <i class="fas fa-box"></i> 상품 등록
+            </h2>
+          </div>
+          <div class="modal-body">
+            <div class="tabs">
+              <button class="tab active" data-tab="direct">직접 입력</button>
+              <button class="tab" data-tab="upload">엑셀 업로드</button>
+            </div>
+
+            <!-- 직접 입력 -->
+            <div class="tab-panel" id="tab-direct">
+              <div class="grid2">
+                <label
+                  ><span>상품명</span><input type="text" id="create-name"
+                /></label>
+                <label
+                  ><span>분류</span
+                  ><input
+                    type="text"
+                    id="create-category"
+                    placeholder="예: 음료, 과자"
+                    list="category-presets"
+                /></label>
+                <label
+                  ><span>가격</span
+                  ><input type="number" id="create-price" step="0.5" min="0"
+                /></label>
+                <label
+                  ><span>바코드</span><input type="text" id="create-barcode"
+                /></label>
+              </div>
+              <div class="modal-buttons">
+                <button
+                  type="button"
+                  id="product-create-save"
+                  class="btn btn-primary"
+                >
+                  <i class="fas fa-save"></i> 저장
+                </button>
+                <button type="button" id="product-create-close" class="btn">
+                  닫기
+                </button>
+              </div>
+            </div>
+
+            <!-- 엑셀 업로드 -->
+            <div class="tab-panel hidden" id="tab-upload">
+              <div class="uploader">
+                <input
+                  type="file"
+                  id="excel-file-input"
+                  accept=".xlsx,.xls,.csv"
+                />
+                <p>
+                  동일 바코드가 있으면 <b>업데이트</b>, 없으면
+                  <b>추가</b>됩니다.
+                </p>
+                <div class="modal-buttons upload-actions">
+                  <button type="button" id="excel-parse-btn" class="btn">
+                    <i class="fas fa-eye"></i> 미리보기
+                  </button>
+                  <button
+                    type="button"
+                    id="excel-import-btn"
+                    class="btn btn-primary"
+                    disabled
+                  >
+                    <i class="fas fa-cloud-upload-alt"></i> 실행
+                  </button>
+                  <button type="button" id="excel-template-btn" class="btn">
+                    <i class="fas fa-download"></i> 템플릿
+                  </button>
+                  <button type="button" id="product-create-close-2" class="btn">
+                    닫기
+                  </button>
+                </div>
+                <div id="excel-preview" class="upload-preview"></div>
+                <div id="excel-progress" class="upload-progress"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="edit-modal" class="modal hidden">
         <form id="edit-form" class="modal-content">
           <h2>상품 수정</h2>
           <label>상품명<input type="text" id="edit-name" required /></label>
-          <label>가격<input type="number" id="edit-price" required /></label>
+          <label
+            >분류<input
+              type="text"
+              id="edit-category"
+              placeholder="예: 음료, 과자"
+              list="category-presets"
+          /></label>
+          <label
+            >가격<input
+              type="number"
+              id="edit-price"
+              step="0.5"
+              min="0"
+              required
+          /></label>
           <label>바코드<input type="text" id="edit-barcode" required /></label>
           <div class="modal-buttons">
             <button type="submit"><i class="fas fa-save"></i> 저장</button>
@@ -138,6 +210,9 @@
           </div>
         </form>
       </div>
+
+      <!-- 분류 프리셋 (입력 보조, 서버 읽기 없이 UX 향상) -->
+      <datalist id="category-presets"> </datalist>
     </main>
 
     <div id="footer-container"></div>
