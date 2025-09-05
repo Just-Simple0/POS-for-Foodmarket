@@ -145,7 +145,14 @@ form#search-form {
   border-color: #fecaca;
   color: #b91c1c;
 }
-
+.product-card button.edit:hover{
+  background-color: #2563eb;
+  color: #fff;
+}
+.product-card button.delete-btn:hover {
+  background: #b91c1c;
+  color: #fff;
+}
 /* Pagination placeholder */
 .pagebar {
   display: flex;

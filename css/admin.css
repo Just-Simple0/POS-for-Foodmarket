@@ -124,11 +124,13 @@ tr.is-disabled .role-select {
 
 /* 경고 톤 버튼(삭제용) - 간단 테마 */
 .btn-warn {
-  border: 1px solid #e11d48;
-  color: #e11d48;
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
 }
 .btn-warn:hover {
-  background: #fee2e2;
+  background: #b91c1c;
+  color: #fff;
 }
 
 /* (9) 가상 스크롤용 스페이서 */
