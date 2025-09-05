@@ -39,14 +39,17 @@
       <h3>이용자 조회</h3>
       <!-- ✅ 사용자 확인 영역 -->
       <section id="customer-lookup">
-        <label for="customer-search">이름을 입력하세요</label>
-        <input
-          type="text"
-          id="customer-search"
-          placeholder="예: 10001 또는 홍길동"
-        />
+        <input type="text" id="customer-search" placeholder="예: 홍길동" />
         <button id="lookup-btn"><i class="fas fa-search"></i> 조회</button>
+      </section>
 
+      <!-- ✅ 방문자 리스트 (여러 명 담아두고 선택) -->
+      <section id="visitor-list-section" class="hidden">
+        <h3>방문자 리스트</h3>
+        <ul id="visitor-list" class="visitor-list"></ul>
+      </section>
+
+      <section id="customer-if">
         <div id="customer-info" class="hidden">
           <!-- 조회된 고객 정보 -->
         </div>
@@ -99,6 +102,16 @@
         </div>
       </section>
 
+      <!-- ✅ 제출 버튼 -->
+      <section id="submit-section" class="hidden">
+        <button id="submit-btn">
+          <i class="fas fa-check-circle"></i> 제공 등록 완료
+        </button>
+        <label for="lifelove-checkbox">
+          <input type="checkbox" id="lifelove-checkbox" /> 생명사랑 제공
+        </label>
+      </section>
+
       <!-- 🔁 기능 버튼들 (상품 테이블 하단) -->
       <div
         id="product-action-buttons"
@@ -116,17 +129,17 @@
         <button id="clear-all-btn">
           <i class="fas fa-trash-alt"></i> 전체 초기화
         </button>
-      </div>
-
-      <!-- ✅ 제출 버튼 -->
-      <section id="submit-section" class="hidden">
-        <label for="lifelove-checkbox">
-          <input type="checkbox" id="lifelove-checkbox" /> 생명사랑 제공
-        </label>
-        <button id="submit-btn">
-          <i class="fas fa-check-circle"></i> 제공 등록 완료
+        <!-- ✅ 보류(임시 저장/불러오기: localStorage) -->
+        <button
+          id="hold-save-btn"
+          title="현재 선택 방문자의 장바구니를 임시 저장"
+        >
+          <i class="fas fa-pause-circle"></i> 보류 저장
         </button>
-      </section>
+        <button id="hold-load-btn" title="임시 저장된 장바구니 불러오기">
+          <i class="fas fa-play-circle"></i> 보류 불러오기
+        </button>
+      </div>
     </main>
 
     <div id="footer-container"></div>
@@ -145,8 +158,8 @@
         ></div>
 
         <div class="modal-buttons">
-          <button id="confirm-duplicate">
-            <i class="fas fa-check"></i> 확인
+          <button id="confirm-duplicate" title="방문자 리스트에 추가">
+            <i class="fas fa-check"></i> 삽입
           </button>
           <button id="close-duplicate-modal">
             <i class="fas fa-times"></i> 닫기

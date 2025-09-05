@@ -12,7 +12,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/f
 import { showToast, openConfirm } from "./components/comp.js";
 import { getQuarterKey, updateCustomerLifeLove } from "./utils/lifelove.js";
 
-const lookupInput = document.getElementById("customer-id");
+const lookupInput = document.getElementById("customer-search");
 const lookupBtn = document.getElementById("lookup-btn");
 const customerInfoDiv = document.getElementById("customer-info");
 const productSection = document.getElementById("product-selection");
@@ -28,8 +28,15 @@ const currentUser = auth.currentUser;
 let selectedCustomer = null;
 let selectedItems = [];
 let selectedCandidate = null;
+let visitorList = []; // ✅ 방문자 리스트
+const visitorListEl = document.getElementById("visitor-list");
+const visitorListSection = document.getElementById("visitor-list-section");
 
 let allProducts = [];
+
+// 🔁 동명이인 모달 키보드 내비 전역 핸들러 참조
+let dupKeyHandler = null;
+let dupActiveIndex = -1;
 
 window.addEventListener("DOMContentLoaded", () => {
   lookupInput.focus();
@@ -45,41 +52,19 @@ lookupInput.addEventListener("keydown", (e) => {
 // 🔍 이용자 조회
 lookupBtn.addEventListener("click", async () => {
   const keyword = lookupInput.value.trim();
-  if (!keyword) return showToast("이용자 ID 또는 이름을 입력하세요.", true);
+  if (!keyword) return showToast("이름을 입력하세요.", true);
 
   try {
     const snapshot = await getDocs(collection(db, "customers"));
     const matches = snapshot.docs.filter((doc) => {
       const data = doc.data();
-      const isMatched = doc.id === keyword || data.name?.includes(keyword);
+      const isMatched = data.name?.includes(keyword);
       const isExcluded = data.status?.trim() !== "지원";
       return isMatched && !isExcluded;
     });
 
     if (matches.length === 0) {
       return showToast("해당 이용자를 찾을 수 없습니다.", true);
-    } else if (matches.length === 1) {
-      selectedCustomer = { id: matches[0].id, ...matches[0].data() };
-
-      const now = new Date();
-      const currentMonth = now.toISOString().slice(0, 7);
-      const year =
-        now.getMonth() + 1 < 3 ? now.getFullYear() - 1 : now.getFullYear();
-      const periodKey = `${String(year).slice(2)}-${String(year + 1).slice(2)}`;
-      const alreadyVisited = selectedCustomer.visits?.[periodKey]?.some((v) =>
-        v.startsWith(currentMonth)
-      );
-
-      renderCustomerInfo();
-
-      if (alreadyVisited) {
-        showToast("이미 방문한 대상자입니다", true);
-        productSection.classList.add("hidden");
-        submitSection.classList.add("hidden");
-      } else {
-        productSection.classList.remove("hidden");
-        submitSection.classList.remove("hidden");
-      }
     } else {
       showDuplicateSelection(matches);
     }
@@ -91,12 +76,17 @@ lookupBtn.addEventListener("click", async () => {
 
 // 고객 정보 렌더링
 function renderCustomerInfo() {
+  if (!selectedCustomer) {
+    customerInfoDiv.innerHTML = "";
+    customerInfoDiv.classList.add("hidden");
+    return;
+  }
   customerInfoDiv.innerHTML = `
-      <strong>이용자명:</strong> ${selectedCustomer.name}<br>
-      <strong>생년월일:</strong> ${selectedCustomer.birth}<br>
-      <strong>상태:</strong> ${selectedCustomer.status}<br>
-      <strong>주소:</strong> ${selectedCustomer.address}<br>
-      <strong>전화번호:</strong> ${selectedCustomer.phone}
+      <strong>이용자명:</strong> ${selectedCustomer.name ?? ""}<br>
+      <strong>생년월일:</strong> ${selectedCustomer.birth ?? ""}<br>
+      <strong>주소:</strong> ${selectedCustomer.address ?? ""}<br>
+      <strong>전화번호:</strong> ${selectedCustomer.phone ?? ""}<br>
+      <strong>비고:</strong> ${selectedCustomer.note ?? ""}
     `;
   customerInfoDiv.classList.remove("hidden");
 }
@@ -107,7 +97,20 @@ const duplicateList = document.getElementById("duplicate-list");
 const closeDuplicateModal = document.getElementById("close-duplicate-modal");
 
 closeDuplicateModal.addEventListener("click", () => {
+  // ✅ 닫기: 모달/검색창/상태 초기화
   duplicateModal.classList.add("hidden");
+  duplicateList.innerHTML = "";
+  const infoEl = document.getElementById("selected-info");
+  infoEl.classList.add("hidden");
+  infoEl.innerHTML = "";
+  selectedCandidate = null;
+  dupActiveIndex = -1;
+  lookupInput.value = "";
+  lookupInput.focus();
+  if (dupKeyHandler) {
+    document.removeEventListener("keydown", dupKeyHandler, true);
+    dupKeyHandler = null;
+  }
 });
 
 function showDuplicateSelection(matches) {
@@ -116,7 +119,8 @@ function showDuplicateSelection(matches) {
   const confirmBtn = document.getElementById("confirm-duplicate");
   confirmBtn.disabled = true;
 
-  matches.forEach((docSnap) => {
+  const items = [];
+  matches.forEach((docSnap, i) => {
     const data = docSnap.data();
     const li = document.createElement("li");
     li.innerHTML = `
@@ -127,65 +131,100 @@ function showDuplicateSelection(matches) {
     `;
 
     li.classList.add("duplicate-item");
-    li.addEventListener("click", () => {
-      // 선택 상태 토글
+    li.tabIndex = -1; // 키보드 포커싱 가능
+    // 공통 선택 로직
+    const selectThis = () => {
       document
         .querySelectorAll(".duplicate-item")
         .forEach((el) => el.classList.remove("selected"));
       li.classList.add("selected");
-      // 기존 아이콘 제거
       document
         .querySelectorAll(".duplicate-item i")
         .forEach((icon) => icon.remove());
-
-      // 아이콘 추가
       const icon = document.createElement("i");
       icon.className = "fas fa-square-check";
       icon.style.color = "#1976d2";
       icon.style.marginRight = "8px";
-
       li.prepend(icon);
-
       selectedCandidate = { id: docSnap.id, ...data };
-
-      // 상세 정보 출력
       const infoEl = document.getElementById("selected-info");
       infoEl.innerHTML = `
         <div><strong>주소 :</strong> ${data.address || "없음"}</div>
         <div><strong>성별 :</strong> ${data.gender || "없음"}</div>
+        <div><strong>비고 :</strong> ${data.note || ""}<div>
       `;
       infoEl.classList.remove("hidden");
       confirmBtn.disabled = false;
+      dupActiveIndex = i;
+      li.focus();
+    };
+
+    li.addEventListener("click", () => {
+      selectThis();
     });
     duplicateList.appendChild(li);
+    items.push(li);
   });
+  // ✅ 단일 결과면 자동 "선택"만(자동 삽입 X)
+  if (items.length === 1) {
+    items[0].click();
+  } else {
+    dupActiveIndex = -1;
+  }
+
   duplicateModal.classList.remove("hidden");
+
+  // ✅ 방향키/Enter/Escape 지원
+  if (dupKeyHandler) {
+    document.removeEventListener("keydown", dupKeyHandler, true);
+  }
+  dupKeyHandler = (e) => {
+    if (duplicateModal.classList.contains("hidden")) return;
+    const max = items.length - 1;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      dupActiveIndex = dupActiveIndex < max ? dupActiveIndex + 1 : 0;
+      items[dupActiveIndex].click();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      dupActiveIndex = dupActiveIndex > 0 ? dupActiveIndex - 1 : max;
+      items[dupActiveIndex].click();
+    } else if (e.key === "Enter") {
+      if (!confirmBtn.disabled) {
+        e.preventDefault();
+        confirmBtn.click();
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeDuplicateModal.click();
+    }
+  };
+  document.addEventListener("keydown", dupKeyHandler, true);
 }
 
 document.getElementById("confirm-duplicate").addEventListener("click", () => {
   if (!selectedCandidate) return showToast("이용자를 선택하세요.", true);
-
-  selectedCustomer = selectedCandidate;
-
-  const now = new Date();
-  const currentMonth = now.toISOString().slice(0, 7);
-  const year =
-    now.getMonth() + 1 < 3 ? now.getFullYear() - 1 : now.getFullYear();
-  const periodKey = `${String(year).slice(2)}-${String(year + 1).slice(2)}`;
-  const alreadyVisited = selectedCustomer.visits?.[periodKey]?.some((v) =>
-    v.startsWith(currentMonth)
-  );
-
-  renderCustomerInfo();
-  duplicateModal.classList.add("hidden");
-
-  if (alreadyVisited) {
-    showToast("이미 방문한 대상자입니다", true);
-    productSection.classList.add("hidden");
-    submitSection.classList.add("hidden");
+  // ✅ 방문자 리스트에 삽입 (중복 방지)
+  if (!visitorList.some((v) => v.id === selectedCandidate.id)) {
+    visitorList.push(selectedCandidate);
+    renderVisitorList();
+    showToast("방문자 리스트에 추가되었습니다.");
   } else {
-    productSection.classList.remove("hidden");
-    submitSection.classList.remove("hidden");
+    showToast("이미 리스트에 있는 이용자입니다.", true);
+  }
+  // ✅ 삽입 후 모달/검색창 초기화
+  duplicateModal.classList.add("hidden");
+  duplicateList.innerHTML = "";
+  const infoEl = document.getElementById("selected-info");
+  infoEl.classList.add("hidden");
+  infoEl.innerHTML = "";
+  selectedCandidate = null;
+  dupActiveIndex = -1;
+  lookupInput.value = "";
+  lookupInput.focus();
+  if (dupKeyHandler) {
+    document.removeEventListener("keydown", dupKeyHandler, true);
+    dupKeyHandler = null;
   }
 });
 
@@ -256,6 +295,13 @@ document.addEventListener("keydown", (e) => {
   } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "z") {
     e.preventDefault();
     redoBtn.click();
+  } else if (
+    e.ctrlKey &&
+    e.key === "Enter" &&
+    !submitSection.classList.contains("hidden")
+  ) {
+    e.preventDefault();
+    submitBtn.click();
   }
 });
 
@@ -265,6 +311,129 @@ const addProductBtn = document.getElementById("add-product-btn");
 const selectedTableBody = document.querySelector("#selected-table tbody");
 const totalPointsEl = document.getElementById("total-points");
 const warningEl = document.getElementById("point-warning");
+
+/* =========================
+   방문자 리스트 렌더/선택
+   ========================= */
+function renderVisitorList() {
+  visitorListEl.innerHTML = "";
+  if (visitorList.length === 0) {
+    visitorListSection.classList.add("hidden");
+    // 방문자 없으면 계산/제출 섹션 숨김
+    selectedCustomer = null;
+    productSection.classList.add("hidden");
+    submitSection.classList.add("hidden");
+    renderCustomerInfo();
+    return;
+  }
+  visitorListSection.classList.remove("hidden");
+  visitorList.forEach((v) => {
+    const hasHold = !localStorage.getItem(HOLD_PREFIX + v.id);
+    const li = document.createElement("li");
+    li.className =
+      "visitor-item" +
+      (selectedCustomer?.id === v.id ? " active" : "") +
+      (hasHold ? "has-hold" : "");
+    const holdBadge = hasHold
+      ? `<i class="fas fa-bookmark hold-badge" style="font-size: 11px;" title="보류 있음" aria-label="보류 있음"></i>`
+      : "";
+    li.innerHTML = `
+      <div class="meta">
+       <div class="name">${v.name} ${holdBadge}</div>
+        <div class="sub">${v.birth || ""} ${
+      v.phone ? " | " + v.phone : ""
+    }</div>
+      </div>
+      <div class="actions">
+        <button class="select" data-id="${v.id}">선택</button>
+        <button class="remove" data-id="${v.id}">삭제</button>
+      </div>
+    `;
+    visitorListEl.appendChild(li);
+  });
+}
+
+visitorListEl?.addEventListener("click", async (e) => {
+  const id = e.target.dataset.id;
+  if (!id) return;
+  const idx = visitorList.findIndex((v) => v.id === id);
+  if (idx === -1) return;
+
+  if (e.target.classList.contains("remove")) {
+    // 선택 중인 고객을 제거하려 하면 경고
+    if (selectedCustomer?.id === id && selectedItems.length > 0) {
+      const ok = await openConfirm({
+        title: "선택 해제",
+        message: "현재 장바구니가 있습니다. 이 방문자를 리스트에서 제거할까요?",
+        variant: "warn",
+        confirmText: "제거",
+        cancelText: "취소",
+      });
+      if (!ok) return;
+    }
+    if (selectedCustomer?.id === id) {
+      selectedCustomer = null;
+      selectedItems = [];
+      renderSelectedList();
+    }
+    visitorList.splice(idx, 1);
+    renderVisitorList();
+    return;
+  }
+
+  if (e.target.classList.contains("select")) {
+    // 고객 전환 시, 기존 장바구니 보류 안내
+    if (
+      selectedCustomer &&
+      selectedItems.length > 0 &&
+      selectedCustomer.id !== id
+    ) {
+      const ok = await openConfirm({
+        title: "방문자 전환",
+        message:
+          "현재 장바구니가 있습니다. 전환하시겠습니까? (보류 저장을 권장)",
+        variant: "warn",
+        confirmText: "전환",
+        cancelText: "취소",
+      });
+      if (!ok) return;
+    }
+    selectedCustomer = visitorList[idx];
+    // 선택 후에만 계산/제출 섹션 노출
+    productSection.classList.remove("hidden");
+    submitSection.classList.remove("hidden");
+    renderCustomerInfo();
+    // 방문자 전환 시 기본은 빈 장바구니
+    selectedItems = [];
+    undoStack = [];
+    redoStack = [];
+    lifeloveCheckbox.checked = false; // lifelove도 초기화
+    // 🔍 선택한 방문자에 보류 데이터가 있으면, 불러올지 물어본 뒤 자동 적용
+    try {
+      const holdRaw = localStorage.getItem(HOLD_PREFIX + selectedCustomer.id);
+      if (holdRaw) {
+        const okLoad = await openConfirm({
+          title: "보류 불러오기",
+          message: "이 방문자에 저장된 보류 장바구니가 있습니다. 불러올까요?",
+          variant: "warn",
+          confirmText: "불러오기",
+          cancelText: "새로 시작",
+        });
+        if (okLoad) {
+          try {
+            const parsed = JSON.parse(holdRaw);
+            if (Array.isArray(parsed)) {
+              selectedItems = parsed;
+              showToast("보류 장바구니를 불러왔습니다.");
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+    renderSelectedList();
+    renderVisitorList(); // active 표시 갱신
+  }
+});
 
 barcodeInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
@@ -278,6 +447,8 @@ barcodeInput.addEventListener("keydown", (e) => {
     } else {
       quantityInput.focus();
     }
+  } else if (e.key === "Escape") {
+    autocompleteList.classList.add("hidden");
   }
 });
 
@@ -484,6 +655,51 @@ function calculateTotal() {
   }
 }
 
+/* =========================
+   보류: localStorage 저장/불러오기
+   ========================= */
+const HOLD_PREFIX = "provision:hold:";
+const holdSaveBtn = document.getElementById("hold-save-btn");
+const holdLoadBtn = document.getElementById("hold-load-btn");
+
+holdSaveBtn?.addEventListener("click", () => {
+  if (!selectedCustomer) return showToast("먼저 방문자를 선택하세요.", true);
+  localStorage.setItem(
+    HOLD_PREFIX + selectedCustomer.id,
+    JSON.stringify(selectedItems)
+  );
+  // ✅ 보류 시: 장바구니/입력 초기화 + 계산/제출 UI 숨김 + 고객정보도 숨김 + 방문자 선택 해제
+  selectedItems = [];
+  undoStack = [];
+  redoStack = [];
+  renderSelectedList();
+  barcodeInput.value = "";
+  quantityInput.value = "";
+  productSection.classList.add("hidden");
+  submitSection.classList.add("hidden");
+  // 고객 정보 패널 숨김 및 선택 해제
+  selectedCustomer = null;
+  customerInfoDiv.innerHTML = "";
+  renderCustomerInfo(); // selectedCustomer가 null이면 hidden 처리됨
+  renderVisitorList(); // active 표시 해제
+  showToast("보류 처리되었습니다.");
+});
+
+holdLoadBtn?.addEventListener("click", () => {
+  if (!selectedCustomer) return showToast("먼저 방문자를 선택하세요.", true);
+  const raw = localStorage.getItem(HOLD_PREFIX + selectedCustomer.id);
+  if (!raw) return showToast("저장된 보류 데이터가 없습니다.", true);
+  try {
+    selectedItems = JSON.parse(raw) || [];
+    undoStack = [];
+    redoStack = [];
+    renderSelectedList();
+    showToast("보류된 데이터를 불러왔습니다.");
+  } catch {
+    showToast("보류 데이터가 손상되었습니다.", true);
+  }
+});
+
 // ✅ 제공 등록 제출
 submitBtn.addEventListener("click", async () => {
   if (!selectedCustomer || selectedItems.length === 0)
@@ -553,6 +769,7 @@ submitBtn.addEventListener("click", async () => {
     });
 
     showToast("제공 등록 완료!");
+    localStorage.removeItem(HOLD_PREFIX + selectedCustomer.id);
     resetForm();
   } catch (err) {
     console.error(err);
@@ -568,6 +785,8 @@ function resetForm() {
   customerInfoDiv.innerHTML = "";
   selectedCustomer = null;
   selectedItems = [];
+  visitorList = []; // ✅ 방문자 리스트도 초기화
+  renderVisitorList();
   renderSelectedList();
   lifeloveCheckbox.checked = false;
 }
