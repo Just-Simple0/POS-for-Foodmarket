@@ -154,6 +154,12 @@
   text-align: center;
 }
 
+/* ✅ 제한 위반 강조 */
+.limit-violation {
+  background: #fee2e2 !important;
+  transition: background-color 0.2s ease;
+}
+
 /* 합계/버튼 */
 #total-summary {
   margin-top: 1rem;
@@ -256,6 +262,21 @@ button#clear-all-btn:hover {
   background: #e3f2fd;
 }
 
+/* 배지 */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  line-height: 1.6;
+  background: #eef2ff;
+  color: #1f2937;
+}
+.badge-life {
+  background: #dcfce7;
+  color: #065f46;
+}
+
 /* 중복 고객 리스트 */
 #duplicate-list {
   list-style: none;
@@ -303,7 +324,6 @@ button#clear-all-btn:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-
 }
 
 /* 반응형 */

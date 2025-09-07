@@ -84,6 +84,33 @@
       <!-- A안 커서 페이저가 그려질 자리 -->
       <div id="pagination" class="pagebar" aria-label="페이지네이션"></div>
 
+      <!-- ✅ 제한 상품 설정 (관리 전용) -->
+      <h2 style="margin-top: 28px">제한 상품 설정</h2>
+      <section id="category-policy-section" class="policy-editor hidden" aria-live="polite">
+        <div class="policy-head">
+          <div>
+            <div class="policy-title">카테고리별 제한 규칙</div>
+            <div class="policy-sub">분류별로 <b>분류당 1개</b> 또는 <b>가격별 1개</b> 제한을 설정할 수 있습니다.</div>
+          </div>
+          <div class="policy-actions">
+            <button type="button" id="policy-save-btn" class="btn btn-primary" disabled>
+              <i class="fas fa-save"></i> 저장
+            </button>
+            <button type="button" id="policy-cancel-btn" class="btn" title="화면상의 변경을 모두 되돌립니다">
+              변경 취소
+            </button>
+          </div>
+        </div>
+        <div id="policy-table" class="policy-table">
+          <!-- JS로 채움: 각 카테고리 행 (카테고리명 / 제한모드 / 활성) -->
+        </div>
+        <div class="policy-foot">
+          <small class="muted">
+            저장 시 <code>stats/categoryPolicies</code> 문서에 기록됩니다. Provision 페이지는 규칙을 <u>표시하지 않고</u> 적용/확인만 수행합니다.
+          </small>
+        </div>
+      </section>
+
       <!-- 🧩 등록하기 모달(직접 입력 / 엑셀 업로드 탭) -->
       <div
         id="product-create-modal"

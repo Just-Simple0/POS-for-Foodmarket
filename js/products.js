@@ -28,6 +28,7 @@ import {
 } from "./components/comp.js";
 
 const productsCol = collection(db, "products");
+const POLICY_DOC = doc(db, "stats", "categoryPolicies");
 
 // 커서 기반 페이징 상태(A안)
 let prodPage = 1;
@@ -56,6 +57,8 @@ const pagination = document.getElementById("pagination");
 const CAT_DOC = doc(db, "meta", "categories_products");
 const CAT_CACHE_KEY = "catIndex:products:v1";
 let categoriesCache = [];
+let policiesCache = {}; // { [category]: { mode:'one_per_category'|'one_per_price', active:true } }
+let policyDirty = false;
 
 function normalizeCategory(c) {
   return String(c || "")
@@ -147,7 +150,117 @@ async function addCategoriesToIndex(cats) {
 }
 
 /* ---------------------------
-   서버 커서 페이징(A안)
+   제한 정책 로드/렌더/저장
+---------------------------- */
+async function loadPolicies() {
+  try {
+    const snap = await getDoc(POLICY_DOC);
+    const data = snap.exists() ? snap.data() : null;
+    policiesCache = data && data.policies ? data.policies : {};
+  } catch (e) {
+    console.warn("loadPolicies failed:", e);
+    policiesCache = {};
+  }
+}
+function ensurePolicySectionVisible() {
+  const sec = document.getElementById("category-policy-section");
+  if (!sec) return;
+  sec.classList.remove("hidden");
+}
+function renderPolicyEditor() {
+  const box = document.getElementById("policy-table");
+  const saveBtn = document.getElementById("policy-save-btn");
+  const cancelBtn = document.getElementById("policy-cancel-btn");
+  if (!box || !saveBtn || !cancelBtn) return;
+  // 렌더 대상 카테고리 = 인덱스 + 기존 정책 키의 합집합
+  const cats = Array.from(
+    new Set([...(categoriesCache || []), ...Object.keys(policiesCache || {})])
+  ).sort((a, b) => a.localeCompare(b));
+  box.innerHTML = "";
+  cats.forEach((cat) => {
+    const pol = policiesCache[cat] || { mode: "none", active: false };
+    const row = document.createElement("div");
+    row.className = "policy-row";
+    row.dataset.cat = cat;
+    row.innerHTML = `
+      <div class="cat">${escapeHtml(cat || "(미분류)")}</div>
+      <select class="policy-mode" aria-label="제한 모드">
+        <option value="none"${
+          pol.mode === "none" || !pol.mode ? " selected" : ""
+        }>제한 없음</option>
+        <option value="one_per_category"${
+          pol.mode === "one_per_category" ? " selected" : ""
+        }>분류당 1개</option>
+        <option value="one_per_price"${
+          pol.mode === "one_per_price" ? " selected" : ""
+        }>가격별 1개</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:6px;justify-self:flex-end">
+        <input type="checkbox" class="policy-active"${
+          pol.active !== false ? " checked" : ""
+        }/>
+        활성
+      </label>
+    `;
+    // 변경 감지
+    row
+      .querySelector(".policy-mode")
+      .addEventListener("change", () => markPolicyDirty());
+    row
+      .querySelector(".policy-active")
+      .addEventListener("change", () => markPolicyDirty());
+    box.appendChild(row);
+  });
+  saveBtn.disabled = true;
+  // ✅ 변경 취소: 화면상의 편집값을 모두 버리고 마지막 저장 상태(policiesCache)로 복귀
+  cancelBtn.onclick = () => {
+    renderPolicyEditor(); // DOM을 policiesCache 기반으로 다시 그림
+    policyDirty = false;
+    saveBtn.disabled = true;
+    showToast("변경 사항을 취소했습니다.");
+  };
+  saveBtn.onclick = savePolicies;
+  ensurePolicySectionVisible();
+}
+function markPolicyDirty() {
+  policyDirty = true;
+  const btn = document.getElementById("policy-save-btn");
+  if (btn) btn.disabled = false;
+}
+function collectPoliciesFromDOM() {
+  const box = document.getElementById("policy-table");
+  const out = {};
+  if (!box) return out;
+  box.querySelectorAll(".policy-row").forEach((row) => {
+    const cat = (row.dataset.cat || "").trim();
+    if (!cat) return;
+    const mode = row.querySelector(".policy-mode")?.value || "none";
+    const active = row.querySelector(".policy-active")?.checked ?? true;
+    if (mode !== "none" && active) out[cat] = { mode, active: true };
+  });
+  return out;
+}
+async function savePolicies() {
+  try {
+    const policies = collectPoliciesFromDOM();
+    // 문서 전체를 새 값으로 교체(삭제 반영 위해 merge:false)
+    await setDoc(
+      POLICY_DOC,
+      { policies, updatedAt: serverTimestamp() },
+      { merge: false }
+    );
+    policiesCache = policies;
+    policyDirty = false;
+    document.getElementById("policy-save-btn").disabled = true;
+    showToast("제한 규칙이 저장되었습니다.");
+  } catch (e) {
+    console.error(e);
+    showToast("제한 규칙 저장 중 오류가 발생했습니다.", true);
+  }
+}
+
+/* ---------------------------
+    서버 커서 페이징(A안)
 ---------------------------- */
 function resetProdPager() {
   prodPage = 1;
@@ -235,9 +348,9 @@ function renderList() {
       }" aria-label="상품 수정: ${escapeHtml(p.name || "")}">
           <i class="fas fa-pen"></i> 수정
         </button>
-       <button class="delete-btn" data-id="${
-         p.id
-       }" aria-label="상품 삭제: ${escapeHtml(p.name || "")}">
+        <button class="delete-btn" data-id="${
+          p.id
+        }" aria-label="상품 삭제: ${escapeHtml(p.name || "")}">
           <i class="fas fa-trash"></i> 삭제
         </button>
       </div>
@@ -301,7 +414,7 @@ function escapeHtml(s) {
 }
 
 /* ---------------------------
-   기본 기능 (검색/초기화/등록/수정/삭제)
+    기본 기능 (검색/초기화/등록/수정/삭제)
 --------------------------- */
 document.getElementById("search-btn").addEventListener("click", () => {
   resetProdPager();
@@ -582,7 +695,7 @@ document
   .addEventListener("click", attemptCloseEdit);
 
 /* ---------------------------
-   엑셀 업로드 (신규)
+    엑셀 업로드 (신규)
 --------------------------- */
 const $file = document.getElementById("excel-file-input");
 const $parseBtn = document.getElementById("excel-parse-btn");
@@ -786,7 +899,7 @@ async function fetchExistingByBarcode(barcodes) {
 }
 
 /* ---------------------------
-   엑셀 읽기/정규화 유틸
+    엑셀 읽기/정규화 유틸
 --------------------------- */
 function readExcel(file) {
   /* global XLSX */
@@ -884,11 +997,14 @@ function countDuplicatesBy(arr, key) {
 }
 
 /* ---------------------------
-   초기 포커스/엔터 검색 및 로딩
+    초기 포커스/엔터 검색 및 로딩
 --------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
   // 카테고리 인덱스 로드(캐시 우선, 미스 시 1회 읽기)
-  loadCategoryIndex().catch(console.error);
+  loadCategoryIndex()
+    .then(loadPolicies)
+    .then(renderPolicyEditor)
+    .catch(console.error);
   // 이름/바코드에서 Enter → 검색
   ["product-name", "product-barcode"].forEach((id) => {
     const el = document.getElementById(id);

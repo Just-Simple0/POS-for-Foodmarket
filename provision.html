@@ -40,7 +40,7 @@
       <!-- ✅ 사용자 확인 영역 -->
       <section id="customer-lookup">
         <input type="text" id="customer-search" placeholder="예: 홍길동" />
-        <button id="lookup-btn"><i class="fas fa-search"></i> 조회</button>
+        <button id="lookup-btn" type="button"><i class="fas fa-search"></i> 조회</button>
       </section>
 
       <!-- ✅ 방문자 리스트 (여러 명 담아두고 선택) -->
@@ -60,14 +60,24 @@
         <h3>상품 추가</h3>
 
         <div class="product-input-area">
+          <!-- 바코드 전용 입력 -->
+          <input
+            type="text"
+            id="barcode-input"
+            placeholder="바코드 입력 (Enter)"
+            inputmode="numeric"
+            pattern="\\d*"
+          />
+          <!-- 상품명 전용 입력 + 자동완성 -->
           <div class="autocomplete-wrapper">
             <input
               type="text"
-              id="barcode-input"
-              placeholder="바코드 또는 상품명 입력"
+              id="name-input"
+              placeholder="상품명 입력 (Enter → 수량)"
             />
             <div id="autocomplete-list" class="autocomplete-list hidden"></div>
           </div>
+          <!-- 수량 -->
           <input
             type="number"
             id="quantity-input"
@@ -158,15 +168,40 @@
         ></div>
 
         <div class="modal-buttons">
-          <button id="confirm-duplicate" title="방문자 리스트에 추가">
+          <button id="confirm-duplicate" type="button" title="방문자 리스트에 추가">
             <i class="fas fa-check"></i> 삽입
           </button>
-          <button id="close-duplicate-modal">
+          <button id="close-duplicate-modal" type="button">
             <i class="fas fa-times"></i> 닫기
           </button>
         </div>
       </div>
     </div>
+
+    <!-- ✅ 상품 빠른 등록 모달 (바코드 미등록 시 호출) -->
+      <div id="quick-create-modal" class="modal hidden modal--quick" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="qc-title">
+          <h2 id="qc-title"><i class="fas fa-bolt"></i> 상품 빠른 등록</h2>
+          <div class="grid2" style="margin-top:10px">
+            <label><span>상품명</span>
+              <input type="text" id="qc-name" />
+            </label>
+            <label><span>분류</span>
+              <input type="text" id="qc-category" placeholder="예: 음료, 과자" />
+            </label>
+            <label><span>가격</span>
+              <input type="number" id="qc-price" min="0" step="0.5" placeholder="예: 0 또는 0.5 단위" />
+            </label>
+            <label><span>바코드(EAN-13)</span>
+              <input type="text" id="qc-barcode" inputmode="numeric" />
+            </label>
+          </div>
+          <div class="modal-buttons">
+            <button type="button" id="qc-save" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
+            <button type="button" id="qc-close" class="btn"><i class="fas fa-times"></i> 닫기</button>
+          </div>
+        </div>
+      </div>
 
     <!-- Header/Footer 삽입 -->
     <script type="module">

@@ -117,6 +117,52 @@ function updatePagerUI() {
   );
 }
 
+/* ============================
+ * 유틸: 저장/삭제/등록 후 현재 뷰 유지한 채 재조회
+ * ============================ */
+async function refreshAfterMutation() {
+  const kwEl = document.getElementById("global-search");
+  const fldSel = document.getElementById("field-select");
+  const fldInp = document.getElementById("field-search");
+  const kw = (kwEl?.value || "").trim();
+  const f = (fldSel?.value || "").trim();
+  const fv = (fldInp?.value || "").trim();
+  try {
+    if (kw || (f && fv)) {
+      await runServerSearch();
+    } else if (typeof fetchAndRenderPage === "function" && buildCurrentQuery) {
+      await fetchAndRenderPage();
+    } else {
+      await loadCustomers();
+    }
+  } catch (_) {
+    await loadCustomers();
+  }
+}
+
+/* ============================
+ * 직접 등록 폼 초기화
+ * ============================ */
+function resetCreateForm() {
+  const set = (id, v = "") => {
+    const el = document.getElementById(id);
+    if (el) el.value = v;
+  };
+  set("create-name");
+  set("create-birth");
+  set("create-gender", "");
+  set("create-status", "지원");
+  set("create-region1");
+  set("create-address");
+  set("create-type");
+  set("create-category");
+  set("create-note");
+  // 전화번호 입력 줄 초기화(빈 한 줄)
+  try {
+    initPhoneList("#create-phone-wrap", "#create-phone-add", []);
+  } catch {}
+}
+
 function goNextPage() {
   if (!buildCurrentQuery || lastPageCount < pageSize) return; // 다음 없음
   currentPageIndex += 1;
@@ -312,7 +358,10 @@ function bindToolbarAndCreateModal() {
   // 툴바
   document
     .getElementById("btn-customer-create")
-    .addEventListener("click", () => openCreateModal());
+    .addEventListener("click", () => {
+      resetCreateForm();
+      openCreateModal();
+    });
   document
     .getElementById("btn-export-xlsx")
     .addEventListener("click", exportXlsx);
@@ -321,6 +370,7 @@ function bindToolbarAndCreateModal() {
   const closeAll = () => {
     modal.classList.add("hidden");
     modal.setAttribute("aria-hidden", "true");
+    resetCreateForm();
   };
   document
     .querySelectorAll("#create-modal-close")
@@ -345,16 +395,28 @@ function bindToolbarAndCreateModal() {
   // 업로드 탭
   bindUploadTab();
 
-  // 입력 중 자동 포맷팅(직접 입력 탭)
+  // 입력 중 자동 포맷팅(직접 입력 탭) — 엄격모드(YYYYMMDD만 허용)
   const birth = document.getElementById("create-birth");
-  birth?.addEventListener(
-    "input",
-    () => (birth.value = formatBirth(birth.value))
-  );
-  birth?.addEventListener(
-    "blur",
-    () => (birth.value = formatBirth(birth.value, true))
-  );
+  if (birth && !birth.dataset.strictBound) {
+    birth.addEventListener("input", () => {
+      birth.value = formatBirthStrictInput(birth.value); // 진행형: 점만 삽입
+      birth.setCustomValidity("");
+    });
+    birth.addEventListener("blur", () => {
+      // 확정: 8자리 유효성 검사
+      if (!validateBirthStrict(birth.value)) {
+        birth.setCustomValidity(
+          "생년월일은 YYYYMMDD 형식(예: 19990203)으로 입력하세요."
+        );
+        birth.reportValidity();
+      } else {
+        birth.value = finalizeBirthStrict(birth.value); // YYYY.MM.DD로 보기 좋게
+        birth.setCustomValidity("");
+      }
+    });
+    birth.dataset.strictBound = "1";
+  }
+
   // 전화번호 다중 입력 초기화
   initPhoneList("#create-phone-wrap", "#create-phone-add");
 
@@ -378,9 +440,16 @@ async function saveCreateDirect() {
   const email = auth.currentUser?.email || "unknown";
   const phoneVals = getPhonesFromList("#create-phone-wrap");
   const picked = parsePhonesPrimarySecondary(...phoneVals);
+  // 생년월일 엄격 검증(YYYYMMDD)
+  const createBirthRaw = val("#create-birth");
+  if (!validateBirthStrict(createBirthRaw)) {
+    showToast("생년월일은 YYYYMMDD 형식(예: 19990203)으로 입력하세요.", true);
+    return;
+  }
+  const createBirth = finalizeBirthStrict(createBirthRaw);
   const payload = {
     name: val("#create-name"),
-    birth: formatBirth(val("#create-birth"), true),
+    birth: createBirth,
     gender: val("#create-gender"),
     status: val("#create-status") || "지원",
     region1: val("#create-region1"),
@@ -455,7 +524,8 @@ async function saveCreateDirect() {
     });
   }
   document.getElementById("customer-create-modal").classList.add("hidden");
-  await loadCustomers();
+  resetCreateForm();
+  await refreshAfterMutation();
 }
 function val(sel) {
   const el = document.querySelector(sel);
@@ -669,6 +739,27 @@ function openEditModal(customer) {
   if (sSel) sSel.value = customer.status || "지원";
 
   document.getElementById("edit-modal").classList.remove("hidden");
+
+  // 수정 모달에도 엄격 포맷 적용 (중복 바인딩 방지)
+  const eBirth = document.getElementById("edit-birth");
+  if (eBirth && !eBirth.dataset.strictBound) {
+    eBirth.addEventListener("input", () => {
+      eBirth.value = formatBirthStrictInput(eBirth.value);
+      eBirth.setCustomValidity("");
+    });
+    eBirth.addEventListener("blur", () => {
+      if (!validateBirthStrict(eBirth.value)) {
+        eBirth.setCustomValidity(
+          "생년월일은 YYYYMMDD 형식(예: 19990203)으로 입력하세요."
+        );
+        eBirth.reportValidity();
+      } else {
+        eBirth.value = finalizeBirthStrict(eBirth.value);
+        eBirth.setCustomValidity("");
+      }
+    });
+    eBirth.dataset.strictBound = "1";
+  }
 }
 
 // 저장 시 반영
@@ -680,11 +771,23 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
   const ref = doc(db, "customers", id);
   const phoneVals = getPhonesFromList("#edit-phone-wrap");
   const picked = parsePhonesPrimarySecondary(...phoneVals);
+  const region1Val = (
+    document.getElementById("edit-region1")?.value || ""
+  ).trim();
+  // 생년월일 엄격 검증(YYYYMMDD)
+  const editBirthRaw = document.getElementById("edit-birth").value;
+  if (!validateBirthStrict(editBirthRaw)) {
+    showToast("생년월일은 YYYYMMDD 형식(예: 19990203)으로 입력하세요.", true);
+    return;
+  }
+  const editBirth = finalizeBirthStrict(editBirthRaw);
   const updateData = {
     name: document.getElementById("edit-name").value,
-    birth: formatBirth(document.getElementById("edit-birth").value, true),
+    birth: editBirth,
     gender: document.getElementById("edit-gender").value || "",
     status: document.getElementById("edit-status").value || "",
+    region1: region1Val,
+    regionLower: region1Val ? region1Val.toLowerCase() : "",
     address: document.getElementById("edit-address").value,
     phone: picked.display,
     phonePrimary: picked.prim || "",
@@ -757,7 +860,7 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
     });
   }
   document.getElementById("edit-modal").classList.add("hidden");
-  await loadCustomers();
+  await refreshAfterMutation();
 });
 
 document.getElementById("close-edit-modal")?.addEventListener("click", () => {
@@ -928,6 +1031,11 @@ async function runServerSearch() {
           break;
         case "category":
           cons2.push(where("category", "==", fieldRaw));
+          cons2.push(orderBy(documentId()));
+          break;
+        case "note":
+          // 비고는 부분검색 인덱스가 없으니 '정확히 일치'로 서버 질의
+          cons2.push(where("note", "==", fieldRaw));
           cons2.push(orderBy(documentId()));
           break;
         case "phone": {
@@ -1600,7 +1708,7 @@ async function onDupNew() {
 }
 
 // ===== 입력 보조: 자동 포맷 =====
-// 생년월일 표준화(YYYY.MM.DD)
+// (1) 공통 유틸
 function _pad2(s) {
   s = String(s || "");
   return s.length === 1 ? "0" + s : s.slice(0, 2);
@@ -1611,7 +1719,7 @@ function _clampMD(y, m, d) {
   if (!(mm >= 1 && mm <= 12) || !(dd >= 1 && dd <= 31)) return null;
   return { y, m: _pad2(m), d: _pad2(d) };
 }
-// 주민번호에서 출생/성별 추출(YYMMDD-1/2/3/4… 형태, 최소 앞6+뒤1)
+// (2) 엑셀 업로드 전용: 주민번호에서 생년/성별 추출 (기존 동작 유지)
 function extractBirthGenderFromRRN(rrn) {
   const m = String(rrn || "")
     .replace(/[^\d]/g, "")
@@ -1626,55 +1734,36 @@ function extractBirthGenderFromRRN(rrn) {
   const gender = g === 1 || g === 3 ? "남" : "여";
   return { birth: `${chk.y}.${chk.m}.${chk.d}`, gender };
 }
-/**
- * 다양한 입력을 YYYY.MM.DD 로 표준화
- * - rrnHint 제공 시 세기(1900/2000)를 rrn으로 판단
- * - 8자리(YYYYMMDD), 6자리(YYMMDD), 구분자 포함 형태 모두 지원
- * - 6자리일 때는 관례상 30~99 → 19xx, 00~29 → 20xx 로 추정
- */
-function formatBirth(input, force = true, rrnHint = null) {
-  const s = String(input || "").trim();
-  if (!s && rrnHint) {
-    const by = extractBirthGenderFromRRN(rrnHint);
-    if (by?.birth) return by.birth;
-    return "";
-  }
-  // 같은 칸에 RRN이 섞여 들어온 경우도 처리
-  const fromSelf = extractBirthGenderFromRRN(s);
-  if (fromSelf?.birth) return fromSelf.birth;
 
-  const digits = s.replace(/\D/g, "");
-  if (digits.length >= 8) {
-    // YYYYMMDD
-    const y = digits.slice(0, 4),
-      m = digits.slice(4, 6),
-      d = digits.slice(6, 8);
-    const chk = _clampMD(y, m, d);
-    if (chk) return `${chk.y}.${chk.m}.${chk.d}`;
-  }
-  if (digits.length === 6) {
-    // YYMMDD → 세기 추정 또는 rrnHint 이용
-    if (rrnHint) {
-      const by = extractBirthGenderFromRRN(rrnHint);
-      if (by?.birth) return by.birth;
-    }
-    const yy = digits.slice(0, 2),
-      m = digits.slice(2, 4),
-      d = digits.slice(4, 6);
-    const y = (parseInt(yy, 10) >= 30 ? "19" : "20") + yy;
-    const chk = _clampMD(y, m, d);
-    if (chk) return `${chk.y}.${chk.m}.${chk.d}`;
-  }
-  // 분리자 포함: 1999-1-3, 1999.01.03, 99/01/03 등
-  const parts = s.split(/[.\-\/\s]+/).filter(Boolean);
-  if (parts.length === 3) {
-    let [y, m, d] = parts;
-    if (y.length === 2) y = (parseInt(y, 10) >= 30 ? "19" : "20") + y;
-    const chk = _clampMD(y, m, d);
-    if (chk) return `${chk.y}.${chk.m}.${chk.d}`;
-  }
-  // 진행형 입력 중엔 그대로 두고, blur/저장 시 강제 표준화
-  return s;
+// (3) 수기 입력 전용: 엄격 모드(YYYYMMDD만 허용)
+function birthDigits(s) {
+  return String(s || "")
+    .replace(/\D/g, "")
+    .slice(0, 8);
+}
+// 입력 중: 자리수에 맞춰 점(.)만 삽입 (추정/보정 없음)
+function formatBirthStrictInput(input) {
+  const d = birthDigits(input);
+  if (d.length <= 4) return d; // YYYY
+  if (d.length <= 6) return `${d.slice(0, 4)}.${d.slice(4)}`; // YYYY.MM(또는 YYYY.M)
+  return `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}`; // YYYY.MM.D[ 또는 DD]
+}
+// 유효성: 정확히 8자리 + 실제 달력 날짜
+function validateBirthStrict(input) {
+  const d = birthDigits(input);
+  if (d.length !== 8) return false;
+  const y = +d.slice(0, 4),
+    m = +d.slice(4, 6),
+    day = +d.slice(6, 8);
+  if (m < 1 || m > 12) return false;
+  const maxDay = new Date(y, m, 0).getDate(); // 해당 월 마지막 날
+  return day >= 1 && day <= maxDay;
+}
+// 확정 시: 보기 좋은 YYYY.MM.DD
+function finalizeBirthStrict(input) {
+  const d = birthDigits(input);
+  if (d.length !== 8) return input;
+  return `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6, 8)}`;
 }
 
 function formatMultiPhones(text, strict = false) {
