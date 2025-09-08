@@ -68,13 +68,20 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    /* ==== 고객 ==== */
+     /* ==== 고객 ==== */
     match /customers/{id} {
       // admin: 전체 열람
       // user : status == "지원" 문서만 열람 (쿼리에서도 where("status","==","지원") 필수)
       allow read: if isAdmin() || (isUser() && resource.data.status == "지원");
-      // 쓰기(추가/수정/삭제)는 admin만 (user는 approvals에 요청)
-      allow create, update, delete: if isAdmin();
+      // 생성/삭제는 admin만
+      allow create, delete: if isAdmin();
+      // 업데이트:
+      //  - admin: 전체 허용
+      //  - isMember: visits / lifelove 만 변경 허용 (다른 필드는 그대로)
+      allow update: if isAdmin()
+                    || ( isMember()
+                         && request.resource.data.diff(resource.data)
+                              .changedKeys().hasOnly(["visits","lifelove"]) );
     }
 
     match /stats/{id} {
