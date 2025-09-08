@@ -16,7 +16,7 @@ import {
   arrayUnion,
   writeBatch,
   serverTimestamp,
-  runTransaction,
+  setDoc,
   increment,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -44,49 +44,64 @@ function toPeriodKey(date) {
   return `${String(startY).slice(2)}-${String(endY).slice(2)}`;
 }
 
-/**
- * 방문/일일 카운터 기록
- * - 규칙상 stats 컬렉션 쓰기가 admin 전용이면, 권한 에러 시 조용히 패스(콘솔 경고만).
- */
+// 방문/일일 카운터 기록 (visits는 확정 저장, stats_daily는 best-effort)
 async function ensureVisitAndDailyCounter(
   db,
   customerId,
   customerName,
-  atDate /* JS Date */
+  atDate
 ) {
+  const day = toDayNumber(atDate);
+  const dateKey = toDateKey(day);
+  const periodKey = toPeriodKey(atDate);
+  const visitId = `${dateKey}_${customerId}`;
+  const visitRef = doc(db, "visits", visitId);
   try {
-    const day = toDayNumber(atDate);
-    const dateKey = toDateKey(day);
-    const periodKey = toPeriodKey(atDate);
-
-    const visitId = `${dateKey}_${customerId}`;
-    const visitRef = doc(db, "visits", visitId);
-    const dailyRef = doc(db, "stats_daily", String(day));
-
-    await runTransaction(db, async (txn) => {
-      const v = await txn.get(visitRef);
-      if (!v.exists()) {
-        txn.set(visitRef, {
+    const snap = await getDoc(visitRef);
+    if (!snap.exists()) {
+      // 규칙 요구: createdBy 포함
+      await setDoc(
+        visitRef,
+        {
           day,
           dateKey,
           periodKey,
           customerId,
           customerName: customerName || null,
           createdAt: serverTimestamp(),
-        });
-        txn.set(
-          dailyRef,
-          { uniqueVisitors: increment(1), updatedAt: serverTimestamp() },
+          createdBy: auth.currentUser?.uid || "unknown",
+        },
+        { merge: true }
+      );
+      // stats_daily는 admin만 허용 → 실패해도 무시
+      try {
+        await setDoc(
+          doc(db, "stats_daily", String(day)),
+          {
+            uniqueVisitors: increment(1),
+            updatedAt: serverTimestamp(),
+          },
           { merge: true }
         );
+      } catch (e) {
+        console.warn("[stats_daily] best-effort skipped:", e?.message || e);
       }
-    });
+    } else {
+      // 존재 시 식별키 필드만 동기화(작성자/생성시각 보존)
+      await setDoc(
+        visitRef,
+        {
+          day,
+          dateKey,
+          periodKey,
+          customerId,
+          customerName: customerName || null,
+        },
+        { merge: true }
+      );
+    }
   } catch (e) {
-    // 권한 없으면(또는 인덱스 등) 통계만 생략하고 본 처리 계속
-    console.warn(
-      "[stats] ensureVisitAndDailyCounter skipped:",
-      e?.message || e
-    );
+    console.warn("[visits] ensure failed:", e?.message || e);
   }
 }
 

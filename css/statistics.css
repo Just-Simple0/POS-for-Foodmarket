@@ -1,6 +1,5 @@
 /* 페이지 전용: 컨테이너 폭만 이 페이지에서 오버라이드 */
 
-
 /* 카드 묶음 영역 */
 .stat-cards {
   display: flex;
@@ -178,14 +177,11 @@
 .table-controls {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
-  margin-bottom: 1.5rem;
-}
-.table-controls {
-  display: flex;
   justify-content: space-between;
+  gap: 0.8rem;
   margin-bottom: 20px;
 }
+
 
 /* 반응형 */
 @media (max-width: 768px) {

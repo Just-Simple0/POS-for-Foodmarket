@@ -14,6 +14,7 @@ import {
   addDoc,
   where,
   writeBatch,
+  startAfter,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { showToast, openCaptchaModal, openConfirm } from "./components/comp.js";
@@ -179,7 +180,7 @@ let cLogs = []; // 고객 로그 목록(30일)
 // ===== 로그 유틸 =====
 async function logEvent(type, data = {}) {
   try {
-    await addDoc(collection(db, "'customerlogs"), {
+    await addDoc(collection(db, "customerLogs"), {
       type,
       actor: auth.currentUser?.email || "unknown",
       createdAt: Timestamp.now(),
@@ -193,7 +194,7 @@ async function pruneOldCustomerLogs() {
   try {
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const q = query(
-      collection(db, "customerlogs"),
+      collection(db, "customerLogs"),
       where("createdAt", "<", Timestamp.fromDate(cutoff)),
       orderBy("createdAt", "asc"),
       limit(300)
@@ -207,6 +208,112 @@ async function pruneOldCustomerLogs() {
     console?.warn?.("pruneOldLogs skipped:", e);
   }
 }
+
+// ===== XLSX 백업 유틸 =====
+function ymd(d) {
+  const y = d.getFullYear(),
+    m = String(d.getMonth() + 1).padStart(2, "0"),
+    dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+async function exportProvisionsXlsx(db, fromDate, toDate) {
+  let last = null,
+    rows = [];
+  while (true) {
+    let qy = query(
+      collection(db, "provisions"),
+      where("timestamp", ">=", Timestamp.fromDate(fromDate)),
+      where("timestamp", "<", Timestamp.fromDate(toDate)),
+      orderBy("timestamp", "asc"),
+      limit(500)
+    );
+    if (last) qy = query(qy, startAfter(last));
+    const snap = await getDocs(qy);
+    if (snap.empty) break;
+    snap.forEach((d) => {
+      const v = d.data(),
+        ts = v.timestamp?.toDate?.() || null;
+      rows.push({
+        id: d.id,
+        date: ts
+          ? `${ymd(ts)} ${String(ts.getHours()).padStart(2, "0")}:${String(
+              ts.getMinutes()
+            ).padStart(2, "0")}`
+          : "",
+        customerId: v.customerId || "",
+        customerName: v.customerName || "",
+        items: Array.isArray(v.items)
+          ? v.items
+              .map((it) => `${it.name}x${it.quantity}@${it.price}`)
+              .join("; ")
+          : "",
+        total: v.total ?? 0,
+        lifelove: !!v.lifelove,
+        handledBy: v.handledBy || "",
+      });
+    });
+    last = snap.docs[snap.docs.length - 1];
+    if (snap.size < 500) break;
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "provisions");
+  XLSX.writeFile(wb, `provisions_${ymd(fromDate)}_${ymd(toDate)}.xlsx`);
+}
+async function exportVisitsXlsx(db, fromDate, toDate) {
+  const toDay = (d) =>
+    d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  let last = null,
+    rows = [];
+  while (true) {
+    let qy = query(
+      collection(db, "visits"),
+      where("day", ">=", toDay(fromDate)),
+      where("day", "<", toDay(toDate)),
+      orderBy("day", "asc"),
+      limit(1000)
+    );
+    if (last) qy = query(qy, startAfter(last));
+    const snap = await getDocs(qy);
+    if (snap.empty) break;
+    snap.forEach((d) => {
+      const v = d.data();
+      rows.push({
+        id: d.id,
+        date: v.dateKey || v.day || "",
+        customerId: v.customerId || "",
+        customerName: v.customerName || "",
+      });
+    });
+    last = snap.docs[snap.docs.length - 1];
+    if (snap.size < 1000) break;
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "visits");
+  XLSX.writeFile(wb, `visits_${ymd(fromDate)}_${ymd(toDate)}.xlsx`);
+}
+
+function fiscalDefaultRange() {
+  const now = new Date();
+  // 전년도 3/1 ~ 당해 3/1
+  const from = new Date(now.getFullYear() - 1, 2, 1);
+  const to = new Date(now.getFullYear(), 2, 1);
+  return { from, to };
+}
+
+// "YYYY.MM.DD" → Date 파서
+function parseYmdDots(s) {
+  const t = String(s || "").trim();
+  if (!t) return new Date("invalid");
+  return new Date(t.replace(/\./g, "-") + "T00:00:00");
+}
+function fmtDot(d) {
+  return window.moment
+    ? moment(d).format("YYYY.MM.DD")
+    : d.toISOString().slice(0, 10).replace(/-/g, ".");
+}
+
 // (9) 가상 스크롤(200행↑에서만 가동)
 const VIRTUAL_THRESHOLD = 200;
 let rowHeight = 44;
@@ -734,6 +841,169 @@ onAuthStateChanged(auth, (user) => {
     loadCounters().catch(() => {});
     // 승인 탭 초기화
     bindTabs();
+
+    // ===== 연간 백업/정리 바인딩 =====
+    const $from = document.getElementById("yr-start");
+    const $to = document.getElementById("yr-end");
+    const $btnDefault = document.getElementById("btn-annual-default");
+    const $btnProv = document.getElementById("btn-export-provisions-year");
+    const $btnVis = document.getElementById("btn-export-visits-year");
+    const $confirm = document.getElementById("purge-confirm");
+    const $purge = document.getElementById("btn-purge-run");
+    // daterangepicker 적용 (statistics와 동일 ranges)
+    try {
+      const today = window.moment ? moment() : null;
+      if (window.$ && $.fn.daterangepicker && $from && $to) {
+        $("#yr-start, #yr-end").daterangepicker({
+          locale: {
+            format: "YYYY.MM.DD",
+            separator: " ~ ",
+            applyLabel: "확인",
+            cancelLabel: "취소",
+            daysOfWeek: ["일", "월", "화", "수", "목", "금", "토"],
+            monthNames: [
+              "1월",
+              "2월",
+              "3월",
+              "4월",
+              "5월",
+              "6월",
+              "7월",
+              "8월",
+              "9월",
+              "10월",
+              "11월",
+              "12월",
+            ],
+            firstDay: 1,
+          },
+          ranges: today
+            ? {
+                오늘: [
+                  today.clone().startOf("day"),
+                  today.clone().startOf("day"),
+                ],
+                "1주일": [
+                  today.clone().subtract(6, "days").startOf("day"),
+                  today,
+                ],
+                "1개월": [
+                  today.clone().subtract(1, "month").startOf("day"),
+                  today,
+                ],
+                "3개월": [
+                  today.clone().subtract(3, "months").startOf("day"),
+                  today,
+                ],
+                "6개월": [
+                  today.clone().subtract(6, "months").startOf("day"),
+                  today,
+                ],
+                "1년": [
+                  today.clone().subtract(1, "year").startOf("day"),
+                  today,
+                ],
+              }
+            : undefined,
+          startDate: today || new Date(),
+          endDate: today || new Date(),
+          autoUpdateInput: false,
+          alwaysShowCalendars: true,
+        });
+        $("#yr-start, #yr-end").on(
+          "apply.daterangepicker",
+          function (ev, picker) {
+            $from.value = picker.startDate.format("YYYY.MM.DD");
+            $to.value = picker.endDate.format("YYYY.MM.DD");
+          }
+        );
+      }
+    } catch (e) {
+      /* optional */
+    }
+
+    const setDefaults = () => {
+      const { from, to } = fiscalDefaultRange();
+      if ($from) $from.value = fmtDot(from);
+      if ($to) $to.value = fmtDot(to);
+    };
+    setDefaults();
+    $btnDefault?.addEventListener("click", setDefaults);
+    $btnProv?.addEventListener("click", async () => {
+      try {
+        const fd = parseYmdDots($from?.value);
+        const td = parseYmdDots($to?.value);
+        if (isNaN(fd) || isNaN(td) || td <= fd)
+          return showToast("기간을 확인하세요.", true);
+        await exportProvisionsXlsx(db, fd, td);
+        showToast("제공 XLSX가 내려받아졌습니다.");
+      } catch (e) {
+        showToast("내보내기 실패", true);
+      }
+    });
+    $btnVis?.addEventListener("click", async () => {
+      try {
+        const fd = parseYmdDots($from?.value);
+        const td = parseYmdDots($to?.value);
+        if (isNaN(fd) || isNaN(td) || td <= fd)
+          return showToast("기간을 확인하세요.", true);
+        await exportVisitsXlsx(db, fd, td);
+        showToast("방문 XLSX가 내려받아졌습니다.");
+      } catch (e) {
+        showToast("내보내기 실패", true);
+      }
+    });
+    $purge?.addEventListener("click", async () => {
+      const phraseOk = ($confirm?.value || "").trim() === "DELETE-DATA";
+      if (!phraseOk)
+        return showToast("삭제 확인문구가 일치하지 않습니다.", true);
+      const ok = await openConfirm({
+        title: "기간 데이터 삭제",
+        message: "되돌릴 수 없습니다. 반드시 백업 후 진행하세요.",
+        variant: "warn",
+        confirmText: "삭제",
+        cancelText: "취소",
+      });
+      if (!ok) return;
+      try {
+        const fd = parseYmdDots($from?.value);
+        const td = parseYmdDots($to?.value);
+        if (isNaN(fd) || isNaN(td) || td <= fd)
+          return showToast("기간을 확인하세요.", true);
+        const qs = (o) =>
+          Object.entries(o)
+            .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+            .join("&");
+        const from = $from.value,
+          to = $to.value;
+        // provisions → visits 순서로 삭제
+        const r1 = await adminFetch(
+          `/admin/purge?${qs({
+            collection: "provisions",
+            from,
+            to,
+            confirm: "true",
+          })}`,
+          { method: "POST" }
+        );
+        const j1 = await r1.json();
+        const r2 = await adminFetch(
+          `/admin/purge?${qs({
+            collection: "visits",
+            from,
+            to,
+            confirm: "true",
+          })}`,
+          { method: "POST" }
+        );
+        const j2 = await r2.json();
+        showToast(
+          `삭제 완료: 제공 ${j1.deleted || 0}건, 방문 ${j2.deleted || 0}건`
+        );
+      } catch (e) {
+        showToast("삭제 실패: " + (e.message || String(e)), true);
+      }
+    });
   })();
 });
 

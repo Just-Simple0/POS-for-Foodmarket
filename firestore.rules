@@ -82,15 +82,29 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
     
-    /* ==== 새 통계용 컬렉션 ==== */
-match /visits/{id} {
-  allow read: if isMember();
-  allow create, update, delete: if isAdmin();
-}
-match /stats_daily/{id} {
-  allow read: if isMember();
-  allow create, update, delete: if isAdmin();
-}
+    /* ==== 방문 집계(고객별 일자 캐시) ==== */
+    match /visits/{vid} {
+      allow read: if isMember();
+      // 최초 생성: 승인 사용자, 필드 화이트리스트, createdBy는 본인
+      allow create: if isMember()
+                    && request.resource.data.keys().hasOnly(
+                         ["day","dateKey","customerId","customerName","periodKey","createdAt","createdBy"]
+                       )
+                    && request.resource.data.createdBy == request.auth.uid;
+      // 업데이트: 식별키/작성자는 불변
+      allow update: if isMember()
+                    && request.resource.data.day == resource.data.day
+                    && request.resource.data.customerId == resource.data.customerId
+                    && (!("createdBy" in request.resource.data)
+                        || request.resource.data.createdBy == resource.data.createdBy);
+      allow delete: if isAdmin();
+    }
+
+    /* ==== 일일 합계(표시용 캐시) ==== */
+    match /stats_daily/{id} {
+      allow read: if isMember();
+      allow create, update, delete: if isAdmin();
+    }
 
     /* ==== 승인 큐 ==== */
     match /approvals/{id} {
