@@ -1,0 +1,38 @@
+name: Annual Purge - Manual Delete
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "시작 (예: 2024-03-01)"
+        required: true
+      to:
+        description: "종료 미포함 (예: 2025-03-01)"
+        required: true
+      confirm:
+        description: "안전문구 입력: DELETE-DATA"
+        required: true
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    # GitHub Environments에 production 만들어서 Reviewer 요구 걸어두면 더 안전
+    environment: production
+    steps:
+      - name: Guard
+        run: |
+          if [ "${{ inputs.confirm }}" != "DELETE-DATA" ]; then
+            echo "Type DELETE-DATA to proceed."; exit 1;
+          fi
+
+      - name: Purge provisions
+        run: |
+          curl -sS -X POST \
+            "${{ secrets.PURGE_URL }}/admin/purge?collection=provisions&from=${{ inputs.from }}&to=${{ inputs.to }}&confirm=true" \
+            -H "X-CRON-SECRET: ${{ secrets.PURGE_CRON_SECRET }}"
+
+      - name: Purge visits
+        run: |
+          curl -sS -X POST \
+            "${{ secrets.PURGE_URL }}/admin/purge?collection=visits&from=${{ inputs.from }}&to=${{ inputs.to }}&confirm=true" \
+            -H "X-CRON-SECRET: ${{ secrets.PURGE_CRON_SECRET }}"

@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+  	/* ==== 카테고리 제한 규칙 ==== */
+    // products.js가 사용하는 문서: stats/categoryPolicies
+    // 읽기/쓰기: 승인된 회원 전체(admin, user)
+    match /stats/categoryPolicies {
+      allow read, create, update, delete: if isMember();
+    }
+
+    /* ==== 공통 헬퍼 ==== */
+    function signedIn() {
+      return request.auth != null;
+    }
+    // 커스텀 클레임 role: 'admin' | 'user' | 'pending'(또는 없음)
+    function role() {
+      return signedIn()
+        ? (request.auth.token.role != null ? request.auth.token.role : "pending")
+        : "guest";
+    }
+    function isAdmin() { return role() == "admin"; }
+    function isUser()  { return role() == "user"; }
+    function isMember(){ return isAdmin() || isUser(); } // 승인된 계정만
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    /* ==== 직원 프로필 ==== */
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow list: if false;
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid)
+                    && (request.resource.data.role == resource.data.role)
+                    && (request.resource.data.federations == resource.data.federations
+                        || !("federations" in request.resource.data));
+      allow delete: if false;
+    }
+
+    /* ==== 서버 전용 매핑(절대 클라 금지) ==== */
+    match /auth_links/{doc} {
+      allow read, write, update, delete: if false;
+    }
+
+    /* ==== 사용자 하위: 로그인 이력 ==== */
+    match /users/{uid}/logins/{logId} {
+      allow read, create: if isOwner(uid);
+      allow update, delete: if false;
+    }
+
+    /* ==== 업무 컬렉션 ==== */
+    match /provisions/{id} {
+      allow read, create, update: if isMember();
+      allow delete: if isAdmin();
+    }
+
+    match /products/{id} {
+      allow read, create, update: if isMember();
+      allow delete: if isAdmin();
+    }
+
+    match /sales/{id} {
+      allow read: if isMember();
+      allow create, update: if isMember()
+                            && request.resource.data.keys().hasAll(["createdAt", "createdBy"]);
+      allow delete: if isAdmin();
+    }
+
+    /* ==== 고객 ==== */
+    match /customers/{id} {
+      // admin: 전체 열람
+      // user : status == "지원" 문서만 열람 (쿼리에서도 where("status","==","지원") 필수)
+      allow read: if isAdmin() || (isUser() && resource.data.status == "지원");
+      // 쓰기(추가/수정/삭제)는 admin만 (user는 approvals에 요청)
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /stats/{id} {
+      allow read: if isMember();
+      allow create, update, delete: if false;
+    }
+    
+    /* ==== 새 통계용 컬렉션 ==== */
+match /visits/{id} {
+  allow read: if isMember();
+  allow create, update, delete: if isAdmin();
+}
+match /stats_daily/{id} {
+  allow read: if isMember();
+  allow create, update, delete: if isAdmin();
+}
+
+    /* ==== 승인 큐 ==== */
+    match /approvals/{id} {
+      // 요청 생성: 로그인 사용자 누구나
+      allow create: if signedIn();
+      // 열람/처리: admin만
+      allow read, update, delete: if isAdmin();
+    }
+
+    /* ==== 고객 활동 로그 ==== */
+    match /customerLogs/{id} {
+      // 기록은 로그인 사용자 누구나 남길 수 있게 (UX 위해)
+      allow create: if signedIn();
+      // 열람/정리: admin만
+      allow read, update, delete: if isAdmin();
+    }
+    
+    /* ==== 메타: 카테고리 인덱스 ==== */
+    match /meta/categories_products {
+      // 로그인 사용자면 읽기 가능
+      allow read: if signedIn();
+     // 로그인 사용자면 생성/업데이트 가능 (arrayUnion 등)
+      allow create, update: if signedIn();
+      // 삭제는 금지
+      allow delete: if false;
+    }
+
+    /* ==== 기본 거부 ==== */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -3,6 +3,8 @@
 import { db } from "./components/firebase-config.js";
 import {
   collection,
+  doc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -12,6 +14,7 @@ import {
   startAfter,
   startAt,
   limit,
+  getCountFromServer,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   showToast,
@@ -105,6 +108,111 @@ function debounce(fn, ms = 220) {
     clearTimeout(t);
     t = setTimeout(() => fn(...a), ms);
   };
+}
+
+// ===== Date helpers =====
+function toDayNumber(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return x.getFullYear() * 10000 + (x.getMonth() + 1) * 100 + x.getDate();
+}
+function dayRange(d) {
+  const s = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const e = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+  return [s, e];
+}
+function monthRange(d) {
+  const s = new Date(d.getFullYear(), d.getMonth(), 1);
+  const e = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  return [s, e];
+}
+
+// ===== Top-cards core =====
+// 1순위 stats_daily / 2순위 visits count agg / 3순위 provisions 기간 + 고객Set
+async function getDailyVisitorsCount(db, date) {
+  const day = toDayNumber(date);
+  // stats_daily
+  try {
+    const s = await getDoc(doc(db, "stats_daily", String(day)));
+    if (s.exists() && typeof s.data().uniqueVisitors === "number")
+      return s.data().uniqueVisitors;
+  } catch (e) {
+    /* pass */
+  }
+  // visits count
+  try {
+    const qv = query(
+      collection(db, "visits"),
+      where("day", ">=", day),
+      where("day", "<=", day)
+    );
+    const agg = await getCountFromServer(qv);
+    if (typeof agg.data().count === "number") return agg.data().count;
+  } catch (e) {
+    /* pass */
+  }
+  // provisions fallback
+  const [start, end] = dayRange(date);
+  const qp = query(
+    collection(db, "provisions"),
+    where("timestamp", ">=", start),
+    where("timestamp", "<", end)
+  );
+  const snap = await getDocs(qp);
+  const uniq = new Set();
+  snap.forEach((d) => {
+    const v = d.data();
+    if (v?.customerId) uniq.add(v.customerId);
+  });
+  return uniq.size;
+}
+
+async function getMonthlyVisitorsCount(db, anyDateInMonth) {
+  // stats_daily 합산(최대 31건)
+  let sum = 0,
+    used = 0;
+  const [ms, me] = monthRange(anyDateInMonth);
+  for (let d = new Date(ms); d < me; d.setDate(d.getDate() + 1)) {
+    const day = toDayNumber(d);
+    try {
+      const s = await getDoc(doc(db, "stats_daily", String(day)));
+      if (s.exists() && typeof s.data().uniqueVisitors === "number") {
+        sum += s.data().uniqueVisitors;
+        used++;
+      }
+    } catch (e) {
+      /*pass*/
+    }
+  }
+  if (used > 0) return sum;
+  // visits count agg (월 범위)
+  try {
+    const dmin = toDayNumber(ms);
+    const dmax = toDayNumber(
+      new Date(me.getFullYear(), me.getMonth(), me.getDate() - 1)
+    );
+    const qv = query(
+      collection(db, "visits"),
+      where("day", ">=", dmin),
+      where("day", "<=", dmax)
+    );
+    const agg = await getCountFromServer(qv);
+    if (typeof agg.data().count === "number") return agg.data().count;
+  } catch (e) {
+    /*pass*/
+  }
+  // provisions fallback (월 범위 + 고유 고객)
+  const qp = query(
+    collection(db, "provisions"),
+    where("timestamp", ">=", ms),
+    where("timestamp", "<", me)
+  );
+  const ps = await getDocs(qp);
+  const uniq = new Set();
+  ps.forEach((d) => {
+    const v = d.data();
+    if (v?.customerId) uniq.add(v.customerId);
+  });
+  return uniq.size;
 }
 
 // Simple loading indicator toggler (add .loading CSS in your stylesheet)
@@ -454,31 +562,17 @@ function filterAndRender() {
  * ===================================================== */
 async function renderTopStatistics() {
   const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
-  const currentYearMonth = todayStr.slice(0, 7);
-  const periodKey = getCurrentPeriodKey(today);
-
   const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const todayStr = today.toISOString().slice(0, 10);
   const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-  let todayVisit = 0,
-    yesterdayVisit = 0,
-    monthlyVisit = 0;
-  try {
-    const customersSnap = await getDocs(
-      query(collection(db, "customers"), where("status", "==", "지원"))
-    );
-    customersSnap.forEach((doc) => {
-      const data = doc.data();
-      const visits = data.visits?.[periodKey] || [];
-      if (visits.includes(todayStr)) todayVisit++;
-      if (visits.includes(yesterdayStr)) yesterdayVisit++;
-      if (visits.some((v) => v.startsWith(currentYearMonth))) monthlyVisit++;
-    });
-  } catch (e) {
-    console.error(e);
-  }
+  // 방문자 수: stats_daily → visits → provisions 폴백
+  const [todayVisit, yesterdayVisit, monthlyVisit] = await Promise.all([
+    getDailyVisitorsCount(db, today),
+    getDailyVisitorsCount(db, yesterday),
+    getMonthlyVisitorsCount(db, today),
+  ]);
 
   updateCard("#daily-visitors", todayVisit, yesterdayVisit, "명");
   const mv = document.querySelector("#monthly-visitors .value");
@@ -558,30 +652,44 @@ function updateCard(selector, todayVal, yesterVal, unit = "") {
 
 async function calculateMonthlyVisitRate() {
   try {
-    const snapshot = await getDocs(
+    const now = new Date();
+    const [ms, me] = monthRange(now);
+    // 1) 해당 월 '한 번 이상' 방문한 고유 고객 수 (visits 월 범위 dedup)
+    const minDay = toDayNumber(ms);
+    const maxDay = toDayNumber(
+      new Date(me.getFullYear(), me.getMonth(), me.getDate() - 1)
+    );
+    let last = null;
+    const uniq = new Set();
+    while (true) {
+      let qv = query(
+        collection(db, "visits"),
+        where("day", ">=", minDay),
+        where("day", "<=", maxDay),
+        orderBy("day", "asc"),
+        limit(500)
+      );
+      if (last) qv = query(qv, startAfter(last));
+      const snap = await getDocs(qv);
+      if (snap.empty) break;
+      snap.forEach((d) => {
+        const v = d.data();
+        if (v?.customerId) uniq.add(v.customerId);
+      });
+      last = snap.docs[snap.docs.length - 1];
+      if (snap.size < 500) break;
+    }
+    const visitedThisMonthCount = uniq.size;
+    // 2) 지원 고객 수 (count aggregation)
+    const agg = await getCountFromServer(
       query(collection(db, "customers"), where("status", "==", "지원"))
     );
-    const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(
-      now.getMonth() + 1
-    ).padStart(2, "0")}`;
-    const periodKey = getCurrentPeriodKey(now);
-    let supportCustomerCount = 0,
-      visitedThisMonthCount = 0;
-
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      supportCustomerCount++;
-      const visits = data.visits?.[periodKey];
-      if (!Array.isArray(visits)) return;
-      if (visits.some((dateStr) => dateStr.startsWith(thisMonth)))
-        visitedThisMonthCount++;
-    });
-
+    const supportCustomerCount = Number(agg.data().count || 0);
     const rate =
       supportCustomerCount > 0
         ? ((visitedThisMonthCount / supportCustomerCount) * 100).toFixed(1)
         : "0";
+    // UI 반영
     const rateEl = document.createElement("p");
     rateEl.className = "sub-info";
     rateEl.innerHTML = `<i class="fas fa-chart-pie"></i> 방문률: ${rate}%`;
@@ -806,22 +914,51 @@ async function loadVisitLogTable(periodKey) {
   try {
     setLoading("visit-log-section", true);
     visitData = [];
-    const snapshot = await getDocs(
-      query(collection(db, "customers"), where("status", "==", "지원"))
+    // visits에서 회계연도(periodKey)로 직접 조회 → 고객별 그룹핑
+    const qv = query(
+      collection(db, "visits"),
+      where("periodKey", "==", periodKey),
+      orderBy("day", "asc")
     );
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      const visits = data.visits?.[periodKey];
-      if (!Array.isArray(visits) || visits.length === 0) return;
-      visitData.push({
-        name: data.name,
-        birth: data.birth,
-        dates: visits.slice().sort().join(", "),
-      });
+    const snap = await getDocs(qv);
+    if (snap.empty) {
+      renderVisitTable([]);
+      setLoading("visit-log-section", false);
+      return;
+    }
+    const byCustomer = new Map(); // id -> { dates: Set<string> }
+    const idSet = new Set();
+    snap.forEach((d) => {
+      const v = d.data();
+      const cid = v.customerId;
+      if (!cid) return;
+      idSet.add(cid);
+      const holder = byCustomer.get(cid) || { dates: new Set() };
+      // 날짜 포맷: YYYY-MM-DD → YYYY.MM.DD
+      let ds = v.dateKey;
+      if (!ds && typeof v.day === "number") {
+        const y = Math.floor(v.day / 10000),
+          m = Math.floor((v.day % 10000) / 100),
+          dd = v.day % 100;
+        ds = `${y}-${String(m).padStart(2, "0")}-${String(dd).padStart(
+          2,
+          "0"
+        )}`;
+      }
+      if (ds) holder.dates.add(ds.replace(/-/g, "."));
+      byCustomer.set(cid, holder);
     });
-    visitData.sort((a, b) => a.name.localeCompare(b.name));
+    // 고객 메타 배치 조회
+    const cmap = await fetchCustomersByIdsBatched([...idSet]);
+    // 테이블 행 생성
+    visitData = [...byCustomer.entries()].map(([cid, rec]) => {
+      const c = cmap[cid] || {};
+      const dates = [...rec.dates].sort().join(", ");
+      return { name: c.name || "-", birth: c.birth || "-", dates };
+    });
+    visitData.sort((a, b) => a.name.localeCompare(b.name, "ko"));
     visitCurrentPage = 1;
-    filterAndRender();
+    renderVisitTable(visitData);
   } catch (e) {
     console.error(e);
     showToast?.("방문 일자를 불러오지 못했습니다.");

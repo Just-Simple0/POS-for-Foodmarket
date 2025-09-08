@@ -1,11 +1,7 @@
 {
   "hosting": {
     "public": ".",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ]
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
   },
   "emulators": {
     "auth": {
@@ -21,5 +17,9 @@
       "enabled": true
     },
     "singleProjectMode": true
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   }
 }
