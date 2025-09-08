@@ -16,10 +16,79 @@ import {
   arrayUnion,
   writeBatch,
   serverTimestamp,
+  runTransaction,
+  increment,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { showToast, openConfirm } from "./components/comp.js";
 import { getQuarterKey } from "./utils/lifelove.js";
+
+// ===== 통계용 헬퍼 & 카운터 보조 =====
+function toDayNumber(d) {
+  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return (
+    base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate()
+  );
+}
+function toDateKey(dayNum) {
+  const y = Math.floor(dayNum / 10000);
+  const m = Math.floor((dayNum % 10000) / 100);
+  const d = dayNum % 100;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+function toPeriodKey(date) {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const startY = m >= 3 ? y : y - 1;
+  const endY = startY + 1;
+  return `${String(startY).slice(2)}-${String(endY).slice(2)}`;
+}
+
+/**
+ * 방문/일일 카운터 기록
+ * - 규칙상 stats 컬렉션 쓰기가 admin 전용이면, 권한 에러 시 조용히 패스(콘솔 경고만).
+ */
+async function ensureVisitAndDailyCounter(
+  db,
+  customerId,
+  customerName,
+  atDate /* JS Date */
+) {
+  try {
+    const day = toDayNumber(atDate);
+    const dateKey = toDateKey(day);
+    const periodKey = toPeriodKey(atDate);
+
+    const visitId = `${dateKey}_${customerId}`;
+    const visitRef = doc(db, "visits", visitId);
+    const dailyRef = doc(db, "stats_daily", String(day));
+
+    await runTransaction(db, async (txn) => {
+      const v = await txn.get(visitRef);
+      if (!v.exists()) {
+        txn.set(visitRef, {
+          day,
+          dateKey,
+          periodKey,
+          customerId,
+          customerName: customerName || null,
+          createdAt: serverTimestamp(),
+        });
+        txn.set(
+          dailyRef,
+          { uniqueVisitors: increment(1), updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+      }
+    });
+  } catch (e) {
+    // 권한 없으면(또는 인덱스 등) 통계만 생략하고 본 처리 계속
+    console.warn(
+      "[stats] ensureVisitAndDailyCounter skipped:",
+      e?.message || e
+    );
+  }
+}
 
 const lookupInput = document.getElementById("customer-search");
 const lookupBtn = document.getElementById("lookup-btn");
@@ -68,6 +137,35 @@ window.addEventListener("DOMContentLoaded", () => {
   lookupInput.focus();
   loadCategoryPolicies();
 });
+
+// ===== 탭 전환: 제공/교환 =====
+const tabBtns = document.querySelectorAll(".tab-btn");
+const exchangePanel = document.querySelector('[data-tab-panel="exchange"]');
+const provisionHideOnExchange = [
+  document.getElementById("product-selection"),
+  document.getElementById("submit-section"),
+  document.getElementById("product-action-buttons"),
+];
+function showTab(name) {
+  tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  if (name === "exchange") {
+    exchangePanel?.classList.remove("hidden");
+    provisionHideOnExchange.forEach((el) => el?.classList.add("hidden"));
+    // 고객이 선택되어 있으면 최근 50일 내 제공내역 로드
+    if (selectedCustomer) loadRecentProvisionsForCustomer(selectedCustomer.id);
+  } else {
+    exchangePanel?.classList.add("hidden");
+    // 제공 등록 UI 복구
+    if (selectedCustomer) {
+      productSection.classList.remove("hidden");
+      submitSection.classList.remove("hidden");
+    }
+    provisionHideOnExchange.forEach((el) => el?.classList.remove("hidden"));
+  }
+}
+tabBtns.forEach((b) =>
+  b.addEventListener("click", () => showTab(b.dataset.tab))
+);
 
 lookupInput.addEventListener("keydown", (e) => {
   if (!duplicateModal.classList.contains("hidden") && e.key === "Enter") {
@@ -564,6 +662,7 @@ visitorListEl?.addEventListener("click", async (e) => {
     } catch {}
     renderSelectedList();
     renderVisitorList(); // active 표시 갱신
+    document.dispatchEvent(new Event("provision_customer_switched"));
   }
 });
 
@@ -878,9 +977,9 @@ function applyCategoryViolationHighlight() {
     for (const v of vios) {
       selectedItems.forEach((it) => {
         if ((it.category || "") !== v.category) return;
-        if (v.mode === "one_per_category") {
+        if (v.mode === "category") {
           violating.add(it.id);
-        } else if (v.mode === "one_per_price") {
+        } else if (v.mode === "price") {
           if (String(it.price ?? "") === String(v.price)) violating.add(it.id);
         }
       });
@@ -1034,6 +1133,7 @@ holdSaveBtn?.addEventListener("click", () => {
   customerInfoDiv.innerHTML = "";
   renderCustomerInfo(); // selectedCustomer가 null이면 hidden 처리됨
   renderVisitorList(); // active 표시 해제
+
   showToast("보류 처리되었습니다.");
 });
 
@@ -1138,6 +1238,13 @@ submitBtn.addEventListener("click", async () => {
     batch.update(customerRef, updates);
     await batch.commit();
 
+    await ensureVisitAndDailyCounter(
+      db,
+      selectedCustomer.id,
+      selectedCustomer.name,
+      new Date()
+    );
+
     showToast("제공 등록 완료!");
     localStorage.removeItem(HOLD_PREFIX + selectedCustomer.id);
     resetForm();
@@ -1163,3 +1270,301 @@ function resetForm() {
   renderSelectedList();
   lifeloveCheckbox.checked = false;
 }
+
+/* =========================
+   교환(최근 50일, 환불 없음)
+   ========================= */
+
+// DOM
+const exchangeHistoryTbody = document.querySelector(
+  "#exchange-history-table tbody"
+);
+const exchangeBuilder = document.getElementById("exchange-builder");
+const exBarcode = document.getElementById("ex-barcode-input");
+const exName = document.getElementById("ex-name-input");
+const exQty = document.getElementById("ex-quantity-input");
+const exAddBtn = document.getElementById("ex-add-product-btn");
+const exTableBody = document.querySelector("#exchange-table tbody");
+const exOriginalEl = document.getElementById("ex-original-total");
+const exNewEl = document.getElementById("ex-new-total");
+const exWarnEl = document.getElementById("ex-warning");
+const exSubmitBtn = document.getElementById("exchange-submit-btn");
+
+let exchangeItems = [];
+let exchangeOriginalItems = [];
+let exchangeOriginalTotal = 0;
+let exchangeProvision = null; // { id, data }
+
+async function loadRecentProvisionsForCustomer(customerId) {
+  if (!customerId || !exchangeHistoryTbody) return;
+  // 최근 50일
+  const fiftyAgo = new Date(Date.now() - 50 * 24 * 60 * 60 * 1000);
+  const qy = query(
+    collection(db, "provisions"),
+    where("customerId", "==", customerId),
+    where("timestamp", ">=", fiftyAgo),
+    orderBy("timestamp", "asc") // 인덱스: [customerId ASC, timestamp ASC] 권장
+  );
+  const snap = await getDocs(qy);
+  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  renderExchangeHistory(rows);
+}
+
+function renderExchangeHistory(rows) {
+  exchangeHistoryTbody.innerHTML = "";
+  if (!rows.length) {
+    exchangeHistoryTbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#666;">최근 50일 내 제공내역이 없습니다.</td></tr>`;
+    exchangeBuilder.classList.add("hidden");
+    return;
+  }
+  rows.forEach((r) => {
+    const ts = r.timestamp?.toDate
+      ? r.timestamp.toDate()
+      : new Date(r.timestamp);
+    const when = ts
+      ? `${ts.getFullYear()}-${String(ts.getMonth() + 1).padStart(
+          2,
+          "0"
+        )}-${String(ts.getDate()).padStart(2, "0")} ${String(
+          ts.getHours()
+        ).padStart(2, "0")}:${String(ts.getMinutes()).padStart(2, "0")}`
+      : "-";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${when}</td>
+      <td>${r.items?.length || 0}건</td>
+      <td>${r.total ?? 0}</td>
+      <td>${r.lifelove ? "생명사랑" : "-"}</td>
+      <td><button class="ex-pick" data-id="${r.id}">선택</button></td>
+    `;
+    exchangeHistoryTbody.appendChild(tr);
+  });
+  exchangeBuilder.classList.add("hidden");
+  exchangeItems = [];
+  exchangeOriginalItems = [];
+  exchangeProvision = null;
+}
+
+exchangeHistoryTbody?.addEventListener("click", async (e) => {
+  if (!e.target.classList.contains("ex-pick")) return;
+  const id = e.target.dataset.id;
+  const snap = await getDoc(doc(db, "provisions", id));
+  if (!snap.exists()) return showToast("내역을 불러올 수 없습니다.", true);
+
+  const data = snap.data();
+  exchangeProvision = { id, ...data };
+  exchangeOriginalItems = Array.isArray(data.items)
+    ? data.items.map((x) => ({ ...x }))
+    : [];
+  exchangeItems = exchangeOriginalItems.map((x) => ({ ...x })); // 초기값=원본
+  exchangeOriginalTotal = Number(data.total || 0);
+  renderExchangeList();
+  exchangeBuilder.classList.remove("hidden");
+  showToast("교환 편집을 시작합니다.");
+});
+
+// 교환 리스트 렌더
+function renderExchangeList() {
+  exTableBody.innerHTML = "";
+  exchangeItems.forEach((item, idx) => {
+    const tr = document.createElement("tr");
+    const totalPrice = (item.quantity || 0) * (item.price || 0);
+    tr.innerHTML = `
+      <td>${item.name}</td>
+      <td>
+        <div class="quantity-wrapper">
+          <button class="ex-dec" data-idx="${idx}">−</button>
+          <input type="number" class="quantity-input" min="1" max="30" value="${
+            item.quantity || 1
+          }" data-idx="${idx}" />
+          <button class="ex-inc" data-idx="${idx}">+</button>
+        </div>
+      </td>
+      <td>${item.price || 0}</td>
+      <td>${totalPrice}</td>
+      <td><button class="ex-del" data-idx="${idx}"><i class="fas fa-trash"></i></button></td>
+    `;
+    tr.dataset.id = item.id;
+    tr.dataset.category = item.category || "";
+    tr.dataset.price = String(item.price ?? "");
+    exTableBody.appendChild(tr);
+  });
+  // 합계/경고
+  const newTotal = exchangeItems.reduce(
+    (a, b) => a + (b.quantity || 0) * (b.price || 0),
+    0
+  );
+  exOriginalEl.textContent = exchangeOriginalTotal;
+  exNewEl.textContent = newTotal;
+
+  if (newTotal > exchangeOriginalTotal || newTotal > 30) {
+    exWarnEl.classList.remove("hidden");
+  } else {
+    exWarnEl.classList.add("hidden");
+  }
+
+  // 제한 강조
+  applyCategoryViolationHighlightFor(exchangeItems, exTableBody);
+}
+
+function applyCategoryViolationHighlightFor(items, tbody) {
+  // 기존 함수를 재사용하되 대상 tbody만 교체
+  const vios = checkCategoryViolations(items, categoryPolicies);
+  const violating = new Set();
+  if (vios.length) {
+    for (const v of vios) {
+      items.forEach((it) => {
+        if ((it.category || "") !== v.category) return;
+        if (v.mode === "price") {
+          if (String(it.price ?? "") === String(v.price)) violating.add(it.id);
+        } else {
+          violating.add(it.id);
+        }
+      });
+    }
+  }
+  [...tbody.children].forEach((tr) => {
+    const id = tr.dataset.id;
+    tr.classList.toggle("limit-violation", violating.has(id));
+  });
+}
+
+// 교환 입력(추가)
+exAddBtn?.addEventListener("click", async () => {
+  const q = parseInt(exQty.value) || 1;
+  const code = exBarcode.value.trim();
+  const nameKey = exName.value.trim();
+  if (!exchangeProvision)
+    return showToast("먼저 교환할 내역을 선택하세요.", true);
+
+  try {
+    if (code) {
+      if (!isValidEAN13(code))
+        return showToast("유효한 바코드가 아닙니다.", true);
+      const byCode = await findProductByBarcode(code);
+      if (!byCode) return showToast("해당 바코드의 상품이 없습니다.", true);
+      exchangeAdd(byCode, q);
+      exchangeCleanup();
+      return;
+    }
+    if (!nameKey) return showToast("바코드 또는 상품명을 입력하세요.", true);
+    const rows = await searchProductsByNamePrefix(nameKey);
+    const picked =
+      rows.find(
+        (p) => (p.name || "").toLowerCase() === nameKey.toLowerCase()
+      ) || rows[0];
+    if (!picked) return showToast("해당 상품을 찾을 수 없습니다.", true);
+    exchangeAdd(picked, q);
+    exchangeCleanup();
+  } catch (e) {
+    console.error(e);
+    showToast("교환 항목 추가 중 오류", true);
+  }
+});
+function exchangeAdd(prod, qty) {
+  const ex = exchangeItems.find((it) => it.id === prod.id);
+  if (ex) ex.quantity = Math.min((ex.quantity || 0) + qty, 30);
+  else
+    exchangeItems.push({
+      id: prod.id,
+      name: prod.name,
+      category: prod.category || "",
+      price: prod.price || 0,
+      quantity: qty,
+    });
+  renderExchangeList();
+}
+function exchangeCleanup() {
+  exBarcode.value = "";
+  exName.value = "";
+  exQty.value = "";
+  exBarcode.focus();
+}
+
+// 교환 테이블 조작
+exTableBody?.addEventListener("click", (e) => {
+  const idx = e.target.dataset.idx || e.target.closest("button")?.dataset.idx;
+  if (idx == null) return;
+  if (e.target.classList.contains("ex-inc")) {
+    exchangeItems[idx].quantity = Math.min(
+      (exchangeItems[idx].quantity || 1) + 1,
+      30
+    );
+    renderExchangeList();
+  } else if (e.target.classList.contains("ex-dec")) {
+    exchangeItems[idx].quantity = Math.max(
+      (exchangeItems[idx].quantity || 1) - 1,
+      1
+    );
+    renderExchangeList();
+  } else if (e.target.closest(".ex-del")) {
+    exchangeItems.splice(Number(idx), 1);
+    renderExchangeList();
+  }
+});
+exTableBody?.addEventListener("change", (e) => {
+  if (!e.target.classList.contains("quantity-input")) return;
+  const idx = e.target.dataset.idx;
+  let val = parseInt(e.target.value, 10);
+  if (!Number.isFinite(val) || val < 1) val = 1;
+  if (val > 30) val = 30;
+  exchangeItems[idx].quantity = val;
+  renderExchangeList();
+});
+
+// 교환 제출
+exSubmitBtn?.addEventListener("click", async () => {
+  if (!exchangeProvision) return showToast("교환할 내역을 선택하세요.", true);
+  if (!exchangeItems.length) return showToast("교환 항목을 추가하세요.", true);
+
+  const newTotal = exchangeItems.reduce(
+    (a, b) => a + (b.quantity || 0) * (b.price || 0),
+    0
+  );
+  if (newTotal > 30) return showToast("포인트 초과(최대 30)", true);
+  if (newTotal > exchangeOriginalTotal)
+    return showToast(
+      "교환 합계는 기존 합계 이내로만 가능합니다(환불 없음).",
+      true
+    );
+
+  const ok = await openConfirm({
+    title: "교환 확정",
+    message: `기존 합계 ${exchangeOriginalTotal} → 교환 합계 ${newTotal}\n환불은 없습니다. 진행할까요?`,
+    confirmText: "교환",
+    cancelText: "취소",
+  });
+  if (!ok) return;
+
+  try {
+    await updateDoc(doc(db, "provisions", exchangeProvision.id), {
+      items: exchangeItems,
+      total: newTotal,
+      updatedAt: serverTimestamp(),
+      exchangeLog: arrayUnion({
+        at: serverTimestamp(),
+        by: auth.currentUser?.email || null,
+        from: exchangeOriginalItems,
+        to: exchangeItems,
+      }),
+    });
+    showToast("교환이 완료되었습니다.");
+    // 히스토리 재조회 + 빌더 초기화
+    loadRecentProvisionsForCustomer(
+      selectedCustomer?.id || exchangeProvision.customerId
+    );
+    exchangeBuilder.classList.add("hidden");
+  } catch (e) {
+    console.error(e);
+    showToast("교환 실패", true);
+  }
+});
+
+// 방문자 선택 시, 교환 탭이면 히스토리 자동 로드
+// (기존 visitorListEl select 핸들러 마지막에 renderSelectedList() 후 아래 한 줄 추가해도 됨)
+document.addEventListener("provision_customer_switched", () => {
+  const isEx =
+    document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
+  if (isEx && selectedCustomer)
+    loadRecentProvisionsForCustomer(selectedCustomer.id);
+});

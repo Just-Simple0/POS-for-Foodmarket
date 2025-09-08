@@ -2,7 +2,13 @@
   "name": "pos-for-foodmarket",
   "version": "1.0.0",
   "type": "module",
+  "private": true,
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "tw:build": "tailwindcss -i ./css/tw-input.css -o ./css/tw.css --minify",
+    "tw:watch": "tailwindcss -i ./css/tw-input.css -o ./css/tw.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
   }
 }

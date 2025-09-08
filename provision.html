@@ -7,6 +7,7 @@
 
     <!-- 공통 parts 삽입 -->
     <link rel="stylesheet" href="css/common.css" />
+
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
@@ -30,17 +31,28 @@
     <!-- 개별 css, js 삽입 -->
     <link rel="stylesheet" href="css/provision.css" />
     <script type="module" src="js/provision.js" defer></script>
-  </head>
+    <link rel="stylesheet" href="css/tw.css">
+</head>
 
   <body>
     <div id="header-container"></div>
 
     <main class="container">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="provision">
+          <i class="fas fa-cash-register"></i> 제공 등록
+        </button>
+        <button class="tab-btn" data-tab="exchange">
+          <i class="fas fa-right-left"></i> 교환
+        </button>
+      </div>
       <h3>이용자 조회</h3>
       <!-- ✅ 사용자 확인 영역 -->
       <section id="customer-lookup">
         <input type="text" id="customer-search" placeholder="예: 홍길동" />
-        <button id="lookup-btn" type="button"><i class="fas fa-search"></i> 조회</button>
+        <button id="lookup-btn" type="button">
+          <i class="fas fa-search"></i> 조회
+        </button>
       </section>
 
       <!-- ✅ 방문자 리스트 (여러 명 담아두고 선택) -->
@@ -150,6 +162,85 @@
           <i class="fas fa-play-circle"></i> 보류 불러오기
         </button>
       </div>
+
+      <!-- ============ 교환(최근 50일) 섹션 ============ -->
+      <section id="exchange-section" data-tab-panel="exchange" class="hidden">
+        <h3>교환 (최근 50일, 환불 없음)</h3>
+
+        <div class="table-wrapper">
+          <table id="exchange-history-table">
+            <thead>
+              <tr>
+                <th>일시</th>
+                <th>항목수</th>
+                <th>합계</th>
+                <th>비고</th>
+                <th>선택</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div id="exchange-builder" class="hidden" style="margin-top: 1rem">
+          <h3>교환 편집</h3>
+          <div class="product-input-area">
+            <input
+              type="text"
+              id="ex-barcode-input"
+              placeholder="바코드 입력 (Enter)"
+              inputmode="numeric"
+              pattern="\\d*"
+            />
+            <div class="autocomplete-wrapper">
+              <input type="text" id="ex-name-input" placeholder="상품명 입력" />
+              <div
+                class="autocomplete-list hidden"
+                id="ex-autocomplete"
+                style="display: none"
+              ></div>
+            </div>
+            <input
+              type="number"
+              id="ex-quantity-input"
+              placeholder="수량 (기본 1)"
+              min="1"
+              max="30"
+            />
+            <button id="ex-add-product-btn">
+              <i class="fas fa-plus-circle"></i> 추가
+            </button>
+          </div>
+
+          <div class="selected-products table-wrapper">
+            <table id="exchange-table">
+              <thead>
+                <tr>
+                  <th>상품명</th>
+                  <th>수량</th>
+                  <th>단가</th>
+                  <th>총가격</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div id="total-summary">
+              기존 합계: <b id="ex-original-total">0</b> | 교환 합계:
+              <b id="ex-new-total">0</b>
+              <span id="ex-warning" class="hidden"
+                >⚠ 교환 합계는 기존 합계 이내이며, 최대 30 포인트입니다.</span
+              >
+            </div>
+          </div>
+
+          <div style="margin-top: 10px">
+            <button id="exchange-submit-btn">
+              <i class="fas fa-right-left"></i> 교환 확정
+            </button>
+          </div>
+        </div>
+      </section>
     </main>
 
     <div id="footer-container"></div>
@@ -168,7 +259,11 @@
         ></div>
 
         <div class="modal-buttons">
-          <button id="confirm-duplicate" type="button" title="방문자 리스트에 추가">
+          <button
+            id="confirm-duplicate"
+            type="button"
+            title="방문자 리스트에 추가"
+          >
             <i class="fas fa-check"></i> 삽입
           </button>
           <button id="close-duplicate-modal" type="button">
@@ -179,29 +274,52 @@
     </div>
 
     <!-- ✅ 상품 빠른 등록 모달 (바코드 미등록 시 호출) -->
-      <div id="quick-create-modal" class="modal hidden modal--quick" aria-hidden="true">
-        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="qc-title">
-          <h2 id="qc-title"><i class="fas fa-bolt"></i> 상품 빠른 등록</h2>
-          <div class="grid2" style="margin-top:10px">
-            <label><span>상품명</span>
-              <input type="text" id="qc-name" />
-            </label>
-            <label><span>분류</span>
-              <input type="text" id="qc-category" placeholder="예: 음료, 과자" />
-            </label>
-            <label><span>가격</span>
-              <input type="number" id="qc-price" min="0" step="0.5" placeholder="예: 0 또는 0.5 단위" />
-            </label>
-            <label><span>바코드(EAN-13)</span>
-              <input type="text" id="qc-barcode" inputmode="numeric" />
-            </label>
-          </div>
-          <div class="modal-buttons">
-            <button type="button" id="qc-save" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
-            <button type="button" id="qc-close" class="btn"><i class="fas fa-times"></i> 닫기</button>
-          </div>
+    <div
+      id="quick-create-modal"
+      class="modal hidden modal--quick"
+      aria-hidden="true"
+    >
+      <div
+        class="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="qc-title"
+      >
+        <h2 id="qc-title"><i class="fas fa-bolt"></i> 상품 빠른 등록</h2>
+        <div class="grid2" style="margin-top: 10px">
+          <label
+            ><span>상품명</span>
+            <input type="text" id="qc-name" />
+          </label>
+          <label
+            ><span>분류</span>
+            <input type="text" id="qc-category" placeholder="예: 음료, 과자" />
+          </label>
+          <label
+            ><span>가격</span>
+            <input
+              type="number"
+              id="qc-price"
+              min="0"
+              step="0.5"
+              placeholder="예: 0 또는 0.5 단위"
+            />
+          </label>
+          <label
+            ><span>바코드(EAN-13)</span>
+            <input type="text" id="qc-barcode" inputmode="numeric" />
+          </label>
+        </div>
+        <div class="modal-buttons">
+          <button type="button" id="qc-save" class="btn btn-primary">
+            <i class="fas fa-save"></i> 저장
+          </button>
+          <button type="button" id="qc-close" class="btn">
+            <i class="fas fa-times"></i> 닫기
+          </button>
         </div>
       </div>
+    </div>
 
     <!-- Header/Footer 삽입 -->
     <script type="module">

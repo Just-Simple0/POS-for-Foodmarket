@@ -7,6 +7,7 @@
 
     <!-- 공통 -->
     <link rel="stylesheet" href="css/common.css" />
+    <link rel="stylesheet" href="css/tw-input.css" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
@@ -30,7 +31,8 @@
     <!-- 개별 css, js -->
     <link rel="stylesheet" href="css/products.css" />
     <script type="module" src="js/products.js"></script>
-  </head>
+    <link rel="stylesheet" href="css/tw.css">
+</head>
   <body>
     <div id="header-container"></div>
 
@@ -45,27 +47,27 @@
       <section id="tab-products" class="tabpane">
         <h2>상품 조회</h2>
 
-      <!-- 🔍 검색 전용 폼(이름/바코드) + 등록 모달 오픈 버튼 -->
-      <form id="search-form" class="search-bar">
-        <div class="form-row">
-          <input type="text" id="product-name" placeholder="상품명" />
-          <input type="text" id="product-barcode" placeholder="바코드" />
-          <select id="filter-category" title="분류 필터">
-            <option value="">전체 분류</option>
-          </select>
-        </div>
-        <div class="form-buttons">
-          <button type="button" id="search-btn">
-            <i class="fas fa-search"></i> 검색
-          </button>
-          <button type="reset" id="reset-btn">
-            <i class="fas fa-undo"></i> 초기화
-          </button>
-          <button type="button" id="btn-product-create">
-            <i class="fas fa-plus"></i> 등록하기
-          </button>
-        </div>
-      </form>
+        <!-- 🔍 검색 전용 폼(이름/바코드) + 등록 모달 오픈 버튼 -->
+        <form id="search-form" class="search-bar">
+          <div class="form-row">
+            <input type="text" id="product-name" placeholder="상품명" />
+            <input type="text" id="product-barcode" placeholder="바코드" />
+            <select id="filter-category" title="분류 필터">
+              <option value="">전체 분류</option>
+            </select>
+          </div>
+          <div class="form-buttons">
+            <button type="button" id="search-btn">
+              <i class="fas fa-search"></i> 검색
+            </button>
+            <button type="reset" id="reset-btn">
+              <i class="fas fa-undo"></i> 초기화
+            </button>
+            <button type="button" id="btn-product-create">
+              <i class="fas fa-plus"></i> 등록하기
+            </button>
+          </div>
+        </form>
         <h2 style="margin-top: 24px">상품 목록</h2>
         <div class="list-bar">
           <select id="sort-select">

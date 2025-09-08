@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Adapter layer: map project classes to Tailwind tokens ===== */
+
+/* Buttons */
+.btn { @apply inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed; }
+.btn--primary { @apply bg-brand-700 text-white border-brand-700 hover:bg-brand-600; }
+.btn--danger { @apply bg-red-600 text-white border-red-600 hover:bg-red-500; }
+.btn--ghost { @apply bg-transparent border-transparent text-slate-700 hover:bg-slate-100; }
+.small-btn { @apply text-sm px-2 py-1; }
+
+/* Tabs */
+.tab-btn { @apply rounded-full border border-slate-300 bg-white text-slate-700 font-semibold px-3 py-2 shadow-sm; }
+.tab-btn.is-active { @apply bg-brand-50 border-brand-300 text-brand-700; }
+
+/* Inputs */
+.form-input { @apply w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-300; }
+.select { @apply rounded-md border border-slate-300 px-3 py-2 bg-white; }
+.input-sm { @apply text-sm px-2 py-1; }
+.label { @apply text-slate-700 font-medium; }
+
+/* Cards */
+.card { @apply rounded-xl border border-slate-200 bg-white shadow-sm; }
+.card-header { @apply px-4 py-3 border-b border-slate-200 font-semibold text-slate-800; }
+.card-body { @apply p-4; }
+.card-footer { @apply px-4 py-3 border-t border-slate-200; }
+
+/* Tables */
+.table { @apply w-full text-sm; }
+.table th { @apply bg-slate-50 font-semibold text-slate-700; }
+.table th, .table td { @apply border border-slate-200 px-3 py-2; }
+.table-wrapper { @apply overflow-auto rounded-md border border-slate-200; }
+
+/* Modal */
+.modal { @apply fixed inset-0 flex items-center justify-center bg-black/40; }
+.modal-content { @apply bg-white rounded-xl shadow-lg w-full max-w-xl p-5; }
+.modal-buttons { @apply flex gap-2 justify-end mt-4; }
+
+/* Toast */
+.toast { @apply fixed bottom-4 left-1/2 -translate-x-1/2 rounded-md px-4 py-2 bg-black/80 text-white shadow-lg; }
+
+/* Badge */
+.badge { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold border; }
+.badge--admin { @apply bg-brand-50 text-brand-700 border-brand-300; }
+.badge--pending { @apply bg-yellow-50 text-yellow-700 border-yellow-300; }
+.badge--danger { @apply bg-red-50 text-red-700 border-red-300; }
+
+/* Pagination */
+.pagination { @apply flex items-center gap-2 text-sm; }
+.page-btn { @apply btn; }
+.page-input { @apply w-16 form-input text-center; }
+
+/* Utility bridges */
+.center { @apply flex items-center justify-center; }
+.muted { @apply text-slate-500; }
+.hidden { display: none; } /* in case older pages rely on CSS hidden */

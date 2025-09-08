@@ -326,6 +326,61 @@ button#clear-all-btn:hover {
   gap: 10px;
 }
 
+/* ===== 탭 ===== */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0.5rem 0 1rem;
+}
+.tab-btn {
+  padding: 8px 14px;
+  border: 1px solid #cfd8e3;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #1f2937;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.tab-btn:hover {
+  background: #f0f7ff;
+  border-color: #90caf9;
+  color: #111827;
+}
+.tab-btn.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+/* 교환 표 */
+#exchange-history-table,
+#exchange-table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.95rem;
+}
+#exchange-history-table th,
+#exchange-history-table td,
+#exchange-table th,
+#exchange-table td {
+  border: 1px solid #ccc;
+  padding: 8px 10px;
+  text-align: center;
+}
+#exchange-history-table td:first-child,
+#exchange-table td:first-child {
+  text-align: left;
+  padding-left: 12px;
+}
+#ex-warning {
+  color: crimson;
+  font-weight: bold;
+  margin-left: 1rem;
+}
+
 /* 반응형 */
 @media (max-width: 768px) {
   .visitor-list {
