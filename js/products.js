@@ -162,6 +162,30 @@ async function loadPolicies() {
     policiesCache = {};
   }
 }
+
+// ---------------------------
+// 페이지 탭 전환(상품 목록 / 제한 설정)
+// ---------------------------
+function bindPageTabs() {
+  const bar = document.querySelector(".tabbar--products");
+  if (!bar) return;
+  const btnList = bar.querySelector('[data-tab="list"]');
+  const btnPolicy = bar.querySelector('[data-tab="policy"]');
+  const paneList = document.getElementById("tab-products");
+  const panePolicy = document.getElementById("tab-policy");
+  if (!btnList || !btnPolicy || !paneList || !panePolicy) return;
+  const act = (which) => {
+    const isList = which === "list";
+    btnList.classList.toggle("active", isList);
+    btnPolicy.classList.toggle("active", !isList);
+    paneList.hidden = !isList;
+    panePolicy.hidden = isList;
+  };
+  btnList.addEventListener("click", () => act("list"));
+  btnPolicy.addEventListener("click", () => act("policy"));
+  act("list"); // 기본: 목록 탭
+}
+
 function ensurePolicySectionVisible() {
   const sec = document.getElementById("category-policy-section");
   if (!sec) return;
@@ -177,38 +201,73 @@ function renderPolicyEditor() {
     new Set([...(categoriesCache || []), ...Object.keys(policiesCache || {})])
   ).sort((a, b) => a.localeCompare(b));
   box.innerHTML = "";
-  cats.forEach((cat) => {
-    const pol = policiesCache[cat] || { mode: "none", active: false };
+  cats.forEach((cat, idx) => {
+    const raw = policiesCache[cat] || {
+      mode: "category",
+      limit: 1,
+      active: false,
+    };
+    // 하위호환: one_per_* → 새로운 포맷으로 정규화
+    const pol = (() => {
+      if (raw.mode === "one_per_category")
+        return { mode: "category", limit: 1, active: raw.active !== false };
+      if (raw.mode === "one_per_price")
+        return { mode: "price", limit: 1, active: raw.active !== false };
+      const lim =
+        Number.isFinite(raw.limit) && raw.limit >= 1
+          ? Math.floor(raw.limit)
+          : 1;
+      const mode = raw.mode === "price" ? "price" : "category";
+      return { mode, limit: lim, active: raw.active !== false };
+    })();
     const row = document.createElement("div");
     row.className = "policy-row";
     row.dataset.cat = cat;
+    const name = `mode-${idx}`;
     row.innerHTML = `
       <div class="cat">${escapeHtml(cat || "(미분류)")}</div>
-      <select class="policy-mode" aria-label="제한 모드">
-        <option value="none"${
-          pol.mode === "none" || !pol.mode ? " selected" : ""
-        }>제한 없음</option>
-        <option value="one_per_category"${
-          pol.mode === "one_per_category" ? " selected" : ""
-        }>분류당 1개</option>
-        <option value="one_per_price"${
-          pol.mode === "one_per_price" ? " selected" : ""
-        }>가격별 1개</option>
-      </select>
+      <div class="seg" role="tablist" aria-label="제한 기준">
+        <label class="opt ${pol.mode === "category" ? "active" : ""}">
+          <input type="radio" name="${name}" class="policy-mode" value="category" ${
+      pol.mode === "category" ? "checked" : ""
+    }>
+          분류당
+        </label>
+        <label class="opt ${pol.mode === "price" ? "active" : ""}">
+          <input type="radio" name="${name}" class="policy-mode" value="price" ${
+      pol.mode === "price" ? "checked" : ""
+    }>
+          가격당
+        </label>
+      </div>
+      <input type="number" class="policy-limit" min="1" step="1" value="${
+        pol.limit
+      }">
       <label style="display:flex;align-items:center;gap:6px;justify-self:flex-end">
         <input type="checkbox" class="policy-active"${
-          pol.active !== false ? " checked" : ""
+          pol.active ? " checked" : ""
         }/>
         활성
       </label>
     `;
+    // 토글 비주얼 active 처리
+    row.querySelectorAll(`input[name="${name}"]`).forEach((r) => {
+      r.addEventListener("change", (e) => {
+        row
+          .querySelectorAll(".seg .opt")
+          .forEach((el) => el.classList.remove("active"));
+        e.target.closest(".opt")?.classList.add("active");
+        markPolicyDirty();
+      });
+    });
     // 변경 감지
     row
-      .querySelector(".policy-mode")
-      .addEventListener("change", () => markPolicyDirty());
+      .querySelector(".policy-limit")
+      .addEventListener("input", () => markPolicyDirty());
     row
       .querySelector(".policy-active")
       .addEventListener("change", () => markPolicyDirty());
+
     box.appendChild(row);
   });
   saveBtn.disabled = true;
@@ -234,9 +293,14 @@ function collectPoliciesFromDOM() {
   box.querySelectorAll(".policy-row").forEach((row) => {
     const cat = (row.dataset.cat || "").trim();
     if (!cat) return;
-    const mode = row.querySelector(".policy-mode")?.value || "none";
+    const modeEl = row.querySelector("input.policy-mode:checked");
+    const mode = modeEl ? modeEl.value : "category"; // 'category' | 'price'
+    const limit = Math.max(
+      1,
+      Math.floor(parseFloat(row.querySelector(".policy-limit")?.value || "1"))
+    );
     const active = row.querySelector(".policy-active")?.checked ?? true;
-    if (mode !== "none" && active) out[cat] = { mode, active: true };
+    if (active) out[cat] = { mode, limit, active: true };
   });
   return out;
 }
@@ -1005,6 +1069,7 @@ document.addEventListener("DOMContentLoaded", () => {
     .then(loadPolicies)
     .then(renderPolicyEditor)
     .catch(console.error);
+  bindPageTabs();
   // 이름/바코드에서 Enter → 검색
   ["product-name", "product-barcode"].forEach((id) => {
     const el = document.getElementById(id);

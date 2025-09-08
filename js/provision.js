@@ -826,10 +826,10 @@ qcSaveBtn?.addEventListener("click", async () => {
 });
 
 /* =========================
-    제한 정책: 검사/강조/표시
+    제한 정책: 검사/강조
    ========================= */
 function checkCategoryViolations(items, policies) {
-  const violations = []; // {category, mode, price?}
+  const violations = []; // {category, mode, limit, price?}
   if (!items?.length) return violations;
   const byCat = new Map();
   for (const it of items) {
@@ -842,17 +842,28 @@ function checkCategoryViolations(items, policies) {
   for (const [cat, arr] of byCat) {
     const pol = policies?.[cat];
     if (!pol || pol.active === false) continue;
-    if (pol.mode === "one_per_category") {
-      const totalCount = arr.reduce((a, b) => a + (b.quantity || 0), 0);
-      if (totalCount > 1) violations.push({ category: cat, mode: pol.mode });
-    } else if (pol.mode === "one_per_price") {
+    // 하위호환: one_per_* → limit=1 로 간주
+    const mode =
+      pol.mode === "one_per_category"
+        ? "category"
+        : pol.mode === "one_per_price"
+        ? "price"
+        : pol.mode === "price"
+        ? "price"
+        : "category";
+    const limit =
+      Number.isFinite(pol.limit) && pol.limit >= 1 ? Math.floor(pol.limit) : 1;
+    if (mode === "category") {
+      const total = arr.reduce((a, b) => a + (b.quantity || 0), 0);
+      if (total > limit) violations.push({ category: cat, mode, limit });
+    } else if (mode === "price") {
       const byPrice = new Map();
       for (const it of arr) {
         const key = String(it.price ?? "");
         byPrice.set(key, (byPrice.get(key) || 0) + (it.quantity || 0));
       }
       for (const [price, cnt] of byPrice) {
-        if (cnt > 1) violations.push({ category: cat, mode: pol.mode, price });
+        if (cnt > limit) violations.push({ category: cat, mode, limit, price });
       }
     }
   }
@@ -1066,12 +1077,13 @@ submitBtn.addEventListener("click", async () => {
   const visitDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
   const quarterKey = getQuarterKey(now);
   const lifelove = lifeloveCheckbox.checked;
-  
+
   // 🔔 이번 분기 생명사랑 중복 제공 확인
   if (lifelove && selectedCustomer && selectedCustomer._lifeloveThisQuarter) {
     const okLife = await openConfirm({
       title: "생명사랑 중복 제공",
-      message: "이 이용자는 이번 분기에 이미 생명사랑을 제공받았습니다. 계속 진행하시겠습니까?",
+      message:
+        "이 이용자는 이번 분기에 이미 생명사랑을 제공받았습니다. 계속 진행하시겠습니까?",
       variant: "warn",
       confirmText: "계속",
       cancelText: "취소",
@@ -1079,20 +1091,19 @@ submitBtn.addEventListener("click", async () => {
     if (!okLife) return;
   }
 
-
   // ✅ 제한 위반 검사 → 있으면 Confirm
   const vios = checkCategoryViolations(selectedItems, categoryPolicies);
   if (vios.length) {
     const msg = vios
       .map((v) =>
-        v.mode === "one_per_price"
-          ? `• ${v.category} - 가격 ${v.price}원은 1개만 가능합니다.`
-          : `• ${v.category} - 이 분류는 1개만 가능합니다.`
+        v.mode === "price"
+          ? `<b>• ${v.category} - 가격 ${v.price}은(는) ${v.limit}개까지 가능합니다.</b>`
+          : `<b>• ${v.category} - 이 분류는 총 ${v.limit}개까지 가능합니다.</b>`
       )
       .join("<br>");
     const ok = await openConfirm({
       title: "제한 상품 중복",
-      message: `현재 아래 분류의 제한 상품이 중복되어 있습니다.<br>${msg}<br>계속 진행하시겠습니까?`,
+      message: `현재 아래 분류의 제한 수량을 초과했습니다.<br>${msg}<br>계속 진행하시겠습니까?`,
       variant: "warn",
       confirmText: "계속",
       cancelText: "취소",
