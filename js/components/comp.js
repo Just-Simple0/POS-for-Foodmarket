@@ -93,6 +93,15 @@ async function ensureTurnstileScript() {
 export function loadHeader(containerID = null) {
   ensureFavicon();
   ensureTurnstileScript();
+  // 초기 테마 적용(FOUC 최소화는 각 HTML <head>의 인라인 스니펫이 보조)
+  try {
+    const saved = localStorage.getItem("theme");
+    const prefers =
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const dark = saved ? saved === "dark" : prefers;
+    document.documentElement.classList.toggle("dark", !!dark);
+  } catch {}
 
   const headerHTML = `
     <header>
@@ -108,6 +117,9 @@ export function loadHeader(containerID = null) {
             <a href="mypage.html" class="small-btn" id="mypage-btn">
               <i class="fas fa-user-cog"></i> 마이페이지
             </a>
+            <button id="theme-toggle" class="small-btn" title="라이트/다크 전환">
+              <i class="fas fa-moon"></i> 테마
+            </button>
             <button id="logout-btn-header" class="small-btn">
               <i class="fas fa-sign-out-alt"></i> 로그아웃
             </button>
@@ -131,6 +143,17 @@ export function loadHeader(containerID = null) {
     ? document.getElementById(containerID)
     : document.body;
   container.insertAdjacentHTML("afterbegin", headerHTML);
+
+  // 다크모드 토글
+  const themeBtn = document.getElementById("theme-toggle");
+  themeBtn?.addEventListener("click", () => {
+    const root = document.documentElement;
+    const nextDark = !root.classList.contains("dark");
+    root.classList.toggle("dark", nextDark);
+    try {
+      localStorage.setItem("theme", nextDark ? "dark" : "light");
+    } catch {}
+  });
 
   // 사용자 상태 확인 및 로그아웃 처리
   onAuthStateChanged(auth, async (user) => {
@@ -275,48 +298,58 @@ export function loadFooter(containerID = null) {
  *   handlers: { goFirst:fn, goPrev:fn, goPage:(n)=>void, goNext:fn }
  *   options?: { window:number }  // 숫자버튼 표시 개수(기본 5)
  */
-export function renderCursorPager(container, state, handlers, options={}) {
+export function renderCursorPager(container, state, handlers, options = {}) {
   if (!container) return;
   const windowSize = options.window ?? 5;
   const { current, pagesKnown, hasPrev, hasNext } = state;
   const { goFirst, goPrev, goPage, goNext } = handlers;
 
   // 현재 창 계산
-  let start = Math.max(1, current - Math.floor(windowSize/2));
+  let start = Math.max(1, current - Math.floor(windowSize / 2));
   let end = Math.min(pagesKnown, start + windowSize - 1);
   if (end - start + 1 < windowSize) start = Math.max(1, end - windowSize + 1);
 
   const btn = (label, disabled, dataAct, aria) =>
-    `<button class="pager-btn" ${disabled ? "disabled": ""} data-act="${dataAct||""}" aria-label="${aria||label}">${label}</button>`;
+    `<button class="pager-btn" ${disabled ? "disabled" : ""} data-act="${
+      dataAct || ""
+    }" aria-label="${aria || label}">${label}</button>`;
 
-  let html = '';
-  html += btn('처음', !hasPrev, 'first', 'first page');
-  html += btn('이전', !hasPrev, 'prev', 'previous page');
+  let html = "";
+  html += btn("처음", !hasPrev, "first", "first page");
+  html += btn("이전", !hasPrev, "prev", "previous page");
   html += `<span class="pager-pages">`;
   for (let n = start; n <= end; n++) {
-    html += `<button class="pager-num ${n===current?'active':''}" data-page="${n}">${n}</button>`;
+    html += `<button class="pager-num ${
+      n === current ? "active" : ""
+    }" data-page="${n}">${n}</button>`;
   }
   html += `</span>`;
-  html += btn('다음', !hasNext, 'next', 'next page');
+  html += btn("다음", !hasNext, "next", "next page");
   // (총페이지 불명 → ‘끝’ 버튼은 생략 혹은 disable 운영을 권장)
 
   container.innerHTML = html;
   // 이벤트 바인딩
-  container.querySelector('[data-act="first"]')?.addEventListener('click', () => goFirst?.());
-  container.querySelector('[data-act="prev"]')?.addEventListener('click', () => goPrev?.());
-  container.querySelectorAll('.pager-num')?.forEach(el=>{
-    el.addEventListener('click', () => {
-      const n = Number(el.getAttribute('data-page'));
+  container
+    .querySelector('[data-act="first"]')
+    ?.addEventListener("click", () => goFirst?.());
+  container
+    .querySelector('[data-act="prev"]')
+    ?.addEventListener("click", () => goPrev?.());
+  container.querySelectorAll(".pager-num")?.forEach((el) => {
+    el.addEventListener("click", () => {
+      const n = Number(el.getAttribute("data-page"));
       if (!Number.isNaN(n)) goPage?.(n);
     });
   });
-  container.querySelector('[data-act="next"]')?.addEventListener('click', () => goNext?.());
+  container
+    .querySelector('[data-act="next"]')
+    ?.addEventListener("click", () => goNext?.());
 }
 
 /** 페이지 사이즈 셀렉트 공통 초기화 */
 export function initPageSizeSelect(selectEl, onChange) {
   if (!selectEl) return;
-  selectEl.addEventListener('change', () => {
+  selectEl.addEventListener("change", () => {
     const v = Number(selectEl.value);
     onChange?.(Number.isFinite(v) ? v : 25);
   });
@@ -650,7 +683,9 @@ function cm_buildDialog({
   dlg.className = "cm-dialog";
   dlg.innerHTML = `
     <div class="cm-header">
-      <i class="fa-solid ${CM_ICONS[variant] || CM_ICONS.info}" aria-hidden="true"></i>
+      <i class="fa-solid ${
+        CM_ICONS[variant] || CM_ICONS.info
+      }" aria-hidden="true"></i>
       <h3 id="cm-title" class="cm-title">${title}</h3>
     </div>
     <div id="cm-desc" class="cm-body">${message}</div>
@@ -775,7 +810,6 @@ export function openAlert(opts = {}) {
     defaultFocus,
   }).then(() => {});
 }
-
 
 // ------ Firestore 폴백 집계 ------
 async function fallbackPendingSummaryFromFirestore() {

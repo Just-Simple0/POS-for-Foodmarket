@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <title>POS System - Provision</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- ⚡️ 테마 초기 적용(FOUC 방지) -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          var d = t
+            ? t === "dark"
+            : window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (d) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
 
     <!-- 공통 parts 삽입 -->
     <link rel="stylesheet" href="css/common.css" />
