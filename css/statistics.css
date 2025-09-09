@@ -182,6 +182,39 @@
   margin-bottom: 20px;
 }
 
+/* ===== Provision table (품목 다줄행) ===== */
+#provision-table th,
+#provision-table td {
+  vertical-align: top;
+}
+#provision-table td.nowrap {
+  white-space: nowrap;
+}
+#provision-table td.items-name {
+  white-space: normal; /* 품목명은 줄바꿈 허용 */
+  line-height: 1.4;
+  text-align: left;
+}
+#provision-table td.num {
+  text-align: right;
+  white-space: nowrap;
+}
+/* 그룹 경계 가독성 향상 */
+#provision-table tr.group-sep td {
+  border-top: 2px solid #e5e7eb;
+}
+
+/* 소계(총합) 행 */
+#provision-table tr.subtotal td {
+  font-weight: 600;
+  border-top: 2px solid #cbd5e1;
+  background: #f9fafb;
+}
+#provision-table td.subtotal-label {
+  text-align: right;
+  color: #374151;
+  white-space: nowrap;
+}
 
 /* 반응형 */
 @media (max-width: 768px) {

@@ -467,17 +467,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // XLSX export buttons (data → xlsx)
   document.getElementById("export-provision")?.addEventListener("click", () => {
-    exportRowsXLSX(
-      provisionData,
-      [
-        ["제공일", "date"],
-        ["고객명", "name"],
-        ["생년월일", "birth"],
-        ["가져간 품목", "items"],
-        ["처리자", "handler"],
-      ],
-      "물품_제공_내역.xlsx"
-    );
+    exportProvisionXLSX(provisionData, "물품_제공_내역.xlsx");
   });
   document.getElementById("export-visit")?.addEventListener("click", () => {
     exportRowsXLSX(
@@ -530,18 +520,43 @@ function filterAndRender() {
       : lifeData;
 
   const filtered = dataset.filter((item) => {
-    const values = Object.values(item).map(normalize);
+    // 품목 배열은 검색용으로 itemsText를 사용
+    const values = [];
+    for (const [k, v] of Object.entries(item)) {
+      if (k === "items" && Array.isArray(v)) {
+        values.push(
+          normalize(
+            item.itemsText ||
+              v.map((it) => `${it.name} (${it.quantity})`).join(", ")
+          )
+        );
+      } else {
+        values.push(normalize(v));
+      }
+    }
     const matchesGlobal =
       !globalKeyword ||
       values.some((v) =>
         exactMatch ? v === globalKeyword : v.includes(globalKeyword)
       );
+    // 필드 지정이 items인 경우 배열 → itemsText로 검색
+    let fieldTarget = "";
+    if (field === "items") {
+      fieldTarget = normalize(
+        item.itemsText ||
+          (Array.isArray(item.items)
+            ? item.items.map((it) => `${it.name} (${it.quantity})`).join(", ")
+            : "")
+      );
+    } else {
+      fieldTarget = normalize(item[field]);
+    }
     const matchesField =
       !field ||
       !fieldValue ||
       (exactMatch
-        ? normalize(item[field]) === fieldValue
-        : normalize(item[field]).includes(fieldValue));
+        ? fieldTarget === fieldValue
+        : fieldTarget.includes(fieldValue));
     return matchesGlobal && matchesField;
   });
 
@@ -764,12 +779,19 @@ async function loadProvisionHistoryByRange(startDate, endDate) {
       const snapshot = await getDocs(qy);
       snapshot.forEach((doc) => {
         const data = doc.data();
+        const itemsArr = (data.items || []).map((i) => ({
+          name: i.name || "",
+          quantity: Number(i.quantity || 0),
+          price: Number(i.price || 0),
+          total: Number(i.quantity || 0) * Number(i.price || 0),
+        }));
         allProvisionData.push({
           date: formatDate(data.timestamp.toDate()),
           name: data.customerName,
           birth: data.customerBirth,
-          items: (data.items || [])
-            .map((i) => `${i.name} (${i.quantity})`)
+          items: itemsArr,
+          itemsText: itemsArr
+            .map((it) => `${it.name} (${it.quantity})`)
             .join(", "),
           handler: data.handledBy,
           lifelove: data.lifelove ? "O" : "",
@@ -837,12 +859,19 @@ async function loadProvisionPage(direction) {
     const rows = [];
     snap.forEach((d) => {
       const data = d.data();
+      const itemsArr = (data.items || []).map((i) => ({
+        name: i.name || "",
+        quantity: Number(i.quantity || 0),
+        price: Number(i.price || 0),
+        total: Number(i.quantity || 0) * Number(i.price || 0),
+      }));
       rows.push({
         date: formatDate(data.timestamp.toDate()),
         name: data.customerName,
         birth: data.customerBirth,
-        items: (data.items || [])
-          .map((i) => `${i.name} (${i.quantity})`)
+        items: itemsArr,
+        itemsText: itemsArr
+          .map((it) => `${it.name} (${it.quantity})`)
           .join(", "),
         handler: data.handledBy,
         lifelove: data.lifelove ? "O" : "",
@@ -1060,16 +1089,55 @@ function renderProvisionTable(data = provisionData) {
   const end = start + itemsPerPage;
   const pageItems = provCursor.serverMode ? data : data.slice(start, end);
 
-  pageItems.forEach((row) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${row.date}</td>
-      <td>${row.name}</td>
-      <td>${row.birth}</td>
-      <td>${row.items}</td>
-      <td>${row.handler}</td>
-    `;
-    tbody.appendChild(tr);
+  // 한 record(제공건) → 품목 수만큼 행 생성, 메타 컬럼은 rowspan
+  pageItems.forEach((row, groupIdx) => {
+    const items =
+      Array.isArray(row.items) && row.items.length > 0
+        ? row.items
+        : [{ name: "-", quantity: "", price: "", total: "" }];
+    const span = items.length + 1;
+    const sumQty = items.reduce(
+      (acc, it) => acc + (Number(it.quantity) || 0),
+      0
+    );
+    const sumTotal = items.reduce(
+      (acc, it) => acc + (Number(it.total) || 0),
+      0
+    );
+
+    items.forEach((it, idx) => {
+      const tr = document.createElement("tr");
+      if (idx === 0) {
+        tr.classList.add("group-sep");
+        tr.innerHTML += `<td class="nowrap" rowspan="${span}">${row.date}</td>`;
+        tr.innerHTML += `<td class="nowrap" rowspan="${span}">${row.name}</td>`;
+        tr.innerHTML += `<td class="nowrap" rowspan="${span}">${row.birth}</td>`;
+      }
+      tr.innerHTML += `<td class="items-name">${it.name ?? ""}</td>`;
+      tr.innerHTML += `<td class="num">${
+        it.quantity !== "" ? Number(it.quantity).toLocaleString() : ""
+      }</td>`;
+      tr.innerHTML += `<td class="num">${
+        it.price !== "" ? Number(it.price).toLocaleString() : ""
+      }</td>`;
+      tr.innerHTML += `<td class="num">${
+        it.total !== "" ? Number(it.total).toLocaleString() : ""
+      }</td>`;
+      if (idx === 0) {
+        tr.innerHTML += `<td class="nowrap" rowspan="${span}">${
+          row.handler ?? ""
+        }</td>`;
+      }
+      tbody.appendChild(tr);
+    });
+    // ▶ 소계(총합) 행 추가: 좌/우의 rowspan 셀이 이 행까지 덮고 있으므로 가운데 4칸만 출력
+    const trTotal = document.createElement("tr");
+    trTotal.classList.add("subtotal");
+    trTotal.innerHTML += `<td class="subtotal-label">소계</td>`;
+    trTotal.innerHTML += `<td class="num">${sumQty.toLocaleString()}</td>`;
+    trTotal.innerHTML += `<td class="num"></td>`;
+    trTotal.innerHTML += `<td class="num">${sumTotal.toLocaleString()}</td>`;
+    tbody.appendChild(trTotal);
   });
 
   // 서버 페이지네이션 모드면 버튼만 토글, 아닌 경우 기존 페이지네이션
@@ -1151,6 +1219,53 @@ function exportRowsXLSX(rows, headerMap, filename) {
     return o;
   });
   const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+  XLSX.writeFile(wb, filename);
+}
+
+// 품목을 행으로 펼쳐서 내보내기
+function exportProvisionXLSX(rows, filename) {
+  const flat = [];
+  rows.forEach((r) => {
+    const items =
+      Array.isArray(r.items) && r.items.length
+        ? r.items
+        : [{ name: "-", quantity: "", price: "", total: "" }];
+    const sumQty = items.reduce(
+      (acc, it) => acc + (Number(it.quantity) || 0),
+      0
+    );
+    const sumTotal = items.reduce(
+      (acc, it) => acc + (Number(it.total) || 0),
+      0
+    );
+
+    items.forEach((it, idx) => {
+      flat.push({
+        제공일: idx === 0 ? r.date : "",
+        고객명: idx === 0 ? r.name : "",
+        생년월일: idx === 0 ? r.birth : "",
+        "가져간 품목명": it.name ?? "",
+        수량: it.quantity ?? "",
+        "개당 가격": it.price ?? "",
+        총가격: it.total ?? "",
+        처리자: idx === 0 ? r.handler ?? "" : "",
+      });
+    });
+     // ▶ 소계 행을 별도로 추가
+    flat.push({
+      "제공일": "",
+      "고객명": "",
+      "생년월일": "",
+      "가져간 품목명": "소계",
+      "수량": sumQty,
+      "개당 가격": "",
+      "총가격": sumTotal,
+      "처리자": "",
+    });
+  });
+  const ws = XLSX.utils.json_to_sheet(flat);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
   XLSX.writeFile(wb, filename);

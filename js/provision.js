@@ -118,6 +118,141 @@ const resetAllBtn = document.getElementById("clear-all-btn");
 const lifeloveCheckbox = document.getElementById("lifelove-checkbox");
 const currentUser = auth.currentUser;
 
+// === 방문자 리스트 로컬 보존 유틸 ===
+const VISITOR_STORAGE_PREFIX = "fm.visitors";
+const PROVISION_DRAFT_PREFIX = "fm.provisionDraft";
+function ymdLocal(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function getVisitorKey() {
+  const uid =
+    (window.auth && auth.currentUser && auth.currentUser.uid) || "local";
+  return `${VISITOR_STORAGE_PREFIX}:${uid}:${ymdLocal()}`;
+}
+function getProvisionKey() {
+  const uid =
+    (window.auth && auth.currentUser && auth.currentUser.uid) || "local";
+  return `${PROVISION_DRAFT_PREFIX}:${uid}:${ymdLocal()}`;
+}
+// ✅ 오늘 날짜 기준으로 'uid'와 'local' 두 키 모두를 시도
+function getKeysToTry(prefix) {
+  const date = ymdLocal();
+  const uid = (window.auth && auth.currentUser && auth.currentUser.uid) || null;
+  const keys = [];
+  if (uid) keys.push(`${prefix}:${uid}:${date}`);
+  keys.push(`${prefix}:local:${date}`); // 로그인 전/게스트 저장분도 커버
+  // 중복 제거
+  return [...new Set(keys)];
+}
+
+function endOfTodayTs() {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
+function saveVisitorDraft(list) {
+  const payload = {
+    v: 1,
+    date: ymdLocal(),
+    savedAt: Date.now(),
+    expiresAt: endOfTodayTs(),
+    list: Array.isArray(list) ? list : [],
+  };
+  try {
+    localStorage.setItem(getVisitorKey(), JSON.stringify(payload));
+  } catch (e) {
+    console.warn("saveVisitorDraft failed:", e);
+  }
+}
+function loadVisitorDraft() {
+  try {
+    let best = null; // {obj, key}
+    for (const key of getKeysToTry(VISITOR_STORAGE_PREFIX)) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const obj = JSON.parse(raw);
+      if (obj.expiresAt && Date.now() > obj.expiresAt) {
+        localStorage.removeItem(key);
+        continue;
+      }
+      if (!best || (obj.savedAt || 0) > (best.obj?.savedAt || 0)) {
+        best = { obj, key };
+      }
+    }
+    return best && Array.isArray(best.obj.list) ? best.obj.list : [];
+  } catch (e) {
+    console.warn("loadVisitorDraft failed:", e);
+    return [];
+  }
+}
+function clearVisitorDraft() {
+  try {
+    localStorage.removeItem(getVisitorKey());
+  } catch {}
+}
+// --- 제공(선택 고객/장바구니/생명사랑) 보존 ---
+function saveProvisionDraft() {
+  const payload = {
+    v: 1,
+    date: ymdLocal(),
+    savedAt: Date.now(),
+    expiresAt: endOfTodayTs(),
+    selectedCustomer: selectedCustomer
+      ? {
+          id: selectedCustomer.id,
+          name: selectedCustomer.name,
+          birth: selectedCustomer.birth,
+          address: selectedCustomer.address,
+          phone: selectedCustomer.phone,
+          note: selectedCustomer.note,
+          _lifeloveThisQuarter: !!selectedCustomer._lifeloveThisQuarter,
+        }
+      : null,
+    selectedItems: Array.isArray(selectedItems) ? selectedItems : [],
+    lifelove: !!lifeloveCheckbox.checked,
+  };
+  try {
+    if (!payload.selectedCustomer && payload.selectedItems.length === 0) {
+      localStorage.removeItem(getProvisionKey());
+      return;
+    }
+    localStorage.setItem(getProvisionKey(), JSON.stringify(payload));
+  } catch (e) {
+    console.warn("saveProvisionDraft failed:", e);
+  }
+}
+
+function loadProvisionDraft() {
+  try {
+    let best = null; // {obj, key}
+    for (const key of getKeysToTry(PROVISION_DRAFT_PREFIX)) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const obj = JSON.parse(raw);
+      if (obj.expiresAt && Date.now() > obj.expiresAt) {
+        localStorage.removeItem(key);
+        continue;
+      }
+      if (!best || (obj.savedAt || 0) > (best.obj?.savedAt || 0)) {
+        best = { obj, key };
+      }
+    }
+    return best ? best.obj : null;
+  } catch (e) {
+    console.warn("loadProvisionDraft failed:", e);
+    return null;
+  }
+}
+
+function clearProvisionDraft() {
+  try {
+    localStorage.removeItem(getProvisionKey());
+  } catch {}
+}
+
 let selectedCustomer = null;
 let selectedItems = [];
 let selectedCandidate = null;
@@ -147,10 +282,81 @@ async function loadCategoryPolicies() {
 // 🔁 동명이인 모달 키보드 내비 전역 핸들러 참조
 let dupKeyHandler = null;
 let dupActiveIndex = -1;
+// ✅ 복구 토스트/중복 실행 방지 플래그
+let __restoredVisitors = false;
+let __restoredProvision = false;
+
+function tryRestoreDrafts() {
+  // 방문자
+  const visitors = loadVisitorDraft();
+  if (visitors.length && !__restoredVisitors) {
+    visitorList = visitors;
+    renderVisitorList();
+    __restoredVisitors = true;
+    if (typeof showToast === "function")
+      showToast(`방문자 ${visitorList.length}명 복구됨`);
+  }
+  // 제공
+  const prov = loadProvisionDraft();
+  if (
+    prov &&
+    (prov.selectedCustomer || (prov.selectedItems ?? []).length > 0) &&
+    !__restoredProvision
+  ) {
+    selectedCustomer = prov.selectedCustomer || null;
+    selectedItems = Array.isArray(prov.selectedItems) ? prov.selectedItems : [];
+    lifeloveCheckbox.checked = !!prov.lifelove;
+    if (selectedCustomer) {
+      productSection.classList.remove("hidden");
+      submitSection.classList.remove("hidden");
+    }
+    renderCustomerInfo();
+    renderSelectedList();
+    renderVisitorList();
+    __restoredProvision = true;
+    if (typeof showToast === "function")
+      showToast("임시 장바구니가 복구되었습니다.");
+  }
+}
 
 window.addEventListener("DOMContentLoaded", () => {
   lookupInput.focus();
   loadCategoryPolicies();
+  // 로그인 여부와 무관하게 1차 복구(게스트 키 포함)
+  tryRestoreDrafts();
+});
+
+// ✅ 로그인 상태가 결정되면(uid 키까지) 2차 복구
+onAuthStateChanged(auth, () => {
+  tryRestoreDrafts();
+});
+
+// ✅ 다른 탭/창에서 변경 시 동기화
+window.addEventListener("storage", (e) => {
+  if (!e.key) return;
+  const isToday = e.key.endsWith(`:${ymdLocal()}`);
+  const isVisitor = e.key.startsWith(`${VISITOR_STORAGE_PREFIX}:`);
+  const isProvision = e.key.startsWith(`${PROVISION_DRAFT_PREFIX}:`);
+  if (isToday && isVisitor) {
+    visitorList = loadVisitorDraft();
+    renderVisitorList();
+  } else if (isToday && isProvision) {
+    const prov = loadProvisionDraft();
+    if (prov) {
+      selectedCustomer = prov.selectedCustomer || null;
+      selectedItems = Array.isArray(prov.selectedItems)
+        ? prov.selectedItems
+        : [];
+      lifeloveCheckbox.checked = !!prov.lifelove;
+    } else {
+      selectedCustomer = null;
+      selectedItems = [];
+      lifeloveCheckbox.checked = false;
+    }
+    renderCustomerInfo();
+    renderSelectedList();
+    renderVisitorList();
+  }
 });
 
 // ===== 탭 전환: 제공/교환 =====
@@ -433,6 +639,7 @@ document
         if (!visitorList.some((v) => v.id === candidate.id)) {
           visitorList.push(candidate);
           renderVisitorList();
+          saveVisitorDraft(visitorList);
           showToast("방문자 리스트에 추가되었습니다.");
         } else {
           showToast("이미 리스트에 있는 이용자입니다.", true);
@@ -620,9 +827,11 @@ visitorListEl?.addEventListener("click", async (e) => {
       selectedCustomer = null;
       selectedItems = [];
       renderSelectedList();
+      clearProvisionDraft();
     }
     visitorList.splice(idx, 1);
     renderVisitorList();
+    saveVisitorDraft(visitorList);
     return;
   }
 
@@ -677,6 +886,7 @@ visitorListEl?.addEventListener("click", async (e) => {
     } catch {}
     renderSelectedList();
     renderVisitorList(); // active 표시 갱신
+    saveProvisionDraft();
     document.dispatchEvent(new Event("provision_customer_switched"));
   }
 });
@@ -1041,6 +1251,8 @@ function renderSelectedList() {
   calculateTotal();
   // 제한 검사/강조
   applyCategoryViolationHighlight();
+  // ✅ 렌더 후 상태 저장(수량/합계 변경 반영)
+  saveProvisionDraft();
 }
 
 document.querySelector("#selected-table tbody").addEventListener(
@@ -1148,6 +1360,7 @@ holdSaveBtn?.addEventListener("click", () => {
   customerInfoDiv.innerHTML = "";
   renderCustomerInfo(); // selectedCustomer가 null이면 hidden 처리됨
   renderVisitorList(); // active 표시 해제
+  clearProvisionDraft();
 
   showToast("보류 처리되었습니다.");
 });
@@ -1284,7 +1497,14 @@ function resetForm() {
   renderVisitorList();
   renderSelectedList();
   lifeloveCheckbox.checked = false;
+  clearVisitorDraft();
+  clearProvisionDraft();
 }
+
+// ✅ lifelove 체크 변경도 저장
+lifeloveCheckbox?.addEventListener("change", () => {
+  saveProvisionDraft();
+});
 
 /* =========================
    교환(최근 50일, 환불 없음)
