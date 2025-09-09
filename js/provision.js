@@ -105,9 +105,19 @@ async function ensureVisitAndDailyCounter(
   }
 }
 
-const lookupInput = document.getElementById("customer-search");
-const lookupBtn = document.getElementById("lookup-btn");
-const customerInfoDiv = document.getElementById("customer-info");
+// 제공 탭 전용 검색/정보
+const provLookupInput = document.getElementById("prov-customer-search");
+const provLookupBtn = document.getElementById("prov-lookup-btn");
+const provisionCustomerInfoDiv = document.getElementById(
+  "provision-customer-info"
+);
+// 교환 탭 전용 검색/정보
+const exLookupInput = document.getElementById("ex-customer-search");
+const exLookupBtn = document.getElementById("ex-lookup-btn");
+const exchangeCustomerInfoDiv = document.getElementById(
+  "exchange-customer-info"
+);
+
 const productSection = document.getElementById("product-selection");
 const submitSection = document.getElementById("submit-section");
 const submitBtn = document.getElementById("submit-btn");
@@ -116,6 +126,7 @@ const redoBtn = document.getElementById("redo-btn");
 const resetProductsBtn = document.getElementById("clear-products-btn");
 const resetAllBtn = document.getElementById("clear-all-btn");
 const lifeloveCheckbox = document.getElementById("lifelove-checkbox");
+const productActionButtons = document.getElementById("product-action-buttons");
 const currentUser = auth.currentUser;
 
 // === 방문자 리스트 로컬 보존 유틸 ===
@@ -310,7 +321,7 @@ function tryRestoreDrafts() {
       productSection.classList.remove("hidden");
       submitSection.classList.remove("hidden");
     }
-    renderCustomerInfo();
+    renderProvisionCustomerInfo();
     renderSelectedList();
     renderVisitorList();
     __restoredProvision = true;
@@ -320,10 +331,13 @@ function tryRestoreDrafts() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-  lookupInput.focus();
+  // 초기 포커스: 제공 탭 검색창
+  provLookupInput?.focus();
   loadCategoryPolicies();
   // 로그인 여부와 무관하게 1차 복구(게스트 키 포함)
   tryRestoreDrafts();
+  // 교환 탭 초기 진입 시 섹션 숨김(이용자 선택 후 노출)
+  if (exchangeSection) exchangeSection.classList.add("hidden");
 });
 
 // ✅ 로그인 상태가 결정되면(uid 키까지) 2차 복구
@@ -353,7 +367,7 @@ window.addEventListener("storage", (e) => {
       selectedItems = [];
       lifeloveCheckbox.checked = false;
     }
-    renderCustomerInfo();
+    renderProvisionCustomerInfo();
     renderSelectedList();
     renderVisitorList();
   }
@@ -362,40 +376,96 @@ window.addEventListener("storage", (e) => {
 // ===== 탭 전환: 제공/교환 =====
 const tabBtns = document.querySelectorAll(".tab-btn");
 const exchangePanel = document.querySelector('[data-tab-panel="exchange"]');
+const provisionPanel = document.getElementById("provision-panel");
 const provisionHideOnExchange = [
-  document.getElementById("product-selection"),
-  document.getElementById("submit-section"),
-  document.getElementById("product-action-buttons"),
+  document.getElementById("product-selection"), // 상품 추가
+  document.getElementById("submit-section"), // 제공 등록 완료 버튼
+  document.getElementById("product-action-buttons"), // 테이블 하단 기능버튼
+  document.getElementById("visitor-list-section"), // ✅ 방문자 리스트
+  document.getElementById("provision-customer-info"), // ✅ 제공 고객정보 카드
 ];
+// 교환 탭 선택 고객(제공 탭과 분리)
+let exchangeSelectedCustomer = null;
 function showTab(name) {
   tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   if (name === "exchange") {
     exchangePanel?.classList.remove("hidden");
+    // ✅ 제공 패널 전체 숨김(제공 검색창 포함)
+    provisionPanel?.classList.add("hidden");
     provisionHideOnExchange.forEach((el) => el?.classList.add("hidden"));
-    // 고객이 선택되어 있으면 최근 50일 내 제공내역 로드
-    if (selectedCustomer) loadRecentProvisionsForCustomer(selectedCustomer.id);
+    // ✅ 교환 탭에서는 섹션(검색창 포함)은 항상 보이게
+    exchangeSection?.classList.remove("hidden");
+    if (exchangeSelectedCustomer) {
+      // 선택 고객이 있으면 정보/히스토리 로드
+      loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
+      exchangeCustomerInfoDiv?.classList.remove("hidden");
+      exHistoryTable?.classList.remove("hidden");
+      exchangeHistorySection?.classList.remove("hidden");
+    } else {
+      // 선택 고객이 없으면 정보/히스토리/빌더만 숨김
+      exchangeCustomerInfoDiv?.classList.add("hidden");
+      exchangeBuilder?.classList.add("hidden");
+      if (exHistoryTable) {
+        const tb = exHistoryTable.querySelector("tbody");
+        if (tb) tb.innerHTML = "";
+        exHistoryTable.classList.add("hidden");
+      }
+      exchangeHistorySection.classList.add("hidden");
+    }
+    // 교환 탭에서는 항상 숨김
+    productActionButtons?.classList.add("hidden");
   } else {
     exchangePanel?.classList.add("hidden");
-    // 제공 등록 UI 복구
-    if (selectedCustomer) {
-      productSection.classList.remove("hidden");
-      submitSection.classList.remove("hidden");
+    // ✅ 제공 패널 복구
+    provisionPanel?.classList.remove("hidden");
+    // ✅ 제공 등록 탭: 상태에 따라 개별적으로 표시/숨김
+    // 방문자 리스트는 항목이 있을 때만 표시
+    if (visitorList && visitorList.length > 0) {
+      visitorListSection?.classList.remove("hidden");
+    } else {
+      visitorListSection?.classList.add("hidden");
     }
-    provisionHideOnExchange.forEach((el) => el?.classList.remove("hidden"));
+    // 선택된 고객이 있어야 상품추가/제공등록 영역 표시
+    if (selectedCustomer) {
+      productSection?.classList.remove("hidden");
+      submitSection?.classList.remove("hidden");
+    } else {
+      productSection?.classList.add("hidden");
+      submitSection?.classList.add("hidden");
+    }
+    productActionButtons?.classList.remove("hidden");
+    // 제공 탭으로 나가면 교환 섹션은 숨김 유지
+    if (exchangeSection) exchangeSection.classList.add("hidden");
+    // 교환 히스토리 섹션도 숨김
+    exchangeHistorySection?.classList.add("hidden");
+    // 제공 탭 전환 시 교환 고객정보는 숨김
+    exchangeCustomerInfoDiv?.classList.add("hidden");
+    // 제공 탭 검색창에 포커스
+    provLookupInput?.focus();
   }
 }
 tabBtns.forEach((b) =>
   b.addEventListener("click", () => showTab(b.dataset.tab))
 );
 
-lookupInput.addEventListener("keydown", (e) => {
+provLookupInput.addEventListener("keydown", (e) => {
   if (!duplicateModal.classList.contains("hidden") && e.key === "Enter") {
     e.preventDefault();
     return;
   }
   if (e.key === "Enter") {
     e.preventDefault(); // 폼 submit 방지
-    lookupBtn.click();
+    provLookupBtn.click();
+  }
+});
+exLookupInput?.addEventListener("keydown", (e) => {
+  if (!duplicateModal.classList.contains("hidden") && e.key === "Enter") {
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    exLookupBtn.click();
   }
 });
 
@@ -452,8 +522,12 @@ async function serverSearchByNamePrefix(prefix, max = 20) {
   const snap = await getDocs(qy);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
-lookupBtn.addEventListener("click", async () => {
-  const raw = lookupInput.value.trim();
+// 어느 탭에서 호출됐는지 구분
+let __lookupContext = "provision"; // 'provision' | 'exchange'
+
+provLookupBtn.addEventListener("click", async () => {
+  __lookupContext = "provision";
+  const raw = provLookupInput.value.trim();
   if (!raw) return showToast("이름을 입력하세요.", true);
   try {
     const key = normalize(raw);
@@ -470,17 +544,34 @@ lookupBtn.addEventListener("click", async () => {
   }
 });
 
-// 고객 정보 렌더링
-function renderCustomerInfo() {
+exLookupBtn?.addEventListener("click", async () => {
+  __lookupContext = "exchange";
+  const raw = exLookupInput.value.trim();
+  if (!raw) return showToast("이름을 입력하세요.", true);
+  try {
+    const key = normalize(raw);
+    let rows = await searchCacheByNamePrefix(key, 20);
+    if (!rows || rows.length === 0)
+      rows = await serverSearchByNamePrefix(key, 20);
+    if (!rows.length) return showToast("해당 이용자를 찾을 수 없습니다.", true);
+    showDuplicateSelection(rows);
+  } catch (err) {
+    console.error(err);
+    showToast("이용자 조회 중 오류 발생", true);
+  }
+});
+
+// 고객 정보 렌더링 (제공 탭)
+function renderProvisionCustomerInfo() {
   if (!selectedCustomer) {
-    customerInfoDiv.innerHTML = "";
-    customerInfoDiv.classList.add("hidden");
+    provisionCustomerInfoDiv.innerHTML = "";
+    provisionCustomerInfoDiv.classList.add("hidden");
     return;
   }
   const lifeBadge = selectedCustomer._lifeloveThisQuarter
     ? '<span class="badge badge-life">이번 분기 생명사랑 제공됨</span>'
     : '<span class="badge">이번 분기 미제공</span>';
-  customerInfoDiv.innerHTML = `
+  provisionCustomerInfoDiv.innerHTML = `
       <strong>이용자명:</strong> ${selectedCustomer.name ?? ""}<br>
       <strong>생년월일:</strong> ${selectedCustomer.birth ?? ""}<br>
       <strong>주소:</strong> ${selectedCustomer.address ?? ""}<br>
@@ -488,7 +579,27 @@ function renderCustomerInfo() {
       <strong>생명사랑:</strong> ${lifeBadge}<br>
       <strong>비고:</strong> ${selectedCustomer.note ?? ""}
     `;
-  customerInfoDiv.classList.remove("hidden");
+  provisionCustomerInfoDiv.classList.remove("hidden");
+}
+
+function renderExchangeCustomerInfo() {
+  if (!exchangeSelectedCustomer) {
+    exchangeCustomerInfoDiv.innerHTML = "";
+    exchangeCustomerInfoDiv.classList.add("hidden");
+    return;
+  }
+  const lifeBadge = exchangeSelectedCustomer._lifeloveThisQuarter
+    ? '<span class="badge badge-life">이번 분기 생명사랑 제공됨</span>'
+    : '<span class="badge">이번 분기 미제공</span>';
+  exchangeCustomerInfoDiv.innerHTML = `
+      <strong>이용자명:</strong> ${exchangeSelectedCustomer.name ?? ""}<br>
+      <strong>생년월일:</strong> ${exchangeSelectedCustomer.birth ?? ""}<br>
+      <strong>주소:</strong> ${exchangeSelectedCustomer.address ?? ""}<br>
+      <strong>전화번호:</strong> ${exchangeSelectedCustomer.phone ?? ""}<br>
+      <strong>생명사랑:</strong> ${lifeBadge}<br>
+      <strong>비고:</strong> ${exchangeSelectedCustomer.note ?? ""}
+    `;
+  exchangeCustomerInfoDiv.classList.remove("hidden");
 }
 
 // 동명이인 처리하기
@@ -505,8 +616,15 @@ closeDuplicateModal.addEventListener("click", () => {
   infoEl.innerHTML = "";
   selectedCandidate = null;
   dupActiveIndex = -1;
-  lookupInput.value = "";
-  lookupInput.focus();
+  // 컨텍스트에 맞는 검색창 초기화/포커스
+  if (
+    typeof __lookupContext !== "undefined" &&
+    __lookupContext === "exchange"
+  ) {
+    exLookupInput && ((exLookupInput.value = ""), exLookupInput.focus());
+  } else {
+    provLookupInput && ((provLookupInput.value = ""), provLookupInput.focus());
+  }
   if (dupKeyHandler) {
     document.removeEventListener("keydown", dupKeyHandler, true);
     dupKeyHandler = null;
@@ -627,22 +745,42 @@ document
         visitArr.some(
           (v) => typeof v === "string" && v.startsWith(currentMonth)
         );
-      if (alreadyThisMonth) {
-        showToast("이미 이번 달 방문 처리된 이용자입니다.", true);
+      // 🔁 교환 탭 여부(또는 검색 컨텍스트)
+      const isExchangeActive =
+        __lookupContext === "exchange" ||
+        document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
+
+      // 교환 탭이면 '이번 달 방문'이어도 리스트에 추가 허용
+      const qKey = getQuarterKey(now);
+      const alreadyLife = !!(data.lifelove && data.lifelove[qKey]);
+      const candidate = {
+        ...selectedCandidate,
+        _lifeloveThisQuarter: alreadyLife,
+      };
+
+      if (isExchangeActive) {
+        // ✅ 교환: 제공 상태에 영향 없이 교환 쪽만 설정
+        exchangeSelectedCustomer = candidate;
+        renderExchangeCustomerInfo();
+        loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
+        document.dispatchEvent(new Event("exchange_customer_switched"));
+        showToast("교환 대상자가 선택되었습니다.");
+        // 이용자 선택이 끝났으므로 교환 섹션 표시
+        if (exchangeSection) exchangeSection.classList.remove("hidden");
+        exchangeHistorySection?.classList.remove("hidden");
       } else {
-        const qKey = getQuarterKey(now);
-        const alreadyLife = !!(data.lifelove && data.lifelove[qKey]);
-        const candidate = {
-          ...selectedCandidate,
-          _lifeloveThisQuarter: alreadyLife,
-        };
-        if (!visitorList.some((v) => v.id === candidate.id)) {
-          visitorList.push(candidate);
-          renderVisitorList();
-          saveVisitorDraft(visitorList);
-          showToast("방문자 리스트에 추가되었습니다.");
+        // 제공: 기존 로직 유지(이번 달 방문 시 차단)
+        if (alreadyThisMonth) {
+          showToast("이미 이번 달 방문 처리된 이용자입니다.", true);
         } else {
-          showToast("이미 리스트에 있는 이용자입니다.", true);
+          if (!visitorList.some((v) => v.id === candidate.id)) {
+            visitorList.push(candidate);
+            renderVisitorList();
+            saveVisitorDraft(visitorList);
+            showToast("방문자 리스트에 추가되었습니다.");
+          } else {
+            showToast("이미 리스트에 있는 이용자입니다.", true);
+          }
         }
       }
     } catch (err) {
@@ -657,8 +795,14 @@ document
       infoEl.innerHTML = "";
       selectedCandidate = null;
       dupActiveIndex = -1;
-      lookupInput.value = "";
-      lookupInput.focus();
+      // 컨텍스트별 입력창 리셋/포커스
+      if (__lookupContext === "exchange") {
+        exLookupInput.value = "";
+        exLookupInput.focus();
+      } else {
+        provLookupInput.value = "";
+        provLookupInput.focus();
+      }
       if (dupKeyHandler) {
         document.removeEventListener("keydown", dupKeyHandler, true);
         dupKeyHandler = null;
@@ -771,14 +915,26 @@ function renderVisitorList() {
   visitorListEl.innerHTML = "";
   if (visitorList.length === 0) {
     visitorListSection.classList.add("hidden");
-    // 방문자 없으면 계산/제출 섹션 숨김
-    selectedCustomer = null;
-    productSection.classList.add("hidden");
-    submitSection.classList.add("hidden");
-    renderCustomerInfo();
+    // ✅ 교환 탭에서는 방문자 리스트가 비어도 선택 고객을 해제하지 않음
+    const isExchangeActive =
+      document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
+    if (!isExchangeActive) {
+      // 제공 탭에서만 '비어있으면 선택 해제'
+      selectedCustomer = null;
+      productSection.classList.add("hidden");
+      submitSection.classList.add("hidden");
+      renderProvisionCustomerInfo();
+    }
     return;
   }
-  visitorListSection.classList.remove("hidden");
+  // ✅ 교환 탭에서는 방문자 리스트 표시 금지
+  const isExchangeActive =
+    document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
+  if (isExchangeActive) {
+    visitorListSection.classList.add("hidden");
+  } else {
+    visitorListSection.classList.remove("hidden");
+  }
   visitorList.forEach((v) => {
     const hasHold = localStorage.getItem(HOLD_PREFIX + v.id);
     const li = document.createElement("li");
@@ -853,10 +1009,15 @@ visitorListEl?.addEventListener("click", async (e) => {
       if (!ok) return;
     }
     selectedCustomer = visitorList[idx];
-    // 선택 후에만 계산/제출 섹션 노출
-    productSection.classList.remove("hidden");
-    submitSection.classList.remove("hidden");
-    renderCustomerInfo();
+    // ✅ 교환 탭에서는 상품/제공 영역을 노출하지 않음
+    const _ex =
+      document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
+    if (!_ex) {
+      // 제공 탭에서만 보이도록 유지
+      productSection.classList.remove("hidden");
+      submitSection.classList.remove("hidden");
+    }
+    renderProvisionCustomerInfo();
     // 방문자 전환 시 기본은 빈 장바구니
     selectedItems = [];
     undoStack = [];
@@ -887,6 +1048,12 @@ visitorListEl?.addEventListener("click", async (e) => {
     renderSelectedList();
     renderVisitorList(); // active 표시 갱신
     saveProvisionDraft();
+    // ✅ 제공 탭에서 고객을 선택하면 바코드 입력창에 자동 포커스
+    if (!_ex && typeof barcodeInput !== "undefined" && barcodeInput) {
+      try {
+        barcodeInput.focus();
+      } catch {}
+    }
     document.dispatchEvent(new Event("provision_customer_switched"));
   }
 });
@@ -1357,8 +1524,8 @@ holdSaveBtn?.addEventListener("click", () => {
   submitSection.classList.add("hidden");
   // 고객 정보 패널 숨김 및 선택 해제
   selectedCustomer = null;
-  customerInfoDiv.innerHTML = "";
-  renderCustomerInfo(); // selectedCustomer가 null이면 hidden 처리됨
+  provisionCustomerInfoDiv.innerHTML = "";
+  renderProvisionCustomerInfo(); // selectedCustomer가 null이면 hidden 처리됨
   renderVisitorList(); // active 표시 해제
   clearProvisionDraft();
 
@@ -1486,11 +1653,11 @@ submitBtn.addEventListener("click", async () => {
 });
 
 function resetForm() {
-  lookupInput.value = "";
-  customerInfoDiv.classList.add("hidden");
+  provLookupInput.value = "";
+  provisionCustomerInfoDiv.classList.add("hidden");
   productSection.classList.add("hidden");
   submitSection.classList.add("hidden");
-  customerInfoDiv.innerHTML = "";
+  provisionCustomerInfoDiv.innerHTML = "";
   selectedCustomer = null;
   selectedItems = [];
   visitorList = []; // ✅ 방문자 리스트도 초기화
@@ -1499,6 +1666,11 @@ function resetForm() {
   lifeloveCheckbox.checked = false;
   clearVisitorDraft();
   clearProvisionDraft();
+  // 교환 섹션 자체도 숨김(초기 화면처럼)
+  if (exchangeSection) exchangeSection.classList.add("hidden");
+  // 교환 탭 고객정보도 안전하게 숨김
+  exchangeSelectedCustomer = null;
+  renderExchangeCustomerInfo();
 }
 
 // ✅ lifelove 체크 변경도 저장
@@ -1524,6 +1696,75 @@ const exOriginalEl = document.getElementById("ex-original-total");
 const exNewEl = document.getElementById("ex-new-total");
 const exWarnEl = document.getElementById("ex-warning");
 const exSubmitBtn = document.getElementById("exchange-submit-btn");
+const exHistoryTable = document.getElementById("exchange-history-table");
+// 교환 섹션(검색 아래, 히스토리+빌더를 감싸는 컨테이너)
+const exchangeSection = document.getElementById("exchange-section");
+// 교환 히스토리 섹션(표 래퍼)
+const exchangeHistorySection = document.getElementById(
+  "exchange-history-section"
+);
+
+// === 교환 입력 자동완성 ===
+let __exNameAutoTimer = null;
+let exNameReqSeq = 0;
+
+// 교환용 자동완성 리스트가 없으면 생성
+let exAutocompleteList = document.getElementById("ex-autocomplete-list");
+if (!exAutocompleteList && exName) {
+  exAutocompleteList = document.createElement("div");
+  exAutocompleteList.id = "ex-autocomplete-list";
+  exAutocompleteList.className = "autocomplete-list";
+  (exName.parentElement || exchangeBuilder || document.body).appendChild(
+    exAutocompleteList
+  );
+}
+
+// 교환용 이름 입력 자동완성
+exName?.addEventListener("input", async () => {
+  const keyword = exName.value.trim();
+  if (__exNameAutoTimer) clearTimeout(__exNameAutoTimer);
+  __exNameAutoTimer = setTimeout(async () => {
+    if (!keyword || keyword.length < 2 || /^\d{13}$/.test(keyword)) {
+      exAutocompleteList?.classList.add("hidden");
+      return;
+    }
+    try {
+      const reqId = ++exNameReqSeq;
+      const rows = await searchProductsByNamePrefix(keyword);
+      if (reqId !== exNameReqSeq) return; // 최신 입력만 반영
+      renderExAutocomplete(rows);
+    } catch {
+      exAutocompleteList?.classList.add("hidden");
+    }
+  }, 250);
+});
+
+function renderExAutocomplete(matches) {
+  if (!exAutocompleteList) return;
+  exAutocompleteList.innerHTML = "";
+  if (!matches || matches.length === 0) {
+    exAutocompleteList.classList.add("hidden");
+    return;
+  }
+  matches.forEach((product) => {
+    const div = document.createElement("div");
+    div.textContent = `${product.name}`;
+    div.addEventListener("click", () => {
+      exName.value = product.name;
+      exQty?.focus(); // 이름 선택 후 수량으로 자연스러운 포커스 이동
+      exAutocompleteList.classList.add("hidden");
+    });
+    exAutocompleteList.appendChild(div);
+  });
+  exAutocompleteList.classList.remove("hidden");
+}
+
+// 교환 입력영역 밖을 클릭하면 자동완성 닫기
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#exchange-builder")) {
+    exAutocompleteList?.classList.add("hidden");
+  }
+});
 
 let exchangeItems = [];
 let exchangeOriginalItems = [];
@@ -1547,6 +1788,10 @@ async function loadRecentProvisionsForCustomer(customerId) {
 
 function renderExchangeHistory(rows) {
   exchangeHistoryTbody.innerHTML = "";
+  exchangeHistoryTbody.innerHTML = "";
+  // 고객 선택 후에는 섹션/표를 항상 노출 (없으면 안내문 표시)
+  exchangeHistorySection?.classList.remove("hidden");
+  exHistoryTable?.classList.remove("hidden");
   if (!rows.length) {
     exchangeHistoryTbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#666;">최근 50일 내 제공내역이 없습니다.</td></tr>`;
     exchangeBuilder.classList.add("hidden");
@@ -1748,6 +1993,29 @@ exTableBody?.addEventListener("change", (e) => {
 });
 
 // 교환 제출
+function resetExchangeUI() {
+  // 상태 비우기
+  exchangeItems = [];
+  exchangeOriginalItems = [];
+  exchangeOriginalTotal = 0;
+  exchangeProvision = null;
+  // UI 초기화
+  if (exTableBody) exTableBody.innerHTML = "";
+  if (exOriginalEl) exOriginalEl.textContent = "0";
+  if (exNewEl) exNewEl.textContent = "0";
+  if (exWarnEl) exWarnEl.classList.add("hidden");
+  if (exBarcode) exBarcode.value = "";
+  if (exName) exName.value = "";
+  if (exQty) exQty.value = "";
+  if (exchangeBuilder) exchangeBuilder.classList.add("hidden");
+  if (exHistoryTable) {
+    const tb = exHistoryTable.querySelector("tbody");
+    if (tb) tb.innerHTML = "";
+    exHistoryTable.classList.add("hidden");
+  }
+  exchangeHistorySection?.classList.add("hidden");
+}
+
 exSubmitBtn?.addEventListener("click", async () => {
   if (!exchangeProvision) return showToast("교환할 내역을 선택하세요.", true);
   if (!exchangeItems.length) return showToast("교환 항목을 추가하세요.", true);
@@ -1777,18 +2045,17 @@ exSubmitBtn?.addEventListener("click", async () => {
       total: newTotal,
       updatedAt: serverTimestamp(),
       exchangeLog: arrayUnion({
-        at: serverTimestamp(),
+        at: Timestamp.now(),
         by: auth.currentUser?.email || null,
         from: exchangeOriginalItems,
         to: exchangeItems,
       }),
     });
     showToast("교환이 완료되었습니다.");
-    // 히스토리 재조회 + 빌더 초기화
-    loadRecentProvisionsForCustomer(
-      selectedCustomer?.id || exchangeProvision.customerId
-    );
-    exchangeBuilder.classList.add("hidden");
+    resetExchangeUI();
+    exchangeSelectedCustomer = null;
+    renderExchangeCustomerInfo(); // 교환 고객정보 숨김
+    if (exLookupInput) exLookupInput.value = "";
   } catch (e) {
     console.error(e);
     showToast("교환 실패", true);
@@ -1797,9 +2064,9 @@ exSubmitBtn?.addEventListener("click", async () => {
 
 // 방문자 선택 시, 교환 탭이면 히스토리 자동 로드
 // (기존 visitorListEl select 핸들러 마지막에 renderSelectedList() 후 아래 한 줄 추가해도 됨)
-document.addEventListener("provision_customer_switched", () => {
+document.addEventListener("exchange_customer_switched", () => {
   const isEx =
     document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
-  if (isEx && selectedCustomer)
-    loadRecentProvisionsForCustomer(selectedCustomer.id);
+  if (isEx && exchangeSelectedCustomer)
+    loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
 });

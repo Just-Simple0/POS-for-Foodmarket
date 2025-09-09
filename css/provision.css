@@ -8,14 +8,16 @@
   margin-bottom: 2rem;
 }
 
-#customer-lookup {
+#prov-customer-lookup,
+#ex-customer-lookup {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 10px;
 }
 
-#customer-search {
+#prov-customer-search,
+#ex-customer-search {
   flex: 1;
   padding: 8px 12px;
   font-size: 14px;
@@ -32,7 +34,8 @@
 }
 
 /* 고객 정보 카드 */
-#customer-info {
+#provision-customer-info,
+#exchange-customer-info {
   margin-top: 1rem;
   padding: 1rem;
   background-color: #f5f5f5;
