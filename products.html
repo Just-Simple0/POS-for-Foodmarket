@@ -4,10 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>POS System - Products</title>
+    <!-- ⚡ FOUC 방지: 초기 테마 적용 -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          var d = t
+            ? t === "dark"
+            : window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (d) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
 
     <!-- 공통 -->
     <link rel="stylesheet" href="css/common.css" />
-    <link rel="stylesheet" href="css/tw-input.css" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
@@ -31,16 +43,18 @@
     <!-- 개별 css, js -->
     <link rel="stylesheet" href="css/products.css" />
     <script type="module" src="js/products.js"></script>
-    <link rel="stylesheet" href="css/tw.css">
-</head>
+    <link rel="stylesheet" href="css/tw.css" />
+  </head>
   <body>
     <div id="header-container"></div>
 
     <main class="container">
       <!-- ✅ 페이지 탭바 -->
       <nav class="tabbar tabbar--products">
-        <button class="tab active" data-tab="list">상품 조회 및 목록</button>
-        <button class="tab" data-tab="policy">제한 설정</button>
+        <button class="tab tab-btn active" data-tab="list">
+          상품 조회 및 목록
+        </button>
+        <button class="tab tab-btn" data-tab="policy">제한 설정</button>
       </nav>
 
       <!-- 탭: 상품 목록 -->
@@ -50,27 +64,37 @@
         <!-- 🔍 검색 전용 폼(이름/바코드) + 등록 모달 오픈 버튼 -->
         <form id="search-form" class="search-bar">
           <div class="form-row">
-            <input type="text" id="product-name" placeholder="상품명" />
-            <input type="text" id="product-barcode" placeholder="바코드" />
-            <select id="filter-category" title="분류 필터">
+            <input
+              type="text"
+              id="product-name"
+              class="input"
+              placeholder="상품명"
+            />
+            <input
+              type="text"
+              id="product-barcode"
+              class="input"
+              placeholder="바코드"
+            />
+            <select id="filter-category" class="select" title="분류 필터">
               <option value="">전체 분류</option>
             </select>
           </div>
           <div class="form-buttons">
-            <button type="button" id="search-btn">
+            <button type="button" id="search-btn" class="btn">
               <i class="fas fa-search"></i> 검색
             </button>
-            <button type="reset" id="reset-btn">
+            <button type="reset" id="reset-btn" class="btn-outline">
               <i class="fas fa-undo"></i> 초기화
             </button>
-            <button type="button" id="btn-product-create">
+            <button type="button" id="btn-product-create" class="btn btn-info">
               <i class="fas fa-plus"></i> 등록하기
             </button>
           </div>
         </form>
         <h2 style="margin-top: 24px">상품 목록</h2>
         <div class="list-bar">
-          <select id="sort-select">
+          <select id="sort-select" class="select">
             <option value="price">가격순</option>
             <option value="name">이름순</option>
             <option value="barcode">바코드순</option>
@@ -79,7 +103,7 @@
           <div class="pagesize-row">
             <label class="pagesize-label"
               >표시 수:
-              <select id="page-size">
+              <select id="page-size" class="select">
                 <option value="10">10개</option>
                 <option value="25" selected>25개</option>
                 <option value="50">50개</option>
@@ -162,41 +186,42 @@
           </div>
           <div class="modal-body">
             <div class="tabs">
-              <button class="tab active" data-tab="direct">직접 입력</button>
-              <button class="tab" data-tab="upload">엑셀 업로드</button>
+              <button class="tab tab-btn tab active" data-tab="direct">직접 입력</button>
+              <button class="tab tab-btn" data-tab="upload">엑셀 업로드</button>
             </div>
 
             <!-- 직접 입력 -->
             <div class="tab-panel" id="tab-direct">
               <div class="grid2">
                 <label
-                  ><span>상품명</span><input type="text" id="create-name"
+                  ><span>상품명</span><input type="text" id="create-name" class="input"
                 /></label>
                 <label
                   ><span>분류</span
                   ><input
                     type="text"
                     id="create-category"
+                    class="input"
                     placeholder="예: 음료, 과자"
                     list="category-presets"
                 /></label>
                 <label
                   ><span>가격</span
-                  ><input type="number" id="create-price" step="0.5" min="0"
+                  ><input type="number" id="create-price" class="input" step="0.5" min="0"
                 /></label>
                 <label
-                  ><span>바코드</span><input type="text" id="create-barcode"
+                  ><span>바코드</span><input type="text" id="create-barcode" class="input"
                 /></label>
               </div>
               <div class="modal-buttons">
                 <button
                   type="button"
                   id="product-create-save"
-                  class="btn btn-primary"
+                  class="btn"
                 >
                   <i class="fas fa-save"></i> 저장
                 </button>
-                <button type="button" id="product-create-close" class="btn">
+                <button type="button" id="product-create-close" class="btn-outline">
                   닫기
                 </button>
               </div>
@@ -215,21 +240,21 @@
                   <b>추가</b>됩니다.
                 </p>
                 <div class="modal-buttons upload-actions">
-                  <button type="button" id="excel-parse-btn" class="btn">
+                  <button type="button" id="excel-parse-btn" class="btn-outline">
                     <i class="fas fa-eye"></i> 미리보기
                   </button>
                   <button
                     type="button"
                     id="excel-import-btn"
-                    class="btn btn-primary"
+                    class="btn"
                     disabled
                   >
                     <i class="fas fa-cloud-upload-alt"></i> 실행
                   </button>
-                  <button type="button" id="excel-template-btn" class="btn">
+                  <button type="button" id="excel-template-btn" class="btn-outline">
                     <i class="fas fa-download"></i> 템플릿
                   </button>
-                  <button type="button" id="product-create-close-2" class="btn">
+                  <button type="button" id="product-create-close-2" class="btn-outline">
                     닫기
                   </button>
                 </div>
@@ -244,11 +269,12 @@
       <div id="edit-modal" class="modal hidden">
         <form id="edit-form" class="modal-content">
           <h2>상품 수정</h2>
-          <label>상품명<input type="text" id="edit-name" required /></label>
+          <label>상품명<input type="text" id="edit-name" class="input" required /></label>
           <label
             >분류<input
               type="text"
               id="edit-category"
+              class="input"
               placeholder="예: 음료, 과자"
               list="category-presets"
           /></label>
@@ -256,14 +282,15 @@
             >가격<input
               type="number"
               id="edit-price"
+              class="input"
               step="0.5"
               min="0"
               required
           /></label>
-          <label>바코드<input type="text" id="edit-barcode" required /></label>
+          <label>바코드<input type="text" id="edit-barcode" class="input" required /></label>
           <div class="modal-buttons">
-            <button type="submit"><i class="fas fa-save"></i> 저장</button>
-            <button type="button" id="cancel-btn">
+            <button type="submit" class="btn"><i class="fas fa-save"></i> 저장</button>
+            <button type="button" id="cancel-btn" class="btn-outline">
               <i class="fas fa-times"></i> 취소
             </button>
           </div>

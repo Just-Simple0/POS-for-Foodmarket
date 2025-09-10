@@ -402,17 +402,17 @@ function renderList() {
   productList.innerHTML = rows
     .map(
       (p) => `
-    <div class="product-card" data-id="${p.id}">
+    <div class="product-card card" data-id="${p.id}">
       <div class="name">${escapeHtml(p.name || "")}</div>
       <div class="category">분류: ${escapeHtml(p.category || "-")}</div>
       <div class="price">${Number(p.price || 0).toLocaleString()} 포인트</div>
       <div class="barcode">바코드: ${escapeHtml(p.barcode || "")}</div>
-      <div><button class="edit" data-id="${
+      <div><button class="edit btn-outline" data-id="${
         p.id
       }" aria-label="상품 수정: ${escapeHtml(p.name || "")}">
           <i class="fas fa-pen"></i> 수정
         </button>
-        <button class="delete-btn" data-id="${
+        <button class="delete-btn btn btn--danger" data-id="${
           p.id
         }" aria-label="상품 삭제: ${escapeHtml(p.name || "")}">
           <i class="fas fa-trash"></i> 삭제
@@ -723,6 +723,7 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
   const category = (
     document.getElementById("edit-category")?.value || ""
   ).trim();
+  const normCat = normalizeCategory(category);
   const price = toNumber(document.getElementById("edit-price").value);
   const barcode = document.getElementById("edit-barcode").value.trim();
   const updatedAt = serverTimestamp();

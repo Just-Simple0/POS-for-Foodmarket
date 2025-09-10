@@ -953,8 +953,8 @@ function renderVisitorList() {
     }</div>
       </div>
       <div class="actions">
-        <button class="select" data-id="${v.id}">선택</button>
-        <button class="remove" data-id="${v.id}">삭제</button>
+        <button class="select btn btn-outline" data-id="${v.id}">선택</button>
+        <button class="remove btn btn--danger" data-id="${v.id}">삭제</button>
       </div>
     `;
     visitorListEl.appendChild(li);
@@ -1395,15 +1395,15 @@ function renderSelectedList() {
       <td>${item.name}</td>
       <td>
         <div class="quantity-wrapper">
-        <button class="decrease-btn" data-idx="${idx}">−</button>
-        <input type="number" name="quantity-${idx}" min="1" max="30" value="${item.quantity}" data-idx="${idx}" class="quantity-input" />
-        <button class="increase-btn" data-idx="${idx}">+</button>
+        <button class="decrease-btn btn-outline small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
+        <input type="number" name="quantity-${idx}" min="1" max="30" value="${item.quantity}" data-idx="${idx}" class="quantity-input input w-16 text-center" />
+        <button class="increase-btn btn-outline small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
         </div>
       </td>
       <td>${item.price}</td>
       <td>${totalPrice}</td>
       <td>
-        <button class="remove-btn" data-idx="${idx}"><i class="fas fa-trash"></i></button>
+        <button class="remove-btn btn btn--danger small-btn" data-idx="${idx}" aria-label="상품 삭제"><i class="fas fa-trash"></i></button>
       </td>
     `;
 
@@ -1474,14 +1474,6 @@ selectedTableBody.addEventListener("change", (e) => {
       selectedItems[idx].quantity = val;
       renderSelectedList();
     }
-  }
-});
-
-selectedTableBody.addEventListener("click", (e) => {
-  if (e.target.closest(".remove-btn")) {
-    const idx = e.target.closest(".remove-btn").dataset.idx;
-    selectedItems.splice(idx, 1);
-    renderSelectedList();
   }
 });
 
@@ -1815,7 +1807,9 @@ function renderExchangeHistory(rows) {
       <td>${r.items?.length || 0}건</td>
       <td>${r.total ?? 0}</td>
       <td>${r.lifelove ? "생명사랑" : "-"}</td>
-      <td><button class="ex-pick" data-id="${r.id}">선택</button></td>
+      <td><button class="ex-pick btn btn-outline" data-id="${
+        r.id
+      }">선택</button></td>
     `;
     exchangeHistoryTbody.appendChild(tr);
   });
@@ -1853,16 +1847,19 @@ function renderExchangeList() {
       <td>${item.name}</td>
       <td>
         <div class="quantity-wrapper">
-          <button class="ex-dec" data-idx="${idx}">−</button>
-          <input type="number" class="quantity-input" min="1" max="30" value="${
-            item.quantity || 1
-          }" data-idx="${idx}" />
-          <button class="ex-inc" data-idx="${idx}">+</button>
+          <button class="ex-dec btn-outline small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
+          <input type="number" class="quantity-input input w-16 text-center"
+                min="1" max="30" value="${
+                item.quantity || 1
+                }" data-idx="${idx}" />
+          <button class="ex-inc btn-outline small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
         </div>
       </td>
       <td>${item.price || 0}</td>
       <td>${totalPrice}</td>
-      <td><button class="ex-del" data-idx="${idx}"><i class="fas fa-trash"></i></button></td>
+      <td><button class="ex-del btn btn--danger small-btn" data-idx="${idx}" aria-label="항목 삭제">
+        <i class="fas fa-trash"></i>
+      </button></td>
     `;
     tr.dataset.id = item.id;
     tr.dataset.category = item.category || "";

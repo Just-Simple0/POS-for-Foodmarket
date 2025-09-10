@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>POS System - Login</title>
+    <!-- ⚡️ FOUC 방지: 초기 테마 적용 -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('theme');
+          var d = t ? (t === 'dark')
+                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (d) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
 
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="css/index.css" />
@@ -41,6 +52,7 @@
           placeholder="이메일"
           required
           autocomplete="email"
+          class="input w-full"
         />
         <div class="pw-field">
           <input
@@ -49,6 +61,7 @@
             placeholder="비밀번호"
             required
             autocomplete="current-password"
+            class="input w-full"
           /><button
             type="button"
             id="login-pw-toggle"
@@ -174,12 +187,14 @@
         <h2 id="signup-title">계정 만들기</h2>
 
         <form id="signup-form" autocomplete="on" onsubmit="return false;">
-          <label for="signup-name">이름(선택)</label>
+          <label for="signup-name">이름</label>
           <input
             id="signup-name"
             type="text"
             placeholder="이름 또는 표시명"
             autocomplete="name"
+            required
+            class="input w-full"
           />
 
           <label for="signup-email">이메일</label>
@@ -189,6 +204,7 @@
             placeholder="you@example.com"
             required
             autocomplete="email"
+            class="input w-full"
           />
 
           <label for="signup-password">비밀번호</label>
@@ -199,6 +215,7 @@
               placeholder="6자 이상"
               required
               autocomplete="new-password"
+              class="input w-full"
             /><button
               type="button"
               id="signup-pw-toggle"
@@ -222,6 +239,7 @@
               placeholder="비밀번호 다시 입력"
               required
               autocomplete="new-password"
+              class="input w-full"
             /><button
               type="button"
               id="signup-pw2-toggle"
@@ -261,8 +279,8 @@
           <p id="signup-error"></p>
 
           <div class="modal-buttons">
-            <button id="signup-submit-btn" type="button">계정 생성</button>
-            <button id="signup-cancel-btn" type="button">취소</button>
+            <button id="signup-submit-btn" class="btn" type="button">계정 생성</button>
+            <button id="signup-cancel-btn" class="btn" type="button">취소</button>
           </div>
         </form>
       </div>
@@ -285,6 +303,7 @@
             placeholder="you@example.com"
             required
             autocomplete="email"
+            class="input w-full"
           />
 
           <!-- ✅ Turnstile(재설정, 보이는 위젯) -->
@@ -304,10 +323,10 @@
           <p id="reset-error" class="login-error"></p>
 
           <div class="modal-buttons">
-            <button id="reset-submit-btn" type="button">
+            <button id="reset-submit-btn" class="btn" type="button">
               재설정 메일 보내기
             </button>
-            <button id="reset-cancel-btn" type="button">취소</button>
+            <button id="reset-cancel-btn" class="btn" type="button">취소</button>
           </div>
         </form>
       </div>

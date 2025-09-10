@@ -3,9 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <title>POS System - My Page</title>
+    <!-- ⚡️ FOUC 방지: 초기 테마 적용 -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('theme');
+          var d = t ? (t === 'dark')
+                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (d) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
 
     <link rel="stylesheet" href="css/common.css" />
-    <link rel="stylesheet" href="css/tw-input.css" />
     <link rel="stylesheet" href="css/mypage.css" />
     <link
       rel="stylesheet"
@@ -48,7 +58,7 @@
           </span>
         </p>
 
-        <button id="logout-btn">로그아웃</button>
+        <button id="logout-btn" class="btn">로그아웃</button>
       </section>
 
       <!-- 🔗 계정 연동 (기존 섹션 유지) -->
@@ -196,6 +206,7 @@
             required
             autocomplete="current-password"
             data-initial-focus
+            class="input w-full"
           />
         </label>
         <label
@@ -205,6 +216,7 @@
             id="chg-new-email"
             required
             autocomplete="email"
+            class="input w-full"
           />
         </label>
         <div class="modal-buttons">
@@ -248,6 +260,7 @@
             rows="3"
             placeholder="예: 더 이상 서비스를 사용하지 않습니다."
             data-initial-focus
+            class="input w-full"
           ></textarea>
         </label>
         <div class="agree-row">

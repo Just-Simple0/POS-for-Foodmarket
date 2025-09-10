@@ -66,9 +66,10 @@
           <input
             type="text"
             id="prov-customer-search"
+            class="input w-72 md:w-96"
             placeholder="예: 홍길동"
           />
-          <button id="prov-lookup-btn" type="button">
+          <button id="prov-lookup-btn" type="button" class="btn">
             <i class="fas fa-search"></i> 조회
           </button>
         </section>
@@ -80,7 +81,7 @@
         </section>
 
         <section id="customer-if">
-          <div id="provision-customer-info" class="hidden">
+          <div id="provision-customer-info" class="hidden card card-body">
             <!-- 제공 탭 고객 정보 -->
           </div>
         </section>
@@ -94,6 +95,7 @@
             <input
               type="text"
               id="barcode-input"
+              class="input w-64 md:w-72"
               placeholder="바코드 입력 (Enter)"
               inputmode="numeric"
               pattern="\\d*"
@@ -103,6 +105,7 @@
               <input
                 type="text"
                 id="name-input"
+                class="input w-64 md:w-72"
                 placeholder="상품명 입력 (Enter → 수량)"
               />
               <div
@@ -114,17 +117,18 @@
             <input
               type="number"
               id="quantity-input"
+              class="input w-24"
               placeholder="수량 (기본 1)"
               min="1"
               max="30"
             />
-            <button id="add-product-btn">
+            <button id="add-product-btn" class="btn">
               <i class="fas fa-plus-circle"></i> 추가
             </button>
           </div>
 
           <div class="selected-products table-wrapper">
-            <table id="selected-table">
+            <table id="selected-table" class="table">
               <thead>
                 <tr>
                   <th>상품명</th>
@@ -147,7 +151,7 @@
 
         <!-- ✅ 제출 버튼 -->
         <section id="submit-section" class="hidden">
-          <button id="submit-btn">
+          <button id="submit-btn" class="btn">
             <i class="fas fa-check-circle"></i> 제공 등록 완료
           </button>
           <label for="lifelove-checkbox">
@@ -160,26 +164,27 @@
           id="product-action-buttons"
           style="margin-top: 1rem; display: flex; gap: 10px"
         >
-          <button id="undo-btn">
+          <button id="undo-btn" class="btn btn-outline small-btn">
             <i class="fas fa-rotate-left"></i>
           </button>
-          <button id="redo-btn">
+          <button id="redo-btn" class="btn btn-outline small-btn">
             <i class="fas fa-rotate-right"></i>
           </button>
-          <button id="clear-products-btn">
+          <button id="clear-products-btn" class="btn btn-outline">
             <i class="fas fa-broom"></i> 물품 초기화
           </button>
-          <button id="clear-all-btn">
+          <button id="clear-all-btn" class="btn btn--danger">
             <i class="fas fa-trash-alt"></i> 전체 초기화
           </button>
           <!-- ✅ 보류(임시 저장/불러오기: localStorage) -->
           <button
             id="hold-save-btn"
+            class="btn btn-outline"
             title="현재 선택 방문자의 장바구니를 임시 저장"
           >
             <i class="fas fa-pause-circle"></i> 보류 저장
           </button>
-          <button id="hold-load-btn" title="임시 저장된 장바구니 불러오기">
+          <button id="hold-load-btn" class="btn btn-outline" title="임시 저장된 장바구니 불러오기">
             <i class="fas fa-play-circle"></i> 보류 불러오기
           </button>
         </div>
@@ -189,8 +194,8 @@
       <section id="exchange-section" data-tab-panel="exchange" class="hidden">
         <h3>이용자 조회(교환)</h3>
         <section id="ex-customer-lookup">
-          <input type="text" id="ex-customer-search" placeholder="예: 홍길동" />
-          <button id="ex-lookup-btn" type="button">
+          <input type="text" id="ex-customer-search" class="input w-72 md:w-96" placeholder="예: 홍길동" />
+          <button id="ex-lookup-btn" class="btn" type="button">
             <i class="fas fa-search"></i> 조회
           </button>
         </section>
@@ -206,7 +211,7 @@
           <h3>교환 (최근 50일, 환불 없음)</h3>
           50일 이내 제공내역에서 교환할 내역을 선택하세요.
           <div class="table-wrapper">
-            <table id="exchange-history-table">
+            <table id="exchange-history-table"class="table">
               <thead>
                 <tr>
                   <th>일시</th>
@@ -227,12 +232,13 @@
             <input
               type="text"
               id="ex-barcode-input"
+              class="input w-64 md:w-72"
               placeholder="바코드 입력 (Enter)"
               inputmode="numeric"
               pattern="\\d*"
             />
             <div class="autocomplete-wrapper">
-              <input type="text" id="ex-name-input" placeholder="상품명 입력" />
+              <input type="text" id="ex-name-input" class="input w-64 md:w-72" placeholder="상품명 입력" />
               <div
                 class="autocomplete-list hidden"
                 id="ex-autocomplete"
@@ -242,17 +248,18 @@
             <input
               type="number"
               id="ex-quantity-input"
+              class="input w-24"
               placeholder="수량 (기본 1)"
               min="1"
               max="30"
             />
-            <button id="ex-add-product-btn">
+            <button id="ex-add-product-btn" class="btn">
               <i class="fas fa-plus-circle"></i> 추가
             </button>
           </div>
 
           <div class="selected-products table-wrapper">
-            <table id="exchange-table">
+            <table id="exchange-table" class="table">
               <thead>
                 <tr>
                   <th>상품명</th>
@@ -274,7 +281,7 @@
           </div>
 
           <div style="margin-top: 10px">
-            <button id="exchange-submit-btn">
+            <button id="exchange-submit-btn" class="btn">
               <i class="fas fa-right-left"></i> 교환 확정
             </button>
           </div>
@@ -300,12 +307,13 @@
         <div class="modal-buttons">
           <button
             id="confirm-duplicate"
+            class="btn"
             type="button"
             title="방문자 리스트에 추가"
           >
             <i class="fas fa-check"></i> 삽입
           </button>
-          <button id="close-duplicate-modal" type="button">
+          <button id="close-duplicate-modal" class="btn btn-outline" type="button">
             <i class="fas fa-times"></i> 닫기
           </button>
         </div>

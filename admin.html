@@ -3,6 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <title>POS System - Admin Setting</title>
+    <!-- ⚡️ FOUC 방지: 초기 테마 적용 -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          var d = t
+            ? t === "dark"
+            : window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (d) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
     <!-- 공통 parts 삽입 -->
     <link rel="stylesheet" href="css/common.css" />
     <link
@@ -26,13 +39,15 @@
     <!-- firebase parts 삽입 -->
     <script type="module" src="js/components/firebase-config.js"></script>
     <link rel="stylesheet" href="css/admin.css" />
-    <link rel="stylesheet" href="css/tw-input.css" />
     <link rel="stylesheet" href="css/tw.css" />
 
     <!-- daterangepicker (statistics와 동일) -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"
+    />
     <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
   </head>
   <body>
@@ -40,8 +55,8 @@
     <main class="container">
       <!-- 탭바 -->
       <nav class="tabbar">
-        <button class="tab active" data-tab="users">사용자 관리</button>
-        <button class="tab" data-tab="approvals">승인 요청</button>
+        <button class="tab tab-btn active" data-tab="users">사용자 관리</button>
+        <button class="tab tab-btn" data-tab="approvals">승인 요청</button>
       </nav>
 
       <div id="tab-users">
@@ -255,13 +270,32 @@
           <h3>연간 백업 / 데이터 정리</h3>
         </div>
         <div class="card-header filter-row">
-          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+          <div
+            style="
+              display: flex;
+              gap: 0.5rem;
+              align-items: center;
+              flex-wrap: wrap;
+            "
+          >
             <label for="yr-start"><strong>기간</strong></label>
-            <input id="yr-start" type="text" class="input" placeholder="시작일 (YYYY.MM.DD)" />
+            <input
+              id="yr-start"
+              type="text"
+              class="input"
+              placeholder="시작일 (YYYY.MM.DD)"
+            />
             <span class="range-divider"> ~ </span>
-            <input id="yr-end" type="text" class="input" placeholder="종료일 (YYYY.MM.DD)" />
+            <input
+              id="yr-end"
+              type="text"
+              class="input"
+              placeholder="종료일 (YYYY.MM.DD)"
+            />
           </div>
-          <button id="btn-annual-default" class="btn">전년도 3/1 ~ 당해 3/1</button>
+          <button id="btn-annual-default" class="btn">
+            전년도 3/1 ~ 당해 3/1
+          </button>
         </div>
         <div class="card-header">
           <button id="btn-export-provisions-year" class="btn">

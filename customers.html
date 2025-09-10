@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>POS System - Customers</title>
+    <!-- ⚡️ FOUC 방지: 초기 테마 적용 -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('theme');
+          var d = t ? (t === 'dark')
+                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (d) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <!-- 공통 parts 삽입 -->
     <link rel="stylesheet" href="css/common.css" />
     <link
@@ -25,7 +36,6 @@
     <script type="module" src="js/components/firebase-config.js"></script>
     <!-- 개별 css, js 삽입 -->
     <link rel="stylesheet" href="css/customers.css" />
-    <link rel="stylesheet" href="css/tw-input.css" />
     <script type="module" src="js/customers.js" defer></script>
     <link rel="stylesheet" href="css/tw.css">
 </head>
@@ -37,7 +47,7 @@
       <div id="top-bar">
         <div class="search-bar">
           <input
-            id="global-search"
+            id="global-search" class="input w-72 md:w-96"
             placeholder="이름/행정구역 접두 또는 전화 숫자"
           />
           <button id="btn-run-search" class="btn">검색</button>
@@ -53,7 +63,7 @@
         ></div>
 
         <div id="advanced-search" class="hidden">
-          <select id="field-select">
+          <select id="field-select" class="select">
             <option value="">필드 선택</option>
             <option value="name">이용자명</option>
             <option value="birth">생년월일</option>
@@ -66,8 +76,8 @@
             <option value="category">이용자분류</option>
             <option value="note">비고</option>
           </select>
-          <input id="field-search" placeholder="선택 필드 검색" />
-          <button id="btn-run-field-search" class="btn">조회</button>
+          <input id="field-search" class="input w-64 md:w-80" placeholder="선택 필드 검색" />
+          <button id="btn-run-field-search" class="btn"><i class="fas fa-search"></i> 조회</button>
         </div>
       </div>
 
@@ -80,7 +90,7 @@
             <button id="btn-customer-create" class="btn btn-primary">
               <i class="fas fa-user-plus"></i> 등록하기
             </button>
-            <button id="btn-export-xlsx" class="btn">
+            <button id="btn-export-xlsx" class="btn btn-info">
               <i class="fas fa-file-export"></i> 내보내기
             </button>
           </div>
@@ -88,7 +98,7 @@
 
         <label class="pagesize-label"
           >표시 수:
-          <select id="page-size">
+          <select id="page-size" class="select">
             <option value="10">10개</option>
             <option value="25" selected>25개</option>
             <option value="50">50개</option>
@@ -142,23 +152,23 @@
         </div>
         <div class="modal-body">
           <div class="tabs">
-            <button class="tab active" data-tab="direct">직접 입력</button>
-            <button class="tab" data-tab="upload">엑셀 업로드</button>
+            <button class="tab tab-btn active" data-tab="direct">직접 입력</button>
+            <button class="tab tab-btn" data-tab="upload">엑셀 업로드</button>
           </div>
           <div class="tab-panel" id="tab-direct">
             <!-- 사진처럼 2열 그리드 배치 -->
             <div class="form-grid">
               <label
-                ><span>이름</span><input id="create-name" type="text"
+                ><span>이름</span><input id="create-name" type="text" class="input"
               /></label>
               <label
                 ><span>생년월일</span
-                ><input id="create-birth" type="text" placeholder="YYYY.MM.DD"
+                ><input id="create-birth" type="text" class="input" placeholder="YYYY.MM.DD"
               /></label>
 
               <label
                 ><span>성별</span>
-                <select id="create-gender">
+                <select id="create-gender" class="select">
                   <option value="">선택</option>
                   <option>남</option>
                   <option>여</option>
@@ -166,7 +176,7 @@
               </label>
               <label
                 ><span>상태</span>
-                <select id="create-status">
+                <select id="create-status" class="select">
                   <option>지원</option>
                   <option>중단</option>
                   <option>제외</option>
@@ -178,11 +188,11 @@
                 ><span>행정구역</span
                 ><input
                   id="create-region1"
-                  type="text"
+                  type="text" class="input"
                   placeholder="예: 두류1,2동"
               /></label>
               <label class="col-2"
-                ><span>주소</span><input id="create-address" type="text"
+                ><span>주소</span><input id="create-address" type="text" class="input"
               /></label>
 
               <!-- 전화번호(여러 개 입력 + 버튼) -->
@@ -207,6 +217,7 @@
                 <input
                   id="create-type"
                   type="text"
+                  class="input"
                   list="type-options"
                   placeholder="선택 또는 직접 입력"
                 />
@@ -216,13 +227,14 @@
                 <input
                   id="create-category"
                   type="text"
+                  class="input"
                   list="category-options"
                   placeholder="선택 또는 직접 입력"
                 />
               </label>
 
               <label class="col-2"
-                ><span>비고</span><input id="create-note" type="text"
+                ><span>비고</span><input id="create-note" type="text" class="input"
               /></label>
             </div>
             <div class="modal-buttons">
@@ -233,7 +245,7 @@
               >
                 <i class="fas fa-save"></i> 저장
               </button>
-              <button type="button" id="create-modal-close" class="btn">
+              <button type="button" id="create-modal-close" class="btn btn-outline">
                 닫기
               </button>
             </div>
@@ -288,13 +300,13 @@
               </div>
               <div class="upload-preview" id="upload-preview"></div>
               <div class="modal-buttons upload-actions">
-                <button class="btn" id="btn-upload-dryrun">
+                <button class="btn btn-outline" id="btn-upload-dryrun">
                   <i class="fas fa-eye"></i> 미리보기
                 </button>
-                <button class="btn btn-primary" id="btn-upload-exec" disabled>
+                <button class="btn" id="btn-upload-exec" disabled>
                   <i class="fas fa-cloud-upload-alt"></i> 실행
                 </button>
-                <button type="button" id="create-modal-close" class="btn">
+                <button type="button" id="create-modal-close" class="btn btn-outline">
                   닫기
                 </button>
               </div>
@@ -316,15 +328,15 @@
 
         <input type="hidden" id="edit-id" />
         <div class="form-grid">
-          <label><span>이름</span><input id="edit-name" /></label>
+          <label><span>이름</span><input id="edit-name" class="input" /></label>
           <label
             ><span>생년월일</span
-            ><input id="edit-birth" type="text" placeholder="YYYY.MM.DD"
+            ><input id="edit-birth" type="text" class="input" placeholder="YYYY.MM.DD"
           /></label>
 
           <label
             ><span>성별</span>
-            <select id="edit-gender">
+            <select id="edit-gender" class="select">
               <option value="">선택</option>
               <option>남</option>
               <option>여</option>
@@ -332,7 +344,7 @@
           </label>
           <label
             ><span>상태</span>
-            <select id="edit-status">
+            <select id="edit-status" class="select">
               <option>지원</option>
               <option>중단</option>
               <option>제외</option>
@@ -341,10 +353,10 @@
           </label>
 
           <label class="col-2"
-            ><span>행정구역</span><input id="edit-region1"
+            ><span>행정구역</span><input id="edit-region1" class="input"
           /></label>
           <label class="col-2"
-            ><span>주소</span><input id="edit-address"
+            ><span>주소</span><input id="edit-address" class="input"
           /></label>
 
           <div class="col-2">
@@ -366,6 +378,7 @@
             <input
               id="edit-type"
               type="text"
+              class="input"
               list="type-options"
               placeholder="선택 또는 직접 입력"
             />
@@ -375,17 +388,18 @@
             <input
               id="edit-category"
               type="text"
+              class="input"
               list="category-options"
               placeholder="선택 또는 직접 입력"
             />
           </label>
 
-          <label class="col-2"><span>비고</span><input id="edit-note" /></label>
+          <label class="col-2"><span>비고</span><input id="edit-note" class="input"/></label>
         </div>
 
         <div class="modal-buttons">
-          <button type="submit"><i class="fas fa-save"></i> 저장</button>
-          <button type="button" id="close-edit-modal">
+          <button type="submit" class="btn"><i class="fas fa-save"></i> 저장</button>
+          <button type="button" id="close-edit-modal" class="btn btn-outline">
             <i class="fas fa-times"></i> 취소
           </button>
         </div>
