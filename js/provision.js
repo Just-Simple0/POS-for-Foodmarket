@@ -669,7 +669,8 @@ function showDuplicateSelection(rows) {
       infoEl.innerHTML = `
         <div><strong>주소 :</strong> ${data.address || "없음"}</div>
         <div><strong>성별 :</strong> ${data.gender || "없음"}</div>
-        <div><strong>비고 :</strong> ${data.note || ""}<div>
+        <div><strong>최근 방문일자 :</strong> ${data.lastVisit || "-"}</div>
+        <div><strong>비고 :</strong> ${data.note || "-"}</div>
       `;
       infoEl.classList.remove("hidden");
       confirmBtn.disabled = false;
@@ -885,7 +886,7 @@ resetAllBtn.addEventListener("click", async () => {
     cancelText: "취소",
   });
   if (!ok) return;
-  resetForm(); // 고객/상품 전체 초기화
+  resetForm({ resetVisitors: true }); // 고객/상품 전체 초기화
   undoStack = [];
   redoStack = [];
   showToast("전체 초기화 완료");
@@ -1055,6 +1056,9 @@ visitorListEl?.addEventListener("click", async (e) => {
       } catch {}
     }
     document.dispatchEvent(new Event("provision_customer_switched"));
+
+    // ✅ 선택 직후 화면 하단(상품 영역 아래)으로 부드럽게 스크롤
+    setTimeout(() => scrollToSubmitSection(), 10);
   }
 });
 
@@ -1066,6 +1070,30 @@ const selectedTableBody = document.querySelector("#selected-table tbody");
 const totalPointsEl = document.getElementById("total-points");
 const warningEl = document.getElementById("point-warning");
 const autocompleteList = document.getElementById("autocomplete-list");
+
+let __scrollAfterAdd = false;
+
+// ✅ submit 섹션으로 부드럽게 스크롤
+function scrollToSubmitSection(offset = 0) {
+  const sec = document.getElementById("submit-section");
+  if (!sec) return;
+  try {
+    // 헤더가 고정된 경우를 고려해 살짝 위로 보정
+    const fixedHeader =
+      document.querySelector("header.header") ||
+      document.getElementById("header-container");
+    const headerH = fixedHeader
+      ? fixedHeader.getBoundingClientRect().height
+      : 0;
+    const top =
+      sec.getBoundingClientRect().top +
+      window.pageYOffset -
+      (offset || headerH || 8);
+    window.scrollTo({ top, behavior: "smooth" });
+  } catch {
+    sec.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
 
 // ✅ 바코드: Enter → EAN-13 검증 → 존재하면 1개 추가 / 없으면 빠른 등록 유도
 barcodeInput.addEventListener("keydown", async (e) => {
@@ -1222,6 +1250,7 @@ function addToSelected(prod, qty) {
       quantity: qty,
     });
   }
+  __scrollAfterAdd = true;
   renderSelectedList();
 }
 function isValidEAN13(code) {
@@ -1403,7 +1432,7 @@ function renderSelectedList() {
       <td>${item.price}</td>
       <td>${totalPrice}</td>
       <td>
-        <button class="remove-btn btn btn--danger small-btn" data-idx="${idx}" aria-label="상품 삭제"><i class="fas fa-trash"></i></button>
+        <button class="remove-btn btn btn--danger" data-idx="${idx}" aria-label="상품 삭제"><i class="fas fa-trash"></i></button>
       </td>
     `;
 
@@ -1420,6 +1449,12 @@ function renderSelectedList() {
   applyCategoryViolationHighlight();
   // ✅ 렌더 후 상태 저장(수량/합계 변경 반영)
   saveProvisionDraft();
+
+  // ▶ 방금 '추가'된 경우에만 submit-section으로 스크롤
+  if (__scrollAfterAdd) {
+    setTimeout(() => scrollToSubmitSection(), 0);
+    __scrollAfterAdd = false;
+  }
 }
 
 document.querySelector("#selected-table tbody").addEventListener(
@@ -1602,14 +1637,17 @@ submitBtn.addEventListener("click", async () => {
   if (window.__submitting) return;
   window.__submitting = true;
   submitBtn.disabled = true;
+  const processedCustomerID = selectedCustomer?.id || null;
+  const processedCustomerName = selectedCustomer?.name || "";
+  const processedCustomerBirth = selectedCustomer?.birth || "";
   try {
     // ✅ 배치로 원자적 커밋 + 서버시간
     const batch = writeBatch(db);
     const provRef = doc(collection(db, "provisions"));
     batch.set(provRef, {
-      customerId: selectedCustomer.id,
-      customerName: selectedCustomer.name,
-      customerBirth: selectedCustomer.birth,
+      customerId: processedCustomerID,
+      customerName: processedCustomerName,
+      customerBirth: processedCustomerBirth,
       items: selectedItems,
       total,
       timestamp: serverTimestamp(),
@@ -1617,7 +1655,7 @@ submitBtn.addEventListener("click", async () => {
       lifelove,
       quarterKey,
     });
-    const customerRef = doc(db, "customers", selectedCustomer.id);
+    const customerRef = doc(db, "customers", processedCustomerID);
     const updates = {
       [`visits.${periodKey}`]: arrayUnion(visitDate),
       ...(lifelove ? { [`lifelove.${quarterKey}`]: true } : {}),
@@ -1627,13 +1665,18 @@ submitBtn.addEventListener("click", async () => {
 
     await ensureVisitAndDailyCounter(
       db,
-      selectedCustomer.id,
-      selectedCustomer.name,
+      processedCustomerID,
+      processedCustomerName,
       new Date()
     );
 
+    if (processedCustomerID) {
+      visitorList = visitorList.filter((v) => v.id !== processedCustomerID);
+      renderVisitorList();
+    }
+
     showToast("제공 등록 완료!");
-    localStorage.removeItem(HOLD_PREFIX + selectedCustomer.id);
+    localStorage.removeItem(HOLD_PREFIX + processedCustomerID);
     resetForm();
   } catch (err) {
     console.error(err);
@@ -1644,7 +1687,7 @@ submitBtn.addEventListener("click", async () => {
   }
 });
 
-function resetForm() {
+function resetForm({ resetVisitors = false } = {}) {
   provLookupInput.value = "";
   provisionCustomerInfoDiv.classList.add("hidden");
   productSection.classList.add("hidden");
@@ -1652,11 +1695,16 @@ function resetForm() {
   provisionCustomerInfoDiv.innerHTML = "";
   selectedCustomer = null;
   selectedItems = [];
-  visitorList = []; // ✅ 방문자 리스트도 초기화
+  if (resetVisitors) {
+    visitorList = [];
+    renderVisitorList();
+    clearVisitorDraft();
+  } else {
+    renderVisitorList();
+  }
   renderVisitorList();
   renderSelectedList();
   lifeloveCheckbox.checked = false;
-  clearVisitorDraft();
   clearProvisionDraft();
   // 교환 섹션 자체도 숨김(초기 화면처럼)
   if (exchangeSection) exchangeSection.classList.add("hidden");
@@ -1850,14 +1898,14 @@ function renderExchangeList() {
           <button class="ex-dec btn-outline small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
           <input type="number" class="quantity-input input w-16 text-center"
                 min="1" max="30" value="${
-                item.quantity || 1
+                  item.quantity || 1
                 }" data-idx="${idx}" />
           <button class="ex-inc btn-outline small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
         </div>
       </td>
       <td>${item.price || 0}</td>
       <td>${totalPrice}</td>
-      <td><button class="ex-del btn btn--danger small-btn" data-idx="${idx}" aria-label="항목 삭제">
+      <td><button class="ex-del btn btn--danger " data-idx="${idx}" aria-label="항목 삭제">
         <i class="fas fa-trash"></i>
       </button></td>
     `;
