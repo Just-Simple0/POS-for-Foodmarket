@@ -77,11 +77,13 @@ service cloud.firestore {
       allow create, delete: if isAdmin();
       // 업데이트:
       //  - admin: 전체 허용
-      //  - isMember: visits / lifelove 만 변경 허용 (다른 필드는 그대로)
+      //  - isMember: visits / lifelove / lastVisit* 만 변경 허용
       allow update: if isAdmin()
                     || ( isMember()
                          && request.resource.data.diff(resource.data)
-                              .changedKeys().hasOnly(["visits","lifelove"]) );
+                              .changedKeys().hasOnly(
+                                ["visits","lifelove","lastVisit","lastVisitKey","lastVisitAt"]
+                              ) );
     }
 
     match /stats/{id} {
@@ -108,10 +110,21 @@ service cloud.firestore {
     }
 
     /* ==== 일일 합계(표시용 캐시) ==== */
-    match /stats_daily/{id} {
-      allow read: if isMember();
-      allow create, update, delete: if isAdmin();
-    }
+  match /stats_daily/{id} {
+    // 멤버: 읽기/생성/수정 허용, 삭제는 관리자만
+    allow read: if isMember();
+    allow delete: if isAdmin();
+    // 안전장치: 문서 id = YYYYMMDD, 필드 화이트리스트, updatedAt은 서버시간
+    allow create: if isMember()
+                  && id.matches('^\\d{8}$')
+                  && request.resource.data.keys().hasOnly(["uniqueVisitors","updatedAt"])
+                  && request.resource.data.updatedAt is timestamp;
+    allow update: if isMember()
+                  && id.matches('^\\d{8}$')
+                  && request.resource.data.diff(resource.data)
+                        .changedKeys().hasOnly(["uniqueVisitors","updatedAt"])
+                  && request.resource.data.updatedAt is timestamp;
+  }
 
     /* ==== 승인 큐 ==== */
     match /approvals/{id} {

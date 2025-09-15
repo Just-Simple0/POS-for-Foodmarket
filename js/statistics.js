@@ -12,7 +12,7 @@ import {
   documentId,
   orderBy,
   startAfter,
-  startAt,
+  endBefore,
   limit,
   getCountFromServer,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -249,11 +249,12 @@ function renderSimplePagerA(containerId, current, totalPages, onMove) {
 let provCursor = {
   startTs: null,
   endTs: null,
+  firstDoc: null,
   lastDoc: null,
-  prevStack: [],
   serverMode: false,
   page: 1,
-  pagesKnown: 1,
+  totalPages: 1,
+  hasNext: false,
 };
 
 function isProvisionClientFilteringOn() {
@@ -424,11 +425,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     itemsPerPage = parseInt(e.target.value, 10) || 20;
     if (btnProvision?.classList.contains("active")) {
       if (provCursor.serverMode) {
-        provCursor.prevStack = [];
+        provCursor.firstDoc = null;
         provCursor.lastDoc = null;
         provCursor.page = 1;
-        provCursor.pagesKnown = 1;
-        loadProvisionPage("init");
+        // 페이지 크기가 바뀌면 총 페이지도 다시 산출
+        computeProvisionTotalPages().then(() => loadProvisionPage("init"));
       } else {
         provisionCurrentPage = 1;
         renderProvisionTable();
@@ -752,10 +753,10 @@ async function loadProvisionHistoryByRange(startDate, endDate) {
 
   // 클라 필터가 꺼져있으면 서버 페이지네이션ON
   provCursor.serverMode = !isProvisionClientFilteringOn();
+  provCursor.firstDoc = null;
   provCursor.lastDoc = null;
-  provCursor.prevStack = [];
   provCursor.page = 1;
-  provCursor.pagesKnown = 1;
+  provCursor.totalPages = 1;
 
   console.log(
     "[Provision] range:",
@@ -769,6 +770,7 @@ async function loadProvisionHistoryByRange(startDate, endDate) {
   try {
     setLoading("provision-section", true);
     if (provCursor.serverMode) {
+      await computeProvisionTotalPages();
       await loadProvisionPage("init");
     } else {
       const qy = query(
@@ -811,6 +813,25 @@ async function loadProvisionHistoryByRange(startDate, endDate) {
   }
 }
 
+// 총 문서 수 → 총 페이지 수 계산 (count() 1회)
+async function computeProvisionTotalPages() {
+  try {
+    const qCount = query(
+      collection(db, "provisions"),
+      where("timestamp", ">=", provCursor.startTs),
+      where("timestamp", "<=", provCursor.endTs)
+    );
+    const agg = await getCountFromServer(qCount);
+    const total = Number(agg.data().count || 0);
+    provCursor.totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
+    return provCursor.totalPages;
+  } catch (e) {
+    console.warn("[Provision] totalPages count failed", e);
+    provCursor.totalPages = 1;
+    return 1;
+  }
+}
+
 // Cursor page loader
 async function loadProvisionPage(direction) {
   const base = [
@@ -824,31 +845,39 @@ async function loadProvisionPage(direction) {
       collection(db, "provisions"),
       ...base,
       orderBy("timestamp", "desc"),
-      limit(itemsPerPage)
+      limit(itemsPerPage + 1)
     );
-    provCursor.prevStack = [];
     provCursor.page = 1;
   } else if (direction === "next" && provCursor.lastDoc) {
-    provCursor.prevStack.push(provCursor.lastDoc);
     qy = query(
       collection(db, "provisions"),
       ...base,
       orderBy("timestamp", "desc"),
       startAfter(provCursor.lastDoc),
-      limit(itemsPerPage)
+      limit(itemsPerPage + 1)
     );
     provCursor.page += 1;
   } else if (direction === "prev") {
-    const prevCursor = provCursor.prevStack.pop();
-    if (!prevCursor) return;
     qy = query(
       collection(db, "provisions"),
       ...base,
       orderBy("timestamp", "desc"),
-      startAt(prevCursor),
-      limit(itemsPerPage)
+      // 현재 페이지 첫 문서 기준 이전 묶음 로드
+      endBefore(provCursor.firstDoc),
+      limit(itemsPerPage + 1)
     );
     provCursor.page = Math.max(1, provCursor.page - 1);
+  } else if (direction === "last") {
+    // 마지막 페이지: 오래된 순(asc)으로 가져와 꼬리만 취해 역순 표시
+    // (쿼리 1회로 끝 페이지 접근)
+    qy = query(
+      collection(db, "provisions"),
+      ...base,
+      orderBy("timestamp", "asc"),
+      limit(itemsPerPage + 1)
+    );
+    // page 번호를 미리 끝으로
+    provCursor.page = provCursor.totalPages;
   } else {
     return;
   }
@@ -856,8 +885,18 @@ async function loadProvisionPage(direction) {
   try {
     setLoading("provision-section", true);
     const snap = await getDocs(qy);
+
+    // --- look-ahead 해석 + 정렬 보정 ---
+    // 기본은 내림차순 쿼리. 'last'는 asc로 받았으니 역순으로 바꿔서 렌더한다.
+    let docsOrderedDesc =
+      direction === "last" ? [...snap.docs].reverse() : snap.docs;
+    const hasNext = docsOrderedDesc.length > itemsPerPage;
+    const docsForRender = hasNext
+      ? docsOrderedDesc.slice(0, itemsPerPage)
+      : docsOrderedDesc;
+
     const rows = [];
-    snap.forEach((d) => {
+    docsForRender.forEach((d) => {
       const data = d.data();
       const itemsArr = (data.items || []).map((i) => ({
         name: i.name || "",
@@ -880,13 +919,12 @@ async function loadProvisionPage(direction) {
     });
     provisionData = rows;
     provisionCurrentPage = 1; // 서버 페이지 결과는 한 화면 분량 그대로
-    provCursor.lastDoc = snap.docs[snap.docs.length - 1] || null;
-    // 알려진 페이지 갱신(다음이 있으면 +1)
-    const hasNext = !!provCursor.lastDoc;
-    provCursor.pagesKnown = Math.max(
-      provCursor.pagesKnown,
-      provCursor.page + (hasNext ? 1 : 0)
-    );
+    // 커서 업데이트(현 페이지 첫/마지막 문서; 내림차순 기준)
+    provCursor.firstDoc = docsForRender[0] || null;
+    provCursor.lastDoc = docsForRender[docsForRender.length - 1] || null;
+
+    provCursor.hasNext = provCursor.page < provCursor.totalPages;
+
     renderProvisionTable(provisionData);
     renderProvisionPagerA();
   } catch (e) {
@@ -901,23 +939,20 @@ async function loadProvisionPage(direction) {
 function renderProvisionPagerA() {
   const boxId = "provision-pagination";
   const current = provCursor.page || 1;
-  const hasPrev = (provCursor.prevStack?.length || 0) > 0;
-  const hasNext = !!provCursor.lastDoc;
-  const known = Math.max(
-    provCursor.pagesKnown || 1,
-    current + (hasNext ? 1 : 0)
-  );
+  const hasPrev = current > 1;
+  const hasNext = current < (provCursor.totalPages || 1);
+  const known = provCursor.totalPages || 1; // 총 페이지 수 확정 기반
   renderCursorPager(
     document.getElementById(boxId),
     { current, pagesKnown: known, hasPrev, hasNext },
     {
       goFirst: () => {
-        if (!hasPrev && current === 1) return;
-        provCursor.prevStack = [];
-        provCursor.lastDoc = null;
-        provCursor.page = 1;
-        provCursor.pagesKnown = 1;
-        loadProvisionPage("init");
+        if (hasPrev) {
+          provCursor.firstDoc = null;
+          provCursor.lastDoc = null;
+          provCursor.page = 1;
+          loadProvisionPage("init");
+        }
       },
       goPrev: () => {
         if (hasPrev) loadProvisionPage("prev");
@@ -925,14 +960,22 @@ function renderProvisionPagerA() {
       goNext: () => {
         if (hasNext) loadProvisionPage("next");
       },
-      goPage: (n) => {
-        // 서버 커서는 인접 페이지만 직접 이동 허용
+      // 숫자 점프: 가까운 방향으로 연속 이동(최대 몇 번 안 됨)
+      goPage: async (n) => {
         if (n === current) return;
-        if (n === current - 1 && hasPrev) return loadProvisionPage("prev");
-        if (n === current + 1 && hasNext) return loadProvisionPage("next");
+        if (n < 1 || n > known) return;
+        while (provCursor.page < n && provCursor.page < known) {
+          await loadProvisionPage("next");
+        }
+        while (provCursor.page > n && provCursor.page > 1) {
+          await loadProvisionPage("prev");
+        }
+      },
+      goLast: () => {
+        if (hasNext) loadProvisionPage("last");
       },
     },
-    { window: 5 }
+    { window: 5 } // 슬라이딩 5칸
   );
 }
 
@@ -1253,16 +1296,16 @@ function exportProvisionXLSX(rows, filename) {
         처리자: idx === 0 ? r.handler ?? "" : "",
       });
     });
-     // ▶ 소계 행을 별도로 추가
+    // ▶ 소계 행을 별도로 추가
     flat.push({
-      "제공일": "",
-      "고객명": "",
-      "생년월일": "",
+      제공일: "",
+      고객명: "",
+      생년월일: "",
       "가져간 품목명": "소계",
-      "수량": sumQty,
+      수량: sumQty,
       "개당 가격": "",
-      "총가격": sumTotal,
-      "처리자": "",
+      총가격: sumTotal,
+      처리자: "",
     });
   });
   const ws = XLSX.utils.json_to_sheet(flat);

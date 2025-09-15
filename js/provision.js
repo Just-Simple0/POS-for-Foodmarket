@@ -18,6 +18,7 @@ import {
   serverTimestamp,
   setDoc,
   increment,
+  runTransaction,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { showToast, openConfirm } from "./components/comp.js";
@@ -44,64 +45,52 @@ function toPeriodKey(date) {
   return `${String(startY).slice(2)}-${String(endY).slice(2)}`;
 }
 
-// 방문/일일 카운터 기록 (visits는 확정 저장, stats_daily는 best-effort)
+// 방문/일일 카운터 기록 (규칙 준수: /visits는 허용 키로 '신규 생성'만, 그때만 /stats_daily +1)
 async function ensureVisitAndDailyCounter(
   db,
   customerId,
   customerName,
   atDate
 ) {
-  const day = toDayNumber(atDate);
-  const dateKey = toDateKey(day);
-  const periodKey = toPeriodKey(atDate);
-  const visitId = `${dateKey}_${customerId}`;
+  const day = toDayNumber(atDate); // 예: 20250915 (정수)
+  const dateKey = toDateKey(day); // 예: '2025-09-15'
+  const periodKey = toPeriodKey(atDate); // 예: '25-26' (프로젝트 규칙)
+  const visitId = `${dateKey}_${customerId}`; // 1일 1고객 1문서
   const visitRef = doc(db, "visits", visitId);
+
+  let created = false;
   try {
-    const snap = await getDoc(visitRef);
-    if (!snap.exists()) {
-      // 규칙 요구: createdBy 포함
+    // 1) /visits 문서: 없을 때만 'create'
+    created = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(visitRef);
+      if (snap.exists()) return false;
+      tx.set(visitRef, {
+        day, // ✅ 규칙 허용 키
+        dateKey, // ✅ 규칙 허용 키
+        customerId, // ✅ 규칙 허용 키
+        customerName: customerName || null, // ✅ 규칙 허용 키
+        periodKey, // ✅ 규칙 허용 키
+        createdAt: serverTimestamp(), // ✅ 규칙 허용 키
+        createdBy: auth?.currentUser?.uid || "unknown", // ✅ createdBy == request.auth.uid 필요
+      });
+      return true;
+    });
+
+    // 2) '신규 방문'이 실제로 생성된 경우에만 /stats_daily + 1 (과집계 방지)
+    if (created) {
       await setDoc(
-        visitRef,
+        doc(db, "stats_daily", String(day)), // 'YYYYMMDD'
         {
-          day,
-          dateKey,
-          periodKey,
-          customerId,
-          customerName: customerName || null,
-          createdAt: serverTimestamp(),
-          createdBy: auth.currentUser?.uid || "unknown",
+          uniqueVisitors: increment(1),
+          updatedAt: serverTimestamp(), // 규칙: updatedAt == request.time
         },
         { merge: true }
-      );
-      // stats_daily는 admin만 허용 → 실패해도 무시
-      try {
-        await setDoc(
-          doc(db, "stats_daily", String(day)),
-          {
-            uniqueVisitors: increment(1),
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      } catch (e) {
-        console.warn("[stats_daily] best-effort skipped:", e?.message || e);
-      }
-    } else {
-      // 존재 시 식별키 필드만 동기화(작성자/생성시각 보존)
-      await setDoc(
-        visitRef,
-        {
-          day,
-          dateKey,
-          periodKey,
-          customerId,
-          customerName: customerName || null,
-        },
-        { merge: true }
+      ).catch((e) =>
+        console.warn("[stats_daily] best-effort skipped:", e?.message || e)
       );
     }
   } catch (e) {
-    console.warn("[visits] ensure failed:", e?.message || e);
+    console.warn("[visits/stats_daily] ensure failed:", e?.message || e);
   }
 }
 
@@ -164,45 +153,112 @@ function endOfTodayTs() {
   d.setHours(23, 59, 59, 999);
   return d.getTime();
 }
-function saveVisitorDraft(list) {
-  const payload = {
-    v: 1,
-    date: ymdLocal(),
-    savedAt: Date.now(),
-    expiresAt: endOfTodayTs(),
-    list: Array.isArray(list) ? list : [],
-  };
+// === 멀티탭 안전 동기화: 세션/버전/타임스탬프 메타 ===
+const __TAB_SESSION_ID =
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
+let __visitorListUpdatedAt = 0; // 이 탭에서 적용된 최신 updatedAt
+const __VISITOR_LS_SCHEMA = 2; // 로컬 캐시 스키마 버전
+
+function __parseVisitorDraftRaw(raw) {
   try {
-    localStorage.setItem(getVisitorKey(), JSON.stringify(payload));
+    const val = JSON.parse(raw);
+    // 구버전: 배열만 저장돼 있던 경우
+    if (Array.isArray(val)) {
+      return { data: val, updatedAt: 0, v: 1, sessionId: null, expiresAt: 0 };
+    }
+    if (val && typeof val === "object") {
+      // v1 호환: savedAt 사용 → updatedAt 대입
+      const updatedAt = Number(val.updatedAt || val.savedAt || 0);
+      const data = Array.isArray(val.list)
+        ? val.list
+        : Array.isArray(val.data)
+        ? val.data
+        : [];
+      return {
+        data,
+        updatedAt,
+        v: Number(val.v || 1),
+        sessionId: val.sessionId || null,
+        expiresAt: Number(val.expiresAt || 0),
+      };
+    }
+  } catch {}
+  return { data: [], updatedAt: 0, v: 0, sessionId: null, expiresAt: 0 };
+}
+function __eqVisitorShallow(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i],
+      y = b[i];
+    if (!x || !y) return false;
+    if (
+      x.id !== y.id ||
+      x.name !== y.name ||
+      x.birth !== y.birth ||
+      x.phone !== y.phone
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+function loadVisitorDraft() {
+  try {
+    let best = { data: [], updatedAt: 0, v: 0, sessionId: null, expiresAt: 0 };
+    for (const key of getKeysToTry(VISITOR_STORAGE_PREFIX)) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = __parseVisitorDraftRaw(raw);
+      // 만료 처리(있으면)
+      if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+        localStorage.removeItem(key);
+        continue;
+      }
+      if ((parsed.updatedAt || 0) > (best.updatedAt || 0)) {
+        best = parsed;
+      }
+    }
+    __visitorListUpdatedAt = best.updatedAt || 0;
+    return Array.isArray(best.data) ? best.data : [];
+  } catch (e) {
+    console.warn("loadVisitorDraft failed:", e);
+    __visitorListUpdatedAt = 0;
+    return [];
+  }
+}
+function saveVisitorDraft(list) {
+  try {
+    const key = getVisitorKey();
+    const prev = __parseVisitorDraftRaw(localStorage.getItem(key));
+    // 동일 내용이면 저장 스킵
+    if (__eqVisitorShallow(list, prev.data)) return;
+    // 더 최신 값이 이미 저장돼 있다면 그보다 큰 updatedAt로 저장
+    const now = Date.now();
+    const updatedAt = Math.max(now, (prev.updatedAt || 0) + 1);
+    const payload = {
+      v: __VISITOR_LS_SCHEMA,
+      updatedAt,
+      sessionId: __TAB_SESSION_ID,
+      date: ymdLocal(),
+      expiresAt: endOfTodayTs(),
+      data: Array.isArray(list) ? list : [],
+    };
+    localStorage.setItem(key, JSON.stringify(payload));
+    __visitorListUpdatedAt = updatedAt;
   } catch (e) {
     console.warn("saveVisitorDraft failed:", e);
   }
 }
-function loadVisitorDraft() {
-  try {
-    let best = null; // {obj, key}
-    for (const key of getKeysToTry(VISITOR_STORAGE_PREFIX)) {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const obj = JSON.parse(raw);
-      if (obj.expiresAt && Date.now() > obj.expiresAt) {
-        localStorage.removeItem(key);
-        continue;
-      }
-      if (!best || (obj.savedAt || 0) > (best.obj?.savedAt || 0)) {
-        best = { obj, key };
-      }
-    }
-    return best && Array.isArray(best.obj.list) ? best.obj.list : [];
-  } catch (e) {
-    console.warn("loadVisitorDraft failed:", e);
-    return [];
-  }
-}
 function clearVisitorDraft() {
   try {
-    localStorage.removeItem(getVisitorKey());
+    for (const key of getKeysToTry(VISITOR_STORAGE_PREFIX)) {
+      localStorage.removeItem(key);
+    }
   } catch {}
+  __visitorListUpdatedAt = 0;
 }
 // --- 제공(선택 고객/장바구니/생명사랑) 보존 ---
 function saveProvisionDraft() {
@@ -345,31 +401,48 @@ onAuthStateChanged(auth, () => {
   tryRestoreDrafts();
 });
 
-// ✅ 다른 탭/창에서 변경 시 동기화
+// ✅ 다른 탭/창에서 변경 시 동기화(“더 최신”만 수용)
 window.addEventListener("storage", (e) => {
-  if (!e.key) return;
-  const isToday = e.key.endsWith(`:${ymdLocal()}`);
-  const isVisitor = e.key.startsWith(`${VISITOR_STORAGE_PREFIX}:`);
-  const isProvision = e.key.startsWith(`${PROVISION_DRAFT_PREFIX}:`);
-  if (isToday && isVisitor) {
-    visitorList = loadVisitorDraft();
-    renderVisitorList();
-  } else if (isToday && isProvision) {
-    const prov = loadProvisionDraft();
-    if (prov) {
-      selectedCustomer = prov.selectedCustomer || null;
-      selectedItems = Array.isArray(prov.selectedItems)
-        ? prov.selectedItems
-        : [];
-      lifeloveCheckbox.checked = !!prov.lifelove;
-    } else {
-      selectedCustomer = null;
-      selectedItems = [];
-      lifeloveCheckbox.checked = false;
+  try {
+    if (!e || !e.key) return;
+    const activeVisitorKey = getVisitorKey();
+    const isVisitorKey = e.key === activeVisitorKey;
+    const isProvision =
+      e.key.startsWith(`${PROVISION_DRAFT_PREFIX}:`) &&
+      e.key.endsWith(`:${ymdLocal()}`);
+
+    if (isVisitorKey) {
+      const parsed = __parseVisitorDraftRaw(e.newValue);
+      if (!parsed) return;
+      // 본인 탭에서 setItem한 경우는 보통 이벤트가 안 오지만, 혹시 sessionId 같으면 무시
+      if (parsed.sessionId === __TAB_SESSION_ID) return;
+      // 더 최신(updatedAt 큰 값)일 때만 채택
+      if ((parsed.updatedAt || 0) <= (__visitorListUpdatedAt || 0)) return;
+      visitorList = Array.isArray(parsed.data) ? parsed.data : [];
+      __visitorListUpdatedAt = parsed.updatedAt || Date.now();
+      renderVisitorList();
+      return;
     }
-    renderProvisionCustomerInfo();
-    renderSelectedList();
-    renderVisitorList();
+
+    if (isProvision) {
+      const prov = loadProvisionDraft();
+      if (prov) {
+        selectedCustomer = prov.selectedCustomer || null;
+        selectedItems = Array.isArray(prov.selectedItems)
+          ? prov.selectedItems
+          : [];
+        lifeloveCheckbox.checked = !!prov.lifelove;
+      } else {
+        selectedCustomer = null;
+        selectedItems = [];
+        lifeloveCheckbox.checked = false;
+      }
+      renderProvisionCustomerInfo();
+      renderSelectedList();
+      renderVisitorList();
+    }
+  } catch (err) {
+    console.warn("storage sync error:", err);
   }
 });
 
@@ -576,6 +649,9 @@ function renderProvisionCustomerInfo() {
       <strong>생년월일:</strong> ${selectedCustomer.birth ?? ""}<br>
       <strong>주소:</strong> ${selectedCustomer.address ?? ""}<br>
       <strong>전화번호:</strong> ${selectedCustomer.phone ?? ""}<br>
+      <strong>최근 방문일자:</strong> ${
+        lastVisitDisplay(selectedCustomer) || "-"
+      }<br>
       <strong>생명사랑:</strong> ${lifeBadge}<br>
       <strong>비고:</strong> ${selectedCustomer.note ?? ""}
     `;
@@ -606,6 +682,42 @@ function renderExchangeCustomerInfo() {
 const duplicateModal = document.getElementById("duplicate-modal");
 const duplicateList = document.getElementById("duplicate-list");
 const closeDuplicateModal = document.getElementById("close-duplicate-modal");
+
+// === 최근 방문일자 표시 유틸 ===
+function fmtYMD(dateStr) {
+  if (!dateStr) return "";
+  const s = String(dateStr);
+  const m = s.match(/^(\d{4})[-/.]?(\d{2})[-/.]?(\d{2})/);
+  if (m) return `${m[1]}.${m[2]}.${m[3]}`;
+  try {
+    const d = new Date(s);
+    if (!isNaN(d)) {
+      const y = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${y}.${mm}.${dd}`;
+    }
+  } catch {}
+  return s;
+}
+function computeLastVisit(c) {
+  const v = c?.visits;
+  if (!v || typeof v !== "object") return "";
+  let latest = "";
+  for (const k of Object.keys(v)) {
+    const arr = Array.isArray(v[k]) ? v[k] : [];
+    for (const s of arr) {
+      if (!s) continue;
+      const iso = String(s).replace(/\./g, "-"); // YYYY-MM-DD
+      if (!latest || iso > latest) latest = iso;
+    }
+  }
+  return latest ? fmtYMD(latest) : "";
+}
+function lastVisitDisplay(data) {
+  // denormalized 필드 우선, 없으면 rows 안의 visits로 계산(추가 읽기 없음)
+  return fmtYMD(data.lastVisit) || computeLastVisit(data) || "-";
+}
 
 closeDuplicateModal.addEventListener("click", () => {
   // ✅ 닫기: 모달/검색창/상태 초기화
@@ -669,7 +781,9 @@ function showDuplicateSelection(rows) {
       infoEl.innerHTML = `
         <div><strong>주소 :</strong> ${data.address || "없음"}</div>
         <div><strong>성별 :</strong> ${data.gender || "없음"}</div>
-        <div><strong>최근 방문일자 :</strong> ${data.lastVisit || "-"}</div>
+        <div><strong>최근 방문일자 :</strong> ${
+          lastVisitDisplay(data) || "-"
+        }</div>
         <div><strong>비고 :</strong> ${data.note || "-"}</div>
       `;
       infoEl.classList.remove("hidden");
@@ -916,6 +1030,10 @@ function renderVisitorList() {
   visitorListEl.innerHTML = "";
   if (visitorList.length === 0) {
     visitorListSection.classList.add("hidden");
+    // ✅ 리스트가 비면 localStorage도 즉시 비워 동기화(양쪽 키 모두)
+    try {
+      clearVisitorDraft();
+    } catch {}
     // ✅ 교환 탭에서는 방문자 리스트가 비어도 선택 고객을 해제하지 않음
     const isExchangeActive =
       document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
@@ -960,6 +1078,10 @@ function renderVisitorList() {
     `;
     visitorListEl.appendChild(li);
   });
+  // ✅ 렌더 후 현재 리스트를 localStorage에 즉시 반영(멀티탭 안전 저장)
+  try {
+    saveVisitorDraft(visitorList);
+  } catch {}
 }
 
 visitorListEl?.addEventListener("click", async (e) => {
@@ -1659,6 +1781,10 @@ submitBtn.addEventListener("click", async () => {
     const updates = {
       [`visits.${periodKey}`]: arrayUnion(visitDate),
       ...(lifelove ? { [`lifelove.${quarterKey}`]: true } : {}),
+      // 최근 방문 denormalized 필드(표시/정렬용) — write 수 증가 없음(동일 update 내 포함)
+      lastVisit: visitDate.replace(/-/g, "."),
+      lastVisitKey: visitDate.replace(/-/g, ""), // "YYYYMMDD"
+      lastVisitAt: serverTimestamp(),
     };
     batch.update(customerRef, updates);
     await batch.commit();
@@ -1673,6 +1799,11 @@ submitBtn.addEventListener("click", async () => {
     if (processedCustomerID) {
       visitorList = visitorList.filter((v) => v.id !== processedCustomerID);
       renderVisitorList();
+      // ✅ 제공 등록으로 항목 제거 직후에도 localStorage 동기화
+      try {
+        if (visitorList.length === 0) clearVisitorDraft();
+        else saveVisitorDraft(visitorList);
+      } catch {}
     }
 
     showToast("제공 등록 완료!");

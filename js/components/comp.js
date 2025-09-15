@@ -302,7 +302,7 @@ export function renderCursorPager(container, state, handlers, options = {}) {
   if (!container) return;
   const windowSize = options.window ?? 5;
   const { current, pagesKnown, hasPrev, hasNext } = state;
-  const { goFirst, goPrev, goPage, goNext } = handlers;
+  const { goFirst, goPrev, goPage, goNext, goLast } = handlers;
 
   // 현재 창 계산
   let start = Math.max(1, current - Math.floor(windowSize / 2));
@@ -315,8 +315,8 @@ export function renderCursorPager(container, state, handlers, options = {}) {
     }" aria-label="${aria || label}">${label}</button>`;
 
   let html = "";
-  html += btn("처음", !hasPrev, "first", "first page");
-  html += btn("이전", !hasPrev, "prev", "previous page");
+  html += btn("<<", !hasPrev, "first", "first page");
+  html += btn("<", !hasPrev, "prev", "previous page");
   html += `<span class="pager-pages">`;
   for (let n = start; n <= end; n++) {
     html += `<button class="pager-num ${
@@ -324,7 +324,11 @@ export function renderCursorPager(container, state, handlers, options = {}) {
     }" data-page="${n}">${n}</button>`;
   }
   html += `</span>`;
-  html += btn("다음", !hasNext, "next", "next page");
+  html += btn(">", !hasNext, "next", "next page");
+  // 총 페이지 수를 아는 경우에만 '끝' 버튼을 활성화
+  if (typeof goLast === "function") {
+    html += btn(">>", !hasNext, "last", "last page");
+  }
   // (총페이지 불명 → ‘끝’ 버튼은 생략 혹은 disable 운영을 권장)
 
   container.innerHTML = html;
@@ -344,6 +348,9 @@ export function renderCursorPager(container, state, handlers, options = {}) {
   container
     .querySelector('[data-act="next"]')
     ?.addEventListener("click", () => goNext?.());
+  container
+    .querySelector('[data-act="last"]')
+    ?.addEventListener("click", () => goLast?.());
 }
 
 /** 페이지 사이즈 셀렉트 공통 초기화 */

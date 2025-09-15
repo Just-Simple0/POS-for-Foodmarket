@@ -69,7 +69,7 @@ async function fetchAndRenderPage() {
   lastPageCount = snap.size;
   const rows = snap.docs.map((d) => {
     const data = { id: d.id, ...d.data() };
-    data.lastVisit = computeLastVisit(data);
+    data.lastVisit = data.lastVisit || computeLastVisit(data);
     return data;
   });
   displaydData = rows;
