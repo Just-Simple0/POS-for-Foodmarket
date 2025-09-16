@@ -1223,7 +1223,11 @@ barcodeInput.addEventListener("keydown", async (e) => {
   e.preventDefault();
   const code = barcodeInput.value.trim();
   if (!code) return showToast("바코드를 입력하세요.", true);
-  if (!isValidEAN13(code)) return showToast("유효한 바코드가 아닙니다.", true);
+  if (!isValidEAN13(code)) {
+    barcodeInput.value = "";
+    barcodeInput.focus();
+    return showToast("유효한 바코드가 아닙니다.", true);
+  }
   // 전량 선로딩 제거: 단건 조회로 대체
   const hit = await findProductByBarcode(code);
   if (hit) {
