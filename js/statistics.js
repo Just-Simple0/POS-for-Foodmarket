@@ -125,6 +125,24 @@ function monthRange(d) {
   const e = new Date(d.getFullYear(), d.getMonth() + 1, 1);
   return [s, e];
 }
+function formatYearMonth(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${yyyy}.${mm}`;
+}
+// 로컬(KST) 기준 키/표시 포맷
+function dateKey8Local(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}${m}${day}`; // 'YYYYMMDD'
+}
+function formatDateLocal(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}.${m}.${day}`; // 'YYYY.MM.DD'
+}
 
 // ===== Top-cards core =====
 // 1순위 stats_daily / 2순위 visits count agg / 3순위 provisions 기간 + 고객Set
@@ -238,6 +256,7 @@ function renderSimplePagerA(containerId, current, totalPages, onMove) {
       goPrev: () => onMove(Math.max(1, current - 1)),
       goPage: (n) => onMove(Math.min(Math.max(1, n), totalPages)),
       goNext: () => onMove(Math.min(totalPages, current + 1)),
+      goLast: () => onMove(totalPages),
     },
     { window: 5 }
   );
@@ -293,7 +312,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       toLabel: "To",
       customRangeLabel: "직접 선택",
       weekLabel: "W",
-      daysOfWeek: ["일", "월", "화", "수", "목", "금", "토"],
+      daysOfWeek: ["토", "일", "월", "화", "수", "목", "금"],
       monthNames: [
         "1월",
         "2월",
@@ -494,6 +513,66 @@ document.addEventListener("DOMContentLoaded", async () => {
       "생명사랑_제공_현황.xlsx"
     );
   });
+  // ✅ ‘일일 방문 인원’ 카드 클릭 → 월별 일일 데이터 모달 (현재 월)
+  document
+    .getElementById("daily-visitors")
+    ?.addEventListener("click", () => openMonthlyDailyModal(new Date()));
+  // 모달 닫기/배경 클릭
+  document
+    .getElementById("monthly-daily-close")
+    ?.addEventListener("click", closeMonthlyDailyModal);
+  document
+    .getElementById("monthly-daily-modal")
+    ?.addEventListener("click", (e) => {
+      if (e.target?.id === "monthly-daily-modal") closeMonthlyDailyModal();
+    });
+  // 이전/다음 달
+  document
+    .getElementById("monthly-daily-prev")
+    ?.addEventListener("click", async () => {
+      if (!__modalMonth) return;
+      __modalMonth = new Date(
+        __modalMonth.getFullYear(),
+        __modalMonth.getMonth() - 1,
+        1
+      );
+      const mi = document.getElementById("monthly-daily-input");
+      if (mi) {
+        mi.value = `${__modalMonth.getFullYear()}-${String(
+          __modalMonth.getMonth() + 1
+        ).padStart(2, "0")}`;
+      }
+      await refreshMonthlyDailyModal();
+    });
+  document
+    .getElementById("monthly-daily-next")
+    ?.addEventListener("click", async () => {
+      if (!__modalMonth) return;
+      __modalMonth = new Date(
+        __modalMonth.getFullYear(),
+        __modalMonth.getMonth() + 1,
+        1
+      );
+      const mi = document.getElementById("monthly-daily-input");
+      if (mi) {
+        mi.value = `${__modalMonth.getFullYear()}-${String(
+          __modalMonth.getMonth() + 1
+        ).padStart(2, "0")}`;
+      }
+      await refreshMonthlyDailyModal();
+    });
+  // 달력(month input)으로 월 직접 선택
+  document
+    .getElementById("monthly-daily-input")
+    ?.addEventListener("change", async (e) => {
+      const val = String(e.target.value || ""); // 'YYYY-MM'
+      const m = /^(\d{4})-(\d{2})$/.exec(val);
+      if (!m) return;
+      const y = Number(m[1]),
+        mm = Number(m[2]);
+      __modalMonth = new Date(y, mm - 1, 1);
+      await refreshMonthlyDailyModal();
+    });
 });
 
 /* =====================================================
@@ -635,6 +714,86 @@ async function renderTopStatistics() {
   }
 
   updateCard("#daily-items", todayItems, yesterdayItems, "개");
+}
+
+/* =====================================================
+ * Modal: 월별 일일 방문 인원(stats_daily) — common.css 모달 사용
+ * ===================================================== */
+let __modalMonth = null; // 모달의 기준 월(매달 1일)
+let __modalBusy = false; // 중복 로딩 방지
+
+async function openMonthlyDailyModal(baseDate = new Date()) {
+  __modalMonth = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+  const titleEl = document.getElementById("monthly-daily-title");
+  if (titleEl) titleEl.textContent = "월별 일일 방문 인원";
+  const mi = document.getElementById("monthly-daily-input");
+  if (mi) {
+    mi.value = `${__modalMonth.getFullYear()}-${String(
+      __modalMonth.getMonth() + 1
+    ).padStart(2, "0")}`;
+  }
+  await refreshMonthlyDailyModal();
+  document.getElementById("monthly-daily-modal")?.classList.remove("hidden");
+}
+function closeMonthlyDailyModal() {
+  document.getElementById("monthly-daily-modal")?.classList.add("hidden");
+}
+async function refreshMonthlyDailyModal() {
+  if (__modalBusy) return;
+  __modalBusy = true;
+  const rows = await fetchMonthDailyCounts(__modalMonth);
+  renderMonthlyDailyTable(rows, /*desc=*/ false);
+  __modalBusy = false;
+}
+// stats_daily에서 월 범위의 일자별 방문 인원 수 집계(없으면 0)
+async function fetchMonthDailyCounts(monthDate) {
+  const [ms, me] = monthRange(monthDate);
+  // YYYYMMDD id 목록 (로컬 기준)
+  const ids = [];
+  for (let d = new Date(ms); d < me; d.setDate(d.getDate() + 1)) {
+    ids.push(dateKey8Local(d));
+  }
+  const results = {}; // 'YYYY.MM.DD' -> count
+  // Firestore 'in' 최대 10개 → 10개씩 끊어서 조회
+  for (let i = 0; i < ids.length; i += 10) {
+    const batch = ids.slice(i, i + 10);
+    const snap = await getDocs(
+      query(collection(db, "stats_daily"), where(documentId(), "in", batch))
+    );
+    snap.forEach((ds) => {
+      const id8 = ds.id; // 'YYYYMMDD'
+      const y = id8.slice(0, 4),
+        m = id8.slice(4, 6),
+        d = id8.slice(6, 8);
+      const key = `${y}.${m}.${d}`;
+      const v = Number(ds.data()?.uniqueVisitors || 0);
+      results[key] = v;
+    });
+  }
+  // 빠진 날짜(문서 없음)는 0으로 채워서 정렬된 배열 반환
+  const out = [];
+  for (let d = new Date(ms); d < me; d.setDate(d.getDate() + 1)) {
+    const key = formatDateLocal(d);
+    out.push({ date: key, count: results[key] || 0 });
+  }
+  return out;
+}
+function renderMonthlyDailyTable(rows, desc = false) {
+  const tbody = document.querySelector("#monthly-daily-table tbody");
+  const totalEl = document.getElementById("monthly-daily-total");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  let sum = 0;
+  const data = desc ? [...rows].reverse() : rows;
+  data.forEach((r) => {
+    sum += r.count;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${
+      r.date
+    }</td><td class="num">${r.count.toLocaleString()}</td>`;
+    tbody.appendChild(tr);
+  });
+  if (totalEl) totalEl.textContent = sum.toLocaleString();
 }
 
 function updateCard(selector, todayVal, yesterVal, unit = "") {

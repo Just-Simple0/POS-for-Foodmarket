@@ -1271,8 +1271,11 @@ addProductBtn.addEventListener("click", async () => {
   try {
     // 1) 바코드 우선 경로
     if (code) {
-      if (!isValidEAN13(code))
+      if (!isValidEAN13(code)){
+        barcodeInput.value = "";
+        barcodeInput.focus();
         return showToast("유효한 바코드가 아닙니다.", true);
+      }
       const byCode = await findProductByBarcode(code);
       if (!byCode) {
         const ok = await openConfirm({
@@ -1434,8 +1437,11 @@ qcSaveBtn?.addEventListener("click", async () => {
   const barcode = qcBarcode.value.trim();
   if (!name || !barcode || !Number.isFinite(price) || price < 0)
     return showToast("상품명/바코드/가격을 확인하세요.", true);
-  if (!isValidEAN13(barcode))
+  if (!isValidEAN13(barcode)) {
+    barcodeInput.value = "";
+    barcodeInput.focus();
     return showToast("유효한 바코드가 아닙니다.", true);
+  }
   // 0.5 단위 체크(선택)
   if (Math.round(price * 2) !== price * 2)
     return showToast("가격은 0.5 단위로 입력하세요.", true);

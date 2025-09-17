@@ -9,7 +9,7 @@ body {
   font-family: "Pretendard Variable", Pretendard, -apple-system,
     BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI",
     "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+    "Segoe UI Emoji", "Segoe UI Symbol", sans-serif !important;
   background-color: #f5f7fa;
   color: #333;
   line-height: 1.6;
@@ -76,6 +76,7 @@ textarea {
   font-size: 1rem;
   width: 100%;
   transition: border-color 0.3s ease;
+  font-family: "Pretendard", sans-serif;
 }
 input:focus,
 select:focus,
@@ -465,6 +466,7 @@ main {
   border-radius: 6px;
   border: 1px solid #ccc;
   box-sizing: border-box;
+  font-family: "Pretendard", sans-serif;
 }
 
 .modal[tabindex="-1"]:focus {
@@ -571,8 +573,12 @@ main {
   font-size: 1.1rem;
   color: #2d80f7; /* info 기본 색 */
 }
-.modal--confirm.cm-variant-warn .cm-header i { color: #f59e0b; }   /* 노랑 */
-.modal--confirm.cm-variant-danger .cm-header i { color: #e53935; } /* 빨강 */
+.modal--confirm.cm-variant-warn .cm-header i {
+  color: #f59e0b;
+} /* 노랑 */
+.modal--confirm.cm-variant-danger .cm-header i {
+  color: #e53935;
+} /* 빨강 */
 .modal--confirm .cm-title {
   font-size: 1.1rem;
   font-weight: 800;
@@ -601,16 +607,36 @@ main {
   outline-offset: 2px;
   border-radius: 10px;
 }
-.modal--confirm .cm-btn-ghost { background: #e5e7eb; color: #111827; }
-.modal--confirm .cm-btn-primary { background: #2d80f7; color: #fff; }
-.modal--confirm .cm-btn-danger  { background: #e53935; color: #fff; }
+.modal--confirm .cm-btn-ghost {
+  background: #e5e7eb;
+  color: #111827;
+}
+.modal--confirm .cm-btn-primary {
+  background: #2d80f7;
+  color: #fff;
+}
+.modal--confirm .cm-btn-danger {
+  background: #e53935;
+  color: #fff;
+}
 
 @keyframes cm-fade {
-  from { opacity: 0; } to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes cm-pop {
-  from { opacity: 0; transform: translateY(4px) scale(.98); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ===== 공통 체크박스 행 (index.css와 동일 톤) ===== */

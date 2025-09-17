@@ -186,7 +186,9 @@
           </div>
           <div class="modal-body">
             <div class="tabs">
-              <button class="tab tab-btn tab active" data-tab="direct">직접 입력</button>
+              <button class="tab tab-btn tab active" data-tab="direct">
+                직접 입력
+              </button>
               <button class="tab tab-btn" data-tab="upload">엑셀 업로드</button>
             </div>
 
@@ -194,7 +196,8 @@
             <div class="tab-panel" id="tab-direct">
               <div class="grid2">
                 <label
-                  ><span>상품명</span><input type="text" id="create-name" class="input"
+                  ><span>상품명</span
+                  ><input type="text" id="create-name" class="input"
                 /></label>
                 <label
                   ><span>분류</span
@@ -207,21 +210,27 @@
                 /></label>
                 <label
                   ><span>가격</span
-                  ><input type="number" id="create-price" class="input" step="0.5" min="0"
+                  ><input
+                    type="number"
+                    id="create-price"
+                    class="input"
+                    step="0.5"
+                    min="0"
                 /></label>
                 <label
-                  ><span>바코드</span><input type="text" id="create-barcode" class="input"
+                  ><span>바코드</span
+                  ><input type="text" id="create-barcode" class="input"
                 /></label>
               </div>
               <div class="modal-buttons">
-                <button
-                  type="button"
-                  id="product-create-save"
-                  class="btn"
-                >
+                <button type="button" id="product-create-save" class="btn">
                   <i class="fas fa-save"></i> 저장
                 </button>
-                <button type="button" id="product-create-close" class="btn-outline">
+                <button
+                  type="button"
+                  id="product-create-close"
+                  class="btn-outline"
+                >
                   닫기
                 </button>
               </div>
@@ -233,14 +242,18 @@
                 <input
                   type="file"
                   id="excel-file-input"
-                  accept=".xlsx,.xls,.csv"
+                  accept=".xlsx,.xls,.csv,.xlsm"
                 />
                 <p>
                   동일 바코드가 있으면 <b>업데이트</b>, 없으면
                   <b>추가</b>됩니다.
                 </p>
                 <div class="modal-buttons upload-actions">
-                  <button type="button" id="excel-parse-btn" class="btn-outline">
+                  <button
+                    type="button"
+                    id="excel-parse-btn"
+                    class="btn-outline"
+                  >
                     <i class="fas fa-eye"></i> 미리보기
                   </button>
                   <button
@@ -251,10 +264,18 @@
                   >
                     <i class="fas fa-cloud-upload-alt"></i> 실행
                   </button>
-                  <button type="button" id="excel-template-btn" class="btn-outline">
+                  <button
+                    type="button"
+                    id="excel-template-btn"
+                    class="btn-outline"
+                  >
                     <i class="fas fa-download"></i> 템플릿
                   </button>
-                  <button type="button" id="product-create-close-2" class="btn-outline">
+                  <button
+                    type="button"
+                    id="product-create-close-2"
+                    class="btn-outline"
+                  >
                     닫기
                   </button>
                 </div>
@@ -269,7 +290,9 @@
       <div id="edit-modal" class="modal hidden">
         <form id="edit-form" class="modal-content">
           <h2>상품 수정</h2>
-          <label>상품명<input type="text" id="edit-name" class="input" required /></label>
+          <label
+            >상품명<input type="text" id="edit-name" class="input" required
+          /></label>
           <label
             >분류<input
               type="text"
@@ -287,9 +310,13 @@
               min="0"
               required
           /></label>
-          <label>바코드<input type="text" id="edit-barcode" class="input" required /></label>
+          <label
+            >바코드<input type="text" id="edit-barcode" class="input" required
+          /></label>
           <div class="modal-buttons">
-            <button type="submit" class="btn"><i class="fas fa-save"></i> 저장</button>
+            <button type="submit" class="btn">
+              <i class="fas fa-save"></i> 저장
+            </button>
             <button type="button" id="cancel-btn" class="btn-outline">
               <i class="fas fa-times"></i> 취소
             </button>

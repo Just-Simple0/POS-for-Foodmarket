@@ -1,14 +1,31 @@
 import {
   collection,
   query,
-  orderBy,
-  limit,
   getDocs,
   where,
   Timestamp,
+  documentId,
+  orderBy,
+  limit,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 import { db } from "./components/firebase-config.js";
+
+// 로컬(KST) 기준 날짜 키: 'YYYY-MM-DD'
+function dateKeyLocal(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// 로컬(KST) 기준 날짜 숫자키: 'YYYYMMDD'
+function dateKey8Local(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
+}
 
 async function loadRecentProducts() {
   const productsRef = collection(db, "products");
@@ -101,35 +118,76 @@ async function fetchProvisionStats() {
   const endDate = new Date(today);
   endDate.setHours(23, 59, 59, 999);
 
-  const todayStr = today.toISOString().slice(0, 10);
-  const countsByDate = {};
-  const todayItemsMap = {};
-  const itemsTotalsByDate = {};
+  const todayStr = dateKeyLocal(today);
+  const countsByDate = {}; // 'YYYY-MM-DD' → uniqueVisitors (stats_daily)
+  const todayItemsMap = {}; // 오늘 품목 합계 (provisions에서 오늘만)
+  let prevItemsTotal = 0; // 어제 품목 합계 (provisions에서 어제만)
+  let todayItemsTotal = 0; // 오늘 품목 합계
 
   try {
-    const snapshot = await getDocs(
+    // 1) 방문 인원수(최근 10일): stats_daily에서 10건만 조회
+    const dayIds = [];
+    for (
+      let d = new Date(startDate);
+      d <= endDate;
+      d.setDate(d.getDate() + 1)
+    ) {
+      dayIds.push(dateKey8Local(d));
+    }
+    // documentId() 'in'은 최대 10개 → 최근 10일과 정확히 일치
+    const dailySnap = await getDocs(
+      query(collection(db, "stats_daily"), where(documentId(), "in", dayIds))
+    );
+    dailySnap.forEach((docSnap) => {
+      const id8 = docSnap.id; // 'YYYYMMDD'
+      const y = id8.slice(0, 4),
+        m = id8.slice(4, 6),
+        d = id8.slice(6, 8);
+      const ds = `${y}-${m}-${d}`;
+      const v = Number(docSnap.data()?.uniqueVisitors || 0);
+      countsByDate[ds] = v;
+    });
+
+    // 2) 오늘 품목 합계: provisions에서 '오늘 하루'만 조회
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+    const todaySnap = await getDocs(
       query(
         collection(db, "provisions"),
-        where("timestamp", ">=", Timestamp.fromDate(startDate)),
-        where("timestamp", "<=", Timestamp.fromDate(endDate))
+        where("timestamp", ">=", Timestamp.fromDate(todayStart)),
+        where("timestamp", "<=", Timestamp.fromDate(todayEnd))
       )
     );
-
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      const dateObj = data.timestamp?.toDate?.();
-      const dateStr = dateObj.toISOString().slice(0, 10);
-      countsByDate[dateStr] = (countsByDate[dateStr] || 0) + 1;
-
-      let dayTotal = 0;
+    todaySnap.forEach((docSnap) => {
+      const data = docSnap.data();
       (data.items || []).forEach((item) => {
-        const qty = item.quantity || 0;
-        dayTotal += qty;
-        if (dateStr === todayStr) {
-          todayItemsMap[item.name] = (todayItemsMap[item.name] || 0) + qty;
-        }
+        const qty = Number(item.quantity || 0);
+        todayItemsTotal += qty;
+        todayItemsMap[item.name] = (todayItemsMap[item.name] || 0) + qty;
       });
-      itemsTotalsByDate[dateStr] = (itemsTotalsByDate[dateStr] || 0) + dayTotal;
+    });
+
+    // 3) 어제 품목 합계(전일 비교용): provisions에서 '어제 하루'만 조회
+    const yst = new Date(today);
+    yst.setDate(yst.getDate() - 1);
+    yst.setHours(0, 0, 0, 0);
+    const yen = new Date(today);
+    yen.setDate(yen.getDate() - 1);
+    yen.setHours(23, 59, 59, 999);
+    const ySnap = await getDocs(
+      query(
+        collection(db, "provisions"),
+        where("timestamp", ">=", Timestamp.fromDate(yst)),
+        where("timestamp", "<=", Timestamp.fromDate(yen))
+      )
+    );
+    ySnap.forEach((docSnap) => {
+      const data = docSnap.data();
+      (data.items || []).forEach((item) => {
+        prevItemsTotal += Number(item.quantity || 0);
+      });
     });
   } catch (err) {
     console.error(err);
@@ -139,20 +197,8 @@ async function fetchProvisionStats() {
   for (let i = 0; i < 10; i++) {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);
-    const ds = d.toISOString().slice(0, 10);
+    const ds = dateKeyLocal(d);
     visitData.push({ date: ds, count: countsByDate[ds] || 0 });
-  }
-
-  const todayItemsTotal = itemsTotalsByDate[todayStr] || 0;
-  let prevItemsTotal = 0;
-  for (let i = 1; i < 10; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
-    if ((itemsTotalsByDate[ds] || 0) > 0) {
-      prevItemsTotal = itemsTotalsByDate[ds];
-      break;
-    }
   }
 
   return { visitData, todayItemsMap, todayItemsTotal, prevItemsTotal };

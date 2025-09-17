@@ -17,7 +17,10 @@ import {
   startAt,
   endAt,
   startAfter,
+  endBefore,
   documentId,
+  getCountFromServer,
+  limitToLast,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -29,7 +32,7 @@ import {
 
 // 🔍 검색용 메모리 저장
 let customerData = [];
-let pagesKnown = 1; // A안: 지금까지 '알려진' 페이지 개수
+let pagesKnown = 1; // 렌더 직전 순간값으로 재계산해서 넣어줌
 
 let displaydData = [];
 let currentSort = { field: null, direction: "asc" };
@@ -43,31 +46,56 @@ let editingOriginal = null;
 let pageSize = 25;
 let pageCursors = [null]; // 각 페이지의 "startAfter" 기준(이전 페이지의 lastDoc Snapshot)
 let currentPageIndex = 0; // 0-based
-let lastPageCount = 0; // 마지막으로 가져온 문서 수
+let lastPageCount = 0; // 이번 화면에 실제로 표시한 문서 수(룩어헤드 제외)
+let __hasNextPage = false; // 룩어헤드 결과(이번 페이지 기준 다음 페이지 존재 여부)
 let currentQueryIdentity = ""; // 검색/정렬/필터 조합 식별자. 바뀌면 커서 초기화
 let buildCurrentQuery = null; // () => QueryConstraints[] (pageCursors[currentPageIndex] 참조)
+let buildBaseQuery = null; // () => limit/startAfter 제외한 쿼리 제약 (count(), 마지막 페이지용)
+let __totalPages = 1; // count() 기반 총 페이지 수
+let __currentFirstDoc = null; // 현재 페이지 첫 문서 스냅샷
+let __currentLastDoc = null;  // 현재 페이지 마지막 문서 스냅샷
 
 function roleConstraint() {
   return isAdmin ? [] : [where("status", "==", "지원")];
 }
 
-function resetPager(identity, builder) {
+function resetPager(identity, baseBuilder) {
   currentQueryIdentity = identity;
-  buildCurrentQuery = builder;
+  buildBaseQuery = baseBuilder;
+  // 실제 페이지 로드는 base + (startAfter) + limit(N+1)
+  buildCurrentQuery = () => {
+    const after = pageCursors[currentPageIndex];
+    const cons = [...buildBaseQuery()];
+    if (after) cons.push(startAfter(after));
+    cons.push(limit(pageSize + 1));
+    return cons;
+  };
   pageCursors = [null];
   currentPageIndex = 0;
   lastPageCount = 0;
-  pagesKnown = 1; // 새 쿼리 시작 시 창 초기화
-  fetchAndRenderPage(); // 집계 없이 즉시 페이지 로드
+  __hasNextPage = false;
+  pagesKnown = 1; // 새 쿼리 시작 시 임시값(곧 totalPages로 대체)
+  // 1) 총 페이지 수 산출 → 2) 1페이지 로드 (statistics와 동일)
+  computeCustomersTotalPages()
+    .then(fetchAndRenderPage)
+    .catch(fetchAndRenderPage);
 }
 
 async function fetchAndRenderPage() {
   if (!buildCurrentQuery) return;
   const base = collection(db, "customers");
-  const cons = buildCurrentQuery(); // orderBy()/where()/limit()/startAfter() 포함
+  const cons = buildCurrentQuery(); // orderBy()/where()/limit(N+1)/startAfter() 포함
   const snap = await getDocs(query(base, ...cons));
-  lastPageCount = snap.size;
-  const rows = snap.docs.map((d) => {
+  // --- 룩어헤드 해석 ---
+  __hasNextPage = snap.size > pageSize;
+  const docsForRender = __hasNextPage
+    ? snap.docs.slice(0, pageSize)
+    : snap.docs;
+  lastPageCount = docsForRender.length;
+  // 현재 페이지 커서 스냅샷(이전/다음 전용)
+  __currentFirstDoc = docsForRender[0] || null;
+  __currentLastDoc  = docsForRender[docsForRender.length - 1] || null;
+  const rows = docsForRender.map((d) => {
     const data = { id: d.id, ...d.data() };
     data.lastVisit = data.lastVisit || computeLastVisit(data);
     return data;
@@ -76,7 +104,8 @@ async function fetchAndRenderPage() {
   renderTable(rows);
   updatePagerUI();
   // 다음 페이지를 위한 커서(현재 페이지의 lastDoc)를 기록
-  pageCursors[currentPageIndex + 1] = snap.docs[snap.docs.length - 1] || null;
+  pageCursors[currentPageIndex + 1] =
+    docsForRender[docsForRender.length - 1] || null;
 }
 
 function updatePagerUI() {
@@ -84,10 +113,9 @@ function updatePagerUI() {
   // A안: 페이지 상태 계산
   const current = currentPageIndex + 1;
   const hasPrev = currentPageIndex > 0;
-  const hasNext = lastPageCount >= pageSize; // 다음 페이지가 더 있을 가능성
-  // '알려진 페이지'를 점진적으로 확장(예: 1, 2, 3 ... )
-  pagesKnown = Math.max(pagesKnown, current + (hasNext ? 1 : 0));
-
+  const hasNext = current < (__totalPages || 1); // 총 페이지 수 기준
+  // 처음부터 정확한 전체 페이지 기반으로 버튼 노출
+  pagesKnown = __totalPages || current + (__hasNextPage ? 1 : 0);
   renderCursorPager(
     pagEl,
     { current, pagesKnown, hasPrev, hasNext },
@@ -101,17 +129,23 @@ function updatePagerUI() {
         if (!hasPrev) return;
         goPrevPage();
       },
-      // 서버 커서 특성상 임의 점프는 어려움 → 인접 숫자만 허용
-      goPage: (n) => {
+      // 숫자 점프: 가까운 방향으로 연속 이동
+      goPage: async (n) => {
         if (n === current) return;
-        if (n === current - 1 && hasPrev) return goPrevPage();
-        if (n === current + 1 && hasNext) return goNextPage();
-        // 멀리 점프는 비활성(원한다면 next를 반복 호출하는 큐 구현 가능)
+        n = Math.max(1, Math.min(n, pagesKnown));
+        while (currentPageIndex + 1 < n && __hasNextPage) {
+          await goNextPage();
+        }
+        while (currentPageIndex + 1 > n && currentPageIndex > 0) {
+          await goPrevPage();
+        }
       },
       goNext: () => {
         if (!hasNext) return;
         goNextPage();
       },
+      // '끝(>>)' 버튼: 단일 쿼리로 마지막 페이지 로드
+      goLast: () => { goLastDirect().catch(console.warn); },
     },
     { window: 5 }
   );
@@ -163,15 +197,65 @@ function resetCreateForm() {
   } catch {}
 }
 
-function goNextPage() {
-  if (!buildCurrentQuery || lastPageCount < pageSize) return; // 다음 없음
+// 다음 페이지(룩어헤드 기준으로 존재 시에만)
+async function goNextPage() {
+  if (!buildCurrentQuery || !__hasNextPage) return;
   currentPageIndex += 1;
-  fetchAndRenderPage();
+  await fetchAndRenderPage();
 }
-function goPrevPage() {
-  if (!buildCurrentQuery || currentPageIndex === 0) return;
-  currentPageIndex -= 1;
-  fetchAndRenderPage();
+// 이전 페이지: 현재 첫 문서 이전 묶음을 endBefore + limitToLast로 로드
+async function goPrevPage() {
+  if (!buildBaseQuery || currentPageIndex === 0) return;
+  if (!__currentFirstDoc) return;
+  const base = collection(db, "customers");
+  const snap = await getDocs(
+    query(base, ...buildBaseQuery(), endBefore(__currentFirstDoc), limitToLast(pageSize))
+  );
+  const docsForRender = snap.docs;
+  lastPageCount = docsForRender.length;
+  __currentFirstDoc = docsForRender[0] || null;
+  __currentLastDoc  = docsForRender[docsForRender.length - 1] || null;
+  // 화면 데이터 갱신
+  const rows = docsForRender.map((d) => {
+    const data = { id: d.id, ...d.data() };
+    data.lastVisit = data.lastVisit || computeLastVisit(data);
+    return data;
+  });
+  displaydData = rows;
+  renderTable(rows);
+  // 인덱스/커서 상태 갱신(이후 '다음' 이동을 위해 현재 페이지의 마지막 문서를 저장)
+  currentPageIndex = Math.max(0, currentPageIndex - 1);
+  pageCursors[currentPageIndex + 1] = __currentLastDoc || null;
+  // 다음 페이지 존재 여부는 총 페이지/현 인덱스로 판정
+  __hasNextPage = (currentPageIndex + 1) < (__totalPages || 1);
+  updatePagerUI();
+}
+
+// 마지막 페이지: limitToLast로 한 번에 가져와 렌더
+async function goLastDirect() {
+  if (!buildBaseQuery) return;
+  const base = collection(db, "customers");
+  const snap = await getDocs(
+    query(base, ...buildBaseQuery(), limitToLast(pageSize))
+  );
+  const docsForRender = snap.docs; // asc 정렬 그대로 마지막 pageSize개
+  lastPageCount = docsForRender.length;
+  __currentFirstDoc = docsForRender[0] || null;
+  __currentLastDoc  = docsForRender[docsForRender.length - 1] || null;
+  const rows = docsForRender.map((d) => {
+    const data = { id: d.id, ...d.data() };
+    data.lastVisit = data.lastVisit || computeLastVisit(data);
+    return data;
+  });
+  displaydData = rows;
+  renderTable(rows);
+  // 인덱스를 맨 끝으로, '다음'은 없음
+  currentPageIndex = Math.max(0, (__totalPages || 1) - 1);
+  __hasNextPage = false;
+  // 이후 '이전'→'다음' 왕복을 위해 현재 페이지의 lastDoc을 앵커로 저장
+  pageCursors[currentPageIndex + 1] = null;          // 끝 이후는 없음
+  pageCursors[currentPageIndex]     = __currentLastDoc || null; // 다음 로드시 startAfter anchoring용
+  updatePagerUI();
 }
 
 // ===== IndexedDB (지원자 캐시) =====
@@ -572,17 +656,11 @@ function computeLastVisit(c) {
 
 async function loadCustomers() {
   // 기본 목록: nameLower ASC, 서버 페이지네이션
-  resetPager("list:nameLower:asc", () => {
-    const after = pageCursors[currentPageIndex];
-    const cons = [
-      ...roleConstraint(),
-      orderBy("nameLower"),
-      orderBy(documentId()),
-      limit(pageSize),
-    ];
-    if (after) cons.push(startAfter(after));
-    return cons;
-  });
+  resetPager("list:nameLower:asc", () => [
+    ...roleConstraint(),
+    orderBy("nameLower"),
+    orderBy(documentId()),
+  ]);
   updateSortIcons();
   try {
     await syncSupportCache();
@@ -933,17 +1011,11 @@ async function runServerSearch() {
 
   // 검색 조건이 없으면 서버 페이지 목록 초기화
   if (!globalKeyword && (!field || !fieldValue)) {
-    resetPager("list:nameLower:asc", () => {
-      const after = pageCursors[currentPageIndex];
-      const cons = [
-        ...roleConstraint(),
-        orderBy("nameLower"),
-        orderBy(documentId()),
-        limit(pageSize),
-      ];
-      if (after) cons.push(startAfter(after));
-      return cons;
-    });
+    resetPager("list:nameLower:asc", () => [
+      ...roleConstraint(),
+      orderBy("nameLower"),
+      orderBy(documentId()),
+    ]);
     return;
   }
 
@@ -1006,7 +1078,6 @@ async function runServerSearch() {
     identityParts.push(`field:${field}`, `value:${fieldValue}`);
     const identity = identityParts.join("|");
     resetPager(identity, () => {
-      const after = pageCursors[currentPageIndex];
       const cons2 = [...roleConstraint()];
       switch (field) {
         case "name":
@@ -1057,12 +1128,11 @@ async function runServerSearch() {
           // 로컬 결과이므로 페이저를 초기화
           currentPageIndex = 0;
           lastPageCount = 0;
+          __hasNextPage = false;
           pagesKnown = 1;
           updatePagerUI();
           return [];
       }
-      cons2.push(limit(pageSize));
-      if (after) cons2.push(startAfter(after));
       return cons2;
     });
   }
@@ -1131,22 +1201,35 @@ document.addEventListener("DOMContentLoaded", () => {
     pageSize = n;
     // 커서 초기화 및 첫 페이지 로드 (집계 없이)
     const id = currentQueryIdentity || "list:nameLower:asc";
-    const builder =
-      buildCurrentQuery ||
-      (() => {
-        const after = pageCursors[currentPageIndex];
-        const cons = [
-          ...roleConstraint(),
-          orderBy("nameLower"),
-          orderBy(documentId()),
-          limit(pageSize),
-        ];
-        if (after) cons.push(startAfter(after));
-        return cons;
-      });
-    resetPager(id, builder);
+    const baseBuilder =
+      buildBaseQuery ||
+      (() => [
+        ...roleConstraint(),
+        orderBy("nameLower"),
+        orderBy(documentId()),
+      ]);
+    resetPager(id, baseBuilder);
   });
 });
+
+// 총 페이지 수 계산(count) — statistics와 동일 개념
+async function computeCustomersTotalPages() {
+  if (!buildBaseQuery) {
+    __totalPages = 1;
+    return 1;
+  }
+  try {
+    const base = collection(db, "customers");
+    const agg = await getCountFromServer(query(base, ...buildBaseQuery()));
+    const total = Number(agg.data().count || 0);
+    __totalPages = Math.max(1, Math.ceil(total / pageSize));
+    return __totalPages;
+  } catch (e) {
+    console.warn("[Customers] totalPages count failed", e);
+    __totalPages = 1;
+    return 1;
+  }
+}
 
 // ===== 수정, 삭제 버튼 =====
 document.addEventListener("click", async (e) => {

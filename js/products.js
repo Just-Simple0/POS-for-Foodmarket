@@ -18,7 +18,10 @@ import {
   startAfter,
   startAt,
   endAt,
+  endBefore,
   documentId,
+  getCountFromServer,
+  limitToLast,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   showToast,
@@ -33,10 +36,14 @@ const POLICY_DOC = doc(db, "stats", "categoryPolicies");
 // 커서 기반 페이징 상태(A안)
 let prodPage = 1;
 let prodPageSize = 25;
-const prodCursors = [null]; // 각 페이지의 시작 커서(startAfter 기준 Doc)
-let prodLastDoc = null;
+const prodCursors = [null]; // 각 페이지의 시작 커서(사용하되 필수는 아님)
+let prodLastDoc = null; // 현재 페이지 마지막 문서(다음 이동용)
 let prodHasPrev = false;
-let prodHasNext = false;
+let prodHasNext = false; // 총 페이지 수 기준
+let __hasNextLookahead = false; // 룩어헤드 결과(다음 페이지 존재)
+let __totalPages = 1; // count() 기반 총 페이지 수
+let __currentFirstDoc = null; // 현재 페이지 첫 문서 스냅샷
+let __currentLastDoc = null; // 현재 페이지 마지막 문서 스냅샷
 let currentRows = []; // 현재 페이지 렌더 데이터
 let editingProductId = null; // 수정할 상품 ID
 
@@ -323,6 +330,34 @@ async function savePolicies() {
   }
 }
 
+// =========================
+// 이름 → 검색 토큰(+접두) 유틸
+//  - 예: "CJ) 해찬들 사계절 쌈장 1kg"
+//    → ["cj", "해찬들", "사계절", "쌈장", "1kg", "해찬", "사계", "사계절", ...]
+//  - 최소 2자 접두만 생성(과매칭 방지), 최대 길이 6
+// =========================
+function tokenizeName(str) {
+  if (!str) return [];
+  const cleaned = String(str)
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/[()[\]{}<>·•※,./\\~!@#$%^&*_+=|:;"'`?-]+/g, " ");
+  const base = cleaned
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const out = new Set();
+  for (const tok of base) {
+    if (tok.length >= 2) {
+      out.add(tok); // 전체 토큰
+      const max = Math.min(6, tok.length);
+      for (let i = 2; i <= max; i++) out.add(tok.slice(0, i)); // 접두
+    }
+  }
+  // 안전 캡(과도한 길이 방지)
+  return Array.from(out).slice(0, 50);
+}
+
 /* ---------------------------
     서버 커서 페이징(A안)
 ---------------------------- */
@@ -333,9 +368,14 @@ function resetProdPager() {
   prodLastDoc = null;
   prodHasPrev = false;
   prodHasNext = false;
+  __hasNextLookahead = false;
+  __totalPages = 1;
+  __currentFirstDoc = null;
+  __currentLastDoc = null;
 }
 
-function buildProductQuery(direction = "init") {
+// 🔹 현재 검색/정렬/필터 상태에 따른 "기본 제약"만 구성(limit/startAfter 제외)
+function buildProductBaseConstraints(direction = "init") {
   const nameFilter =
     document.getElementById("product-name")?.value.trim() || "";
   const barcodeFilter =
@@ -350,44 +390,61 @@ function buildProductQuery(direction = "init") {
   if (barcodeFilter) {
     if (categoryFilter) cons.push(where("category", "==", categoryFilter));
     cons.push(where("barcode", "==", barcodeFilter));
-    orders = [orderBy(documentId())]; // where== 필터 시 보조 정렬
+    orders = [orderBy(documentId())]; // 동률 방지용 타이브레이커
   } else if (nameFilter) {
-    // 이름 접두 검색: name 기준(대소문자 구분)
+    // ✅ 이름 '부분 포함' 검색: nameTokens 기반 (접두 토큰 포함)
     if (categoryFilter) cons.push(where("category", "==", categoryFilter));
-    cons.push(orderBy("name"));
-    cons.push(startAt(nameFilter));
-    cons.push(endAt(nameFilter + "\uf8ff"));
+    const tokens = tokenizeName(nameFilter);
+    if (tokens.length)
+      cons.push(where("nameTokens", "array-contains-any", tokens));
+    // 보기 안정성 위해 이름 오름차순 정렬(타이브레이커로 id)
+    orders = [orderBy("name", "asc"), orderBy(documentId())];
   } else {
     // 정렬 옵션
     if (categoryFilter) cons.push(where("category", "==", categoryFilter));
-    if (sortBy === "price") orders = [orderBy("price", "asc")];
-    else if (sortBy === "name") orders = [orderBy("name", "asc")];
-    else if (sortBy === "barcode") orders = [orderBy("barcode", "asc")];
-    else orders = [orderBy("createdAt", "desc")]; // date
+    if (sortBy === "price")
+      orders = [orderBy("price", "asc"), orderBy(documentId())];
+    else if (sortBy === "name")
+      orders = [orderBy("name", "asc"), orderBy(documentId())];
+    else if (sortBy === "barcode")
+      orders = [orderBy("barcode", "asc"), orderBy(documentId())];
+    else orders = [orderBy("createdAt", "desc"), orderBy(documentId(), "desc")]; // date
   }
   cons.push(...orders);
+  return cons;
+};
 
-  // 페이지 커서
+// 🔹 페이지 쿼리 = 기본 제약 + startAfter(옵션) + limit(N+1)
+function buildProductQuery(direction = "init") {
+  const cons = [...buildProductBaseConstraints()];
   const after =
     direction === "next" || direction === "jump"
       ? prodLastDoc
       : prodCursors[prodPage - 1];
   if (after) cons.push(startAfter(after));
-  cons.push(limit(prodPageSize));
+  cons.push(limit(prodPageSize + 1)); // 룩어헤드
   return query(productsCol, ...cons);
 }
+
 async function loadProducts(direction = "init") {
   const qy = buildProductQuery(direction);
   productList.innerHTML = "";
   try {
     const snap = await getDocs(qy);
-    currentRows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // --- 룩어헤드 해석 ---
+    __hasNextLookahead = snap.size > prodPageSize;
+    const docsForRender = __hasNextLookahead
+      ? snap.docs.slice(0, prodPageSize)
+      : snap.docs;
+    currentRows = docsForRender.map((d) => ({ id: d.id, ...d.data() }));
     prodHasPrev = prodPage > 1;
-    prodHasNext = currentRows.length === prodPageSize;
-    prodLastDoc = snap.docs[snap.docs.length - 1] || null;
+    prodHasNext = prodPage < (__totalPages || 1); // 총 페이지 기준
+    prodLastDoc = docsForRender[docsForRender.length - 1] || null;
+    __currentFirstDoc = docsForRender[0] || null;
+    __currentLastDoc = docsForRender[docsForRender.length - 1] || null;
     // 페이지 시작 커서 기록(해당 페이지 첫 문서)
-    if (!prodCursors[prodPage - 1] && snap.docs.length) {
-      prodCursors[prodPage - 1] = snap.docs[0];
+    if (!prodCursors[prodPage - 1] && docsForRender.length) {
+      prodCursors[prodPage - 1] = docsForRender[0];
     }
     renderList();
     renderPagination();
@@ -427,7 +484,7 @@ function renderList() {
 function renderPagination() {
   const box = pagination;
   if (!box) return;
-  const pagesKnown = prodCursors.length; // 지금까지 탐색된 페이지 수
+  const pagesKnown = __totalPages || 1; // 총 페이지 수 기반(유령 버튼 제거)
   renderCursorPager(
     box,
     {
@@ -441,25 +498,24 @@ function renderPagination() {
         if (!prodHasPrev) return;
         prodPage = 1;
         resetProdPager();
-        loadProducts("init");
+        computeProductsTotalPages().then(() => loadProducts("init"));
       },
       goPrev: () => {
         if (!prodHasPrev) return;
-        prodPage = Math.max(1, prodPage - 1);
-        loadProducts("prev");
+        goPrevPage().catch(console.warn);
       },
       goNext: () => {
         if (!prodHasNext) return;
-        prodPage += 1;
-        loadProducts("next");
+        goNextPage().catch(console.warn);
       },
       goPage: (n) => {
         if (n === prodPage) return;
-        // 이미 탐색된 범위만 점프 허용
-        if (n > 0 && n <= prodCursors.length) {
-          prodPage = n;
-          loadProducts("jump");
-        }
+        n = Math.max(1, Math.min(n, pagesKnown));
+        jumpToPage(n).catch(console.warn);
+      },
+      // ✅ '끝(>>)' 버튼: 단일 쿼리로 마지막 페이지
+      goLast: () => {
+        goLastDirect().catch(console.warn);
       },
     },
     { window: 5 }
@@ -622,6 +678,7 @@ document
       price,
       barcode,
       category: normCat,
+      nameTokens: tokenizeName(name), // ✅ 검색 토큰 저장(접두 포함)
       createdAt: ts,
       lastestAt: ts,
     });
@@ -744,6 +801,7 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
     category: normCat,
     price,
     barcode,
+    nameTokens: tokenizeName(name), // ✅ 수정 시 토큰 갱신
     updatedAt,
     lastestAt,
   });
@@ -896,6 +954,7 @@ async function handleImport() {
             category: row.category, // ← 추가
             price: row.price,
             barcode: row.barcode,
+            nameTokens: tokenizeName(row.name), // ✅ 업로드 갱신 시 토큰 추가
             updatedAt: ts,
             lastestAt: ts,
           });
@@ -907,6 +966,7 @@ async function handleImport() {
             category: row.category,
             price: row.price,
             barcode: row.barcode,
+            nameTokens: tokenizeName(row.name), // ✅ 신규 생성 시 토큰 추가
             createdAt: ts,
             lastestAt: ts,
           });
@@ -976,7 +1036,49 @@ function readExcel(file) {
         const data = reader.result;
         const wb = XLSX.read(data, { type: isCsv ? "binary" : "array" });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: "" }); // 첫 시트만
+
+        // 1) 2차원 배열로 먼저 읽기(헤더 자동 탐지용)
+        const a2 = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        // 필수 헤더들(국/영 혼용 허용)
+        const NAMES = [
+          ["상품명", "name"],
+          ["가격", "price"],
+          ["분류", "category"],
+          ["바코드", "barcode"],
+        ];
+        // 2) 헤더 행 찾기: 필수 중 3개 이상 포함된 첫 행을 헤더로
+        let hidx = -1;
+        for (let i = 0; i < Math.min(a2.length, 20); i++) {
+          const row = (a2[i] || []).map((v) => String(v).trim().toLowerCase());
+          const hit = NAMES.reduce(
+            (acc, opts) => acc + (opts.some((k) => row.includes(k)) ? 1 : 0),
+            0
+          );
+          if (hit >= 3) {
+            hidx = i;
+            break;
+          }
+        }
+        // 3) 헤더 미탐지 시, 기존 방식 호환(첫 행을 헤더로 가정)
+        if (hidx === -1) {
+          const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+          resolve(rows);
+          return;
+        }
+        // 4) 헤더/데이터로 분리해서 객체 배열 생성
+        const header = (a2[hidx] || []).map((v) => String(v).trim());
+        const dataRows = a2.slice(hidx + 1);
+        const rows = dataRows
+          .filter((r) => (r || []).some((c) => String(c).trim() !== ""))
+          .map((r) => {
+            const o = {};
+            for (let j = 0; j < header.length; j++) {
+              const key = header[j];
+              if (!key) continue;
+              o[key] = r[j];
+            }
+            return o;
+          });
         resolve(rows);
       } catch (e) {
         reject(e);
@@ -1102,19 +1204,103 @@ document.addEventListener("DOMContentLoaded", () => {
   initPageSizeSelect(document.getElementById("page-size"), (n) => {
     prodPageSize = n;
     resetProdPager();
-    loadProducts("init");
+    computeProductsTotalPages().then(() => {
+      loadProducts("init");
+    });
   });
   resetProdPager();
-  loadProducts("init");
+  computeProductsTotalPages().then(() => loadProducts("init"));
 });
 
 document.getElementById("sort-select").addEventListener("change", () => {
   resetProdPager();
-  loadProducts("init");
+  computeProductsTotalPages().then(() => loadProducts("init"));
 });
 
 // 분류 필터 변경 시 즉시 서버 쿼리 (읽기 최소화를 위해 클라이언트 후처리 없음)
 document.getElementById("filter-category")?.addEventListener("change", () => {
   resetProdPager();
-  loadProducts("init");
+  computeProductsTotalPages().then(() => loadProducts("init"));
 });
+
+/* ---------------------------
+   페이지 이동 헬퍼(통일)
+---------------------------- */
+async function goNextPage() {
+  if (!__hasNextLookahead) return;
+  prodPage += 1;
+  await loadProducts("next");
+}
+
+// 이전: 현재 첫 문서 이전 묶음을 endBefore + limitToLast로 로드
+async function goPrevPage() {
+  if (prodPage <= 1 || !__currentFirstDoc) return;
+  const cons = [
+    ...buildProductBaseConstraints(),
+    endBefore(__currentFirstDoc),
+    limitToLast(prodPageSize),
+  ];
+  const snap = await getDocs(query(productsCol, ...cons));
+  const docsForRender = snap.docs;
+  currentRows = docsForRender.map((d) => ({ id: d.id, ...d.data() }));
+  prodPage = Math.max(1, prodPage - 1);
+  prodHasPrev = prodPage > 1;
+  prodHasNext = prodPage < (__totalPages || 1);
+  __hasNextLookahead = true; // 이전에서 돌아왔으므로 다음은 존재
+  __currentFirstDoc = docsForRender[0] || null;
+  __currentLastDoc = docsForRender[docsForRender.length - 1] || null;
+  prodLastDoc = __currentLastDoc;
+  // 앵커(선택): 이 페이지의 시작 커서 기록
+  if (!prodCursors[prodPage - 1] && docsForRender.length) {
+    prodCursors[prodPage - 1] = docsForRender[0];
+  }
+  renderList();
+  renderPagination();
+}
+
+// 원하는 페이지까지 순차 이동(멀리 점프도 안전)
+async function jumpToPage(target) {
+  if (target === prodPage) return;
+  if (target > prodPage) {
+    while (prodPage < target && prodHasNext) {
+      await goNextPage();
+    }
+  } else {
+    while (prodPage > target && prodHasPrev) {
+      await goPrevPage();
+    }
+  }
+}
+
+// 마지막 페이지: limitToLast로 한 번에
+async function goLastDirect() {
+  const cons = [...buildProductBaseConstraints(), limitToLast(prodPageSize)];
+  const snap = await getDocs(query(productsCol, ...cons));
+  const docsForRender = snap.docs; // 현재 정렬의 "마지막 페이지"
+  currentRows = docsForRender.map((d) => ({ id: d.id, ...d.data() }));
+  __currentFirstDoc = docsForRender[0] || null;
+  __currentLastDoc = docsForRender[docsForRender.length - 1] || null;
+  prodLastDoc = __currentLastDoc;
+  prodPage = Math.max(1, __totalPages || 1);
+  prodHasPrev = prodPage > 1;
+  prodHasNext = false;
+  __hasNextLookahead = false;
+  renderList();
+  renderPagination();
+}
+
+// 총 문서 수 → 총 페이지 수
+async function computeProductsTotalPages() {
+  try {
+    const agg = await getCountFromServer(
+      query(productsCol, ...buildProductBaseConstraints())
+    );
+    const total = Number(agg.data().count || 0);
+    __totalPages = Math.max(1, Math.ceil(total / prodPageSize));
+    return __totalPages;
+  } catch (e) {
+    console.warn("[Products] totalPages count failed", e);
+    __totalPages = 1;
+    return 1;
+  }
+}

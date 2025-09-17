@@ -239,6 +239,49 @@
       </div>
     </main>
 
+    <!-- ✅ 월별 일일 방문 인원 모달 (common.css 스타일 사용) -->
+    <div
+      id="monthly-daily-modal"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="modal-content">
+        <h2 id="monthly-daily-title">월별 일일 방문 인원</h2>
+        <div class="modal-toolbar monthly-daily-controls">
+          <button id="monthly-daily-prev" class="small-btn" title="이전 달">
+            ◀
+          </button>
+          <input type="month" id="monthly-daily-input" />
+          <button id="monthly-daily-next" class="small-btn" title="다음 달">
+            ▶
+          </button>
+        </div>
+        <div id="monthly-daily-scroll" class="table-scroll">
+          <table id="monthly-daily-table" class="table-base">
+            <thead>
+              <tr>
+                <th>일자</th>
+                <th>방문인원</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <td>합계</td>
+                <td id="monthly-daily-total" class="num">0</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="modal-buttons" style="margin-top: 12px">
+          <span></span>
+          <button id="monthly-daily-close">닫기</button>
+        </div>
+      </div>
+    </div>
+
     <div id="footer-container"></div>
 
     <script type="module">
