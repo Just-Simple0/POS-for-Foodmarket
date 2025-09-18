@@ -125,6 +125,10 @@ function monthRange(d) {
   const e = new Date(d.getFullYear(), d.getMonth() + 1, 1);
   return [s, e];
 }
+// 'YYYY-MM' 키 (월간 캐싱용)
+function monthKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 function formatYearMonth(d) {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -231,6 +235,39 @@ async function getMonthlyVisitorsCount(db, anyDateInMonth) {
     if (v?.customerId) uniq.add(v.customerId);
   });
   return uniq.size;
+}
+
+// ─────────────────────────────────────────────────────────
+// ✅ stats_daily 월 합계(고객 수) with 캐시 (중복 읽기 방지)
+//   - 같은 달은 최초 1회만 네트워크 읽고, 이후 재사용
+//   - 내부적으로 문서 ID(YYYYMMDD)를 10개씩 끊어 in-쿼리(batch)로 조회
+const __statsDailyMonthCache = { key: null, sum: null };
+async function getMonthlyVisitorsFromStatsDaily(baseDate = new Date()) {
+  const mkey = monthKey(baseDate);
+  if (
+    __statsDailyMonthCache.key === mkey &&
+    __statsDailyMonthCache.sum != null
+  ) {
+    return __statsDailyMonthCache.sum; // 캐시 히트
+  }
+  const [ms, me] = monthRange(baseDate);
+  const ids = [];
+  for (let d = new Date(ms); d < me; d.setDate(d.getDate() + 1)) {
+    ids.push(dateKey8Local(d)); // 'YYYYMMDD'
+  }
+  let sum = 0;
+  for (let i = 0; i < ids.length; i += 10) {
+    const batch = ids.slice(i, i + 10);
+    const snap = await getDocs(
+      query(collection(db, "stats_daily"), where(documentId(), "in", batch))
+    );
+    snap.forEach((ds) => {
+      sum += Number(ds.data()?.uniqueVisitors || 0);
+    });
+  }
+  __statsDailyMonthCache.key = mkey;
+  __statsDailyMonthCache.sum = sum;
+  return sum;
 }
 
 // Simple loading indicator toggler (add .loading CSS in your stylesheet)
@@ -663,10 +700,11 @@ async function renderTopStatistics() {
   const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
   // 방문자 수: stats_daily → visits → provisions 폴백
+  // 월간은 캐시 지원 함수 사용(중복 읽기 방지)
   const [todayVisit, yesterdayVisit, monthlyVisit] = await Promise.all([
     getDailyVisitorsCount(db, today),
     getDailyVisitorsCount(db, yesterday),
-    getMonthlyVisitorsCount(db, today),
+    getMonthlyVisitorsFromStatsDaily(today),
   ]);
 
   updateCard("#daily-visitors", todayVisit, yesterdayVisit, "명");
@@ -829,32 +867,8 @@ async function calculateMonthlyVisitRate() {
   try {
     const now = new Date();
     const [ms, me] = monthRange(now);
-    // 1) 해당 월 '한 번 이상' 방문한 고유 고객 수 (visits 월 범위 dedup)
-    const minDay = toDayNumber(ms);
-    const maxDay = toDayNumber(
-      new Date(me.getFullYear(), me.getMonth(), me.getDate() - 1)
-    );
-    let last = null;
-    const uniq = new Set();
-    while (true) {
-      let qv = query(
-        collection(db, "visits"),
-        where("day", ">=", minDay),
-        where("day", "<=", maxDay),
-        orderBy("day", "asc"),
-        limit(500)
-      );
-      if (last) qv = query(qv, startAfter(last));
-      const snap = await getDocs(qv);
-      if (snap.empty) break;
-      snap.forEach((d) => {
-        const v = d.data();
-        if (v?.customerId) uniq.add(v.customerId);
-      });
-      last = snap.docs[snap.docs.length - 1];
-      if (snap.size < 500) break;
-    }
-    const visitedThisMonthCount = uniq.size;
+    // 1) 해당 월 방문 인원: stats_daily 합산값(캐시 포함)
+    const visitedThisMonthCount = await getMonthlyVisitorsFromStatsDaily(now);
     // 2) 지원 고객 수 (count aggregation)
     const agg = await getCountFromServer(
       query(collection(db, "customers"), where("status", "==", "지원"))

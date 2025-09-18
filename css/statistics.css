@@ -41,6 +41,10 @@
   color: red;
 }
 
+#daily-visitors {
+  cursor: pointer;
+}
+
 /* 탭 버튼 */
 .view-toggle {
   display: flex;
