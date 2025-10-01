@@ -289,6 +289,82 @@ export function loadFooter(containerID = null) {
   container.insertAdjacentHTML("beforeend", footerHTML);
 }
 
+/* ===================== Global Loading Utilities ===================== */
+let __loadingHost = null;
+function ensureLoadingHost() {
+  if (__loadingHost) return __loadingHost;
+  const host = document.createElement("div");
+  host.id = "app-loading";
+  host.setAttribute("aria-hidden", "true");
+  host.innerHTML = `
+    <div class="al-backdrop"></div>
+    <div class="al-dialog" role="status" aria-live="polite">
+      <div class="al-spinner" aria-hidden="true"></div>
+      <div class="al-text">데이터 불러오는 중…</div>
+    </div>
+  `;
+  document.body.appendChild(host);
+  __loadingHost = host;
+  return host;
+}
+/** 전역 로딩 오버레이 표시 */
+export function showLoading(text = "데이터 불러오는 중…") {
+  const host = ensureLoadingHost();
+  const txt = host.querySelector(".al-text");
+  if (txt) txt.textContent = text;
+  host.classList.add("is-active");
+  document.body.setAttribute("data-loading", "true");
+}
+/** 전역 로딩 오버레이 숨기기 */
+export function hideLoading() {
+  const host = ensureLoadingHost();
+  host.classList.remove("is-active");
+  document.body.removeAttribute("data-loading");
+}
+/** try/finally 로딩 보장 래퍼 */
+export async function withLoading(task, text) {
+  showLoading(text);
+  try {
+    return await task();
+  } finally {
+    hideLoading();
+  }
+}
+/** 버튼/링크 등 특정 컨트롤 busy 상태 토글 */
+export function setBusy(el, busy = true) {
+  if (!el) return;
+  el.classList.toggle("is-busy", !!busy);
+  el.toggleAttribute?.("disabled", !!busy);
+  el.setAttribute("aria-busy", busy ? "true" : "false");
+}
+
+/* ===================== Section Skeleton Utilities ===================== */
+/**
+ * 표/섹션 컨테이너에 스켈레톤 행을 그리고, 정리 함수를 반환.
+ * @param {HTMLElement} container  섹션(body나 wrapper)
+ * @param {number} rows            표시할 스켈레톤 행 개수(기본 8)
+ * @returns {() => void}           정리 함수
+ */
+export function makeSectionSkeleton(container, rows = 8) {
+  if (!container) return () => {};
+  const wrap = document.createElement("div");
+  wrap.className = "skeleton";
+  wrap.style.width = "100%";
+  for (let i = 0; i < rows; i++) {
+    const r = document.createElement("div");
+    r.className = "skeleton-row";
+    wrap.appendChild(r);
+  }
+  // 기존 내용은 유지하고 위에 잠시 덮어 보여줌
+  container.style.position = "relative";
+  wrap.style.position = "absolute";
+  wrap.style.inset = "0";
+  container.appendChild(wrap);
+  return () => {
+    wrap.remove();
+  };
+}
+
 /**
  * A안 커서 기반 페이지네이터 렌더러
  * - totalCount 없이 현재까지 ‘발견된’ 페이지 범위만 숫자 버튼을 노출

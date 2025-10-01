@@ -224,16 +224,19 @@
 /* 모달 전체 높이를 뷰포트 내로 제한하고 내부 스크롤 허용 */
 #monthly-daily-modal .modal-content {
   max-height: 85vh;
-  overflow: auto;          /* 세로 스크롤 */
+  overflow: auto; /* 세로 스크롤 */
   overscroll-behavior: contain;
-  font-family: "Pretendard", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
-
+  font-family: "Pretendard", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Noto Sans", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
 }
 /* 스크롤은 래퍼가 담당 */
 #monthly-daily-modal .table-scroll {
-  max-height: 65vh;        /* 버튼/툴바 공간 확보 */
+  max-height: 65vh; /* 버튼/툴바 공간 확보 */
   overflow: auto;
-  margin: 0;               /* 여백 제거 */
+  margin: 0; /* 여백 제거 */
+}
+#monthly-daily-modal .small-btn {
+  color: #333;
 }
 /* 테이블은 영역을 100% 채움 */
 #monthly-daily-modal #monthly-daily-table {
@@ -249,33 +252,42 @@
   z-index: 1;
 }
 /* 숫자 정렬(안전차원) */
-#monthly-daily-modal .num { text-align: right; }
+#monthly-daily-modal .num {
+  text-align: right;
+}
 #monthly-daily-modal #monthly-daily-table th,
-#monthly-daily-modal #monthly-daily-table td { text-align: center; }
-#monthly-daily-modal .num { text-align: center; }
+#monthly-daily-modal #monthly-daily-table td {
+  text-align: center;
+}
+#monthly-daily-modal .num {
+  text-align: center;
+}
 
 /* ===== 합계 행 강조 ===== */
 #monthly-daily-modal #monthly-daily-table tfoot tr td {
   font-weight: 700;
-  background: #f1f5f9;        /* 은은한 하이라이트(슬레이트 톤) */
+  background: #f1f5f9; /* 은은한 하이라이트(슬레이트 톤) */
   border-top: 2px solid #cbd5e1;
-  padding-top: 10px;          /* 살짝 여백 추가로 분리감 */
+  padding-top: 10px; /* 살짝 여백 추가로 분리감 */
   padding-bottom: 10px;
 }
 /* 합계 행이 표 바깥 그림자와 겹칠 때 살짝 띄워 보이도록 */
 #monthly-daily-modal #monthly-daily-table tfoot tr td:first-child {
-  box-shadow: 0 -2px 8px rgba(0,0,0,0.03);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.03);
 }
 
 /* 달력/버튼 컨트롤 중앙 정렬 */
-.monthly-daily-controls{
-  display:flex;
-  gap:10px;
-  align-items:center;
-  justify-content:center;   /* 가운데 정렬 */
-  margin:8px 0 12px;
+.monthly-daily-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center; /* 가운데 정렬 */
+  margin: 8px 0 12px;
 }
-.monthly-daily-controls input[type="month"]{ padding:4px 8px; }
+.monthly-daily-controls input[type="month"] {
+  padding: 4px 8px;
+  margin: 0;
+}
 
 /* 반응형 */
 @media (max-width: 768px) {

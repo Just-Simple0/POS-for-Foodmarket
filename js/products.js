@@ -28,6 +28,9 @@ import {
   renderCursorPager,
   initPageSizeSelect,
   openConfirm,
+  withLoading,
+  makeSectionSkeleton,
+  setBusy,
 } from "./components/comp.js";
 
 const productsCol = collection(db, "products");
@@ -412,7 +415,7 @@ function buildProductBaseConstraints(direction = "init") {
   }
   cons.push(...orders);
   return cons;
-};
+}
 
 // 🔹 페이지 쿼리 = 기본 제약 + startAfter(옵션) + limit(N+1)
 function buildProductQuery(direction = "init") {
@@ -429,7 +432,10 @@ function buildProductQuery(direction = "init") {
 async function loadProducts(direction = "init") {
   const qy = buildProductQuery(direction);
   productList.innerHTML = "";
+  // 섹션 스켈레톤 (목록 영역 국소 로딩)
+  let __cleanupSkel;
   try {
+    __cleanupSkel = makeSectionSkeleton(productList, 8);
     const snap = await getDocs(qy);
     // --- 룩어헤드 해석 ---
     __hasNextLookahead = snap.size > prodPageSize;
@@ -451,6 +457,8 @@ async function loadProducts(direction = "init") {
   } catch (e) {
     console.error(e);
     showToast("상품 목록을 불러오지 못했습니다.", true);
+  } finally {
+    __cleanupSkel?.();
   }
 }
 
@@ -938,71 +946,78 @@ async function handleImport() {
   $importBtn.disabled = true;
   $parseBtn.disabled = true;
 
-  try {
-    for (let ci = 0; ci < chunks.length; ci++) {
-      const batch = writeBatch(db);
-      const rows = chunks[ci];
+  // 전역 오버레이로 장시간 업로드 표시
+  await withLoading(async () => {
+    setBusy($importBtn, true);
+    setBusy($parseBtn, true);
+    try {
+      for (let ci = 0; ci < chunks.length; ci++) {
+        const batch = writeBatch(db);
+        const rows = chunks[ci];
 
-      rows.forEach((row) => {
-        const existing = byBarcode.get(row.barcode);
-        const ts = serverTimestamp();
-        if (existing) {
-          // ✅ 기존 바코드면 항상 업데이트(분류 포함)
-          const ref = doc(db, "products", existing.id);
-          batch.update(ref, {
-            name: row.name,
-            category: row.category, // ← 추가
-            price: row.price,
-            barcode: row.barcode,
-            nameTokens: tokenizeName(row.name), // ✅ 업로드 갱신 시 토큰 추가
-            updatedAt: ts,
-            lastestAt: ts,
-          });
-          updated++;
-        } else {
-          const ref = doc(productsCol); // 랜덤 ID
-          batch.set(ref, {
-            name: row.name,
-            category: row.category,
-            price: row.price,
-            barcode: row.barcode,
-            nameTokens: tokenizeName(row.name), // ✅ 신규 생성 시 토큰 추가
-            createdAt: ts,
-            lastestAt: ts,
-          });
-          created++;
-        }
-      });
+        rows.forEach((row) => {
+          const existing = byBarcode.get(row.barcode);
+          const ts = serverTimestamp();
+          if (existing) {
+            // ✅ 기존 바코드면 항상 업데이트(분류 포함)
+            const ref = doc(db, "products", existing.id);
+            batch.update(ref, {
+              name: row.name,
+              category: row.category, // ← 추가
+              price: row.price,
+              barcode: row.barcode,
+              nameTokens: tokenizeName(row.name), // ✅ 업로드 갱신 시 토큰 추가
+              updatedAt: ts,
+              lastestAt: ts,
+            });
+            updated++;
+          } else {
+            const ref = doc(productsCol); // 랜덤 ID
+            batch.set(ref, {
+              name: row.name,
+              category: row.category,
+              price: row.price,
+              barcode: row.barcode,
+              nameTokens: tokenizeName(row.name), // ✅ 신규 생성 시 토큰 추가
+              createdAt: ts,
+              lastestAt: ts,
+            });
+            created++;
+          }
+        });
 
-      await batch.commit();
-      $progress.textContent = `${Math.min(
-        (ci + 1) * CHUNK,
-        parsedRows.length
-      )} / ${parsedRows.length} 처리 중...`;
+        await batch.commit();
+        $progress.textContent = `${Math.min(
+          (ci + 1) * CHUNK,
+          parsedRows.length
+        )} / ${parsedRows.length} 처리 중...`;
+      }
+
+      // 업로드에 포함된 새 카테고리를 한 번에 인덱스에 합치기(쓰기 1회)
+      const catsToIndex = Array.from(
+        new Set(
+          parsedRows.map((r) => normalizeCategory(r.category)).filter(Boolean)
+        )
+      );
+      if (catsToIndex.length) await addCategoriesToIndex(catsToIndex);
+
+      $progress.textContent = `완료: 추가 ${created.toLocaleString()} · 업데이트 ${updated.toLocaleString()}`;
+      showToast(`엑셀 업로드 완료 (${created} 추가 / ${updated} 업데이트)`);
+      // ✅ 업로드 성공 후 모달 닫기 + 초기화
+      closeCreate();
+      resetProdPager();
+      await loadProducts("init");
+    } catch (e) {
+      console.error(e);
+      showToast("엑셀 업로드 중 오류가 발생했습니다.", true);
+      $progress.textContent = "실패";
+    } finally {
+      setBusy($importBtn, false);
+      setBusy($parseBtn, false);
+      $importBtn.disabled = false;
+      $parseBtn.disabled = false;
     }
-
-    // 업로드에 포함된 새 카테고리를 한 번에 인덱스에 합치기(쓰기 1회)
-    const catsToIndex = Array.from(
-      new Set(
-        parsedRows.map((r) => normalizeCategory(r.category)).filter(Boolean)
-      )
-    );
-    if (catsToIndex.length) await addCategoriesToIndex(catsToIndex);
-
-    $progress.textContent = `완료: 추가 ${created.toLocaleString()} · 업데이트 ${updated.toLocaleString()}`;
-    showToast(`엑셀 업로드 완료 (${created} 추가 / ${updated} 업데이트)`);
-    // ✅ 업로드 성공 후 모달 닫기 + 초기화
-    closeCreate();
-    resetProdPager();
-    await loadProducts("init");
-  } catch (e) {
-    console.error(e);
-    showToast("엑셀 업로드 중 오류가 발생했습니다.", true);
-    $progress.textContent = "실패";
-  } finally {
-    $importBtn.disabled = false;
-    $parseBtn.disabled = false;
-  }
+  }, "엑셀 업로드 중…");
 }
 
 /** 기존 바코드들을 Firestore에서 조회(Map(barcode -> {id,...})) */
@@ -1235,27 +1250,33 @@ async function goNextPage() {
 // 이전: 현재 첫 문서 이전 묶음을 endBefore + limitToLast로 로드
 async function goPrevPage() {
   if (prodPage <= 1 || !__currentFirstDoc) return;
+  let __cleanupSkel;
   const cons = [
     ...buildProductBaseConstraints(),
     endBefore(__currentFirstDoc),
     limitToLast(prodPageSize),
   ];
-  const snap = await getDocs(query(productsCol, ...cons));
-  const docsForRender = snap.docs;
-  currentRows = docsForRender.map((d) => ({ id: d.id, ...d.data() }));
-  prodPage = Math.max(1, prodPage - 1);
-  prodHasPrev = prodPage > 1;
-  prodHasNext = prodPage < (__totalPages || 1);
-  __hasNextLookahead = true; // 이전에서 돌아왔으므로 다음은 존재
-  __currentFirstDoc = docsForRender[0] || null;
-  __currentLastDoc = docsForRender[docsForRender.length - 1] || null;
-  prodLastDoc = __currentLastDoc;
-  // 앵커(선택): 이 페이지의 시작 커서 기록
-  if (!prodCursors[prodPage - 1] && docsForRender.length) {
-    prodCursors[prodPage - 1] = docsForRender[0];
+  try {
+    __cleanupSkel = makeSectionSkeleton(productList, 8);
+    const snap = await getDocs(query(productsCol, ...cons));
+    const docsForRender = snap.docs;
+    currentRows = docsForRender.map((d) => ({ id: d.id, ...d.data() }));
+    prodPage = Math.max(1, prodPage - 1);
+    prodHasPrev = prodPage > 1;
+    prodHasNext = prodPage < (__totalPages || 1);
+    __hasNextLookahead = true; // 이전에서 돌아왔으므로 다음은 존재
+    __currentFirstDoc = docsForRender[0] || null;
+    __currentLastDoc = docsForRender[docsForRender.length - 1] || null;
+    prodLastDoc = __currentLastDoc;
+    // 앵커(선택): 이 페이지의 시작 커서 기록
+    if (!prodCursors[prodPage - 1] && docsForRender.length) {
+      prodCursors[prodPage - 1] = docsForRender[0];
+    }
+    renderList();
+    renderPagination();
+  } finally {
+    __cleanupSkel?.();
   }
-  renderList();
-  renderPagination();
 }
 
 // 원하는 페이지까지 순차 이동(멀리 점프도 안전)
@@ -1275,18 +1296,24 @@ async function jumpToPage(target) {
 // 마지막 페이지: limitToLast로 한 번에
 async function goLastDirect() {
   const cons = [...buildProductBaseConstraints(), limitToLast(prodPageSize)];
-  const snap = await getDocs(query(productsCol, ...cons));
-  const docsForRender = snap.docs; // 현재 정렬의 "마지막 페이지"
-  currentRows = docsForRender.map((d) => ({ id: d.id, ...d.data() }));
-  __currentFirstDoc = docsForRender[0] || null;
-  __currentLastDoc = docsForRender[docsForRender.length - 1] || null;
-  prodLastDoc = __currentLastDoc;
-  prodPage = Math.max(1, __totalPages || 1);
-  prodHasPrev = prodPage > 1;
-  prodHasNext = false;
-  __hasNextLookahead = false;
-  renderList();
-  renderPagination();
+  let __cleanupSkel;
+  try {
+    __cleanupSkel = makeSectionSkeleton(productList, 8);
+    const snap = await getDocs(query(productsCol, ...cons));
+    const docsForRender = snap.docs; // 현재 정렬의 "마지막 페이지"
+    currentRows = docsForRender.map((d) => ({ id: d.id, ...d.data() }));
+    __currentFirstDoc = docsForRender[0] || null;
+    __currentLastDoc = docsForRender[docsForRender.length - 1] || null;
+    prodLastDoc = __currentLastDoc;
+    prodPage = Math.max(1, __totalPages || 1);
+    prodHasPrev = prodPage > 1;
+    prodHasNext = false;
+    __hasNextLookahead = false;
+    renderList();
+    renderPagination();
+  } finally {
+    __cleanupSkel?.();
+  }
 }
 
 // 총 문서 수 → 총 페이지 수

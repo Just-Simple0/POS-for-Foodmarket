@@ -20,6 +20,8 @@ import {
   showToast,
   renderCursorPager,
   initPageSizeSelect,
+  withLoading,
+  makeSectionSkeleton,
 } from "./components/comp.js";
 
 /* =====================================================
@@ -270,13 +272,6 @@ async function getMonthlyVisitorsFromStatsDaily(baseDate = new Date()) {
   return sum;
 }
 
-// Simple loading indicator toggler (add .loading CSS in your stylesheet)
-function setLoading(sectionId, on) {
-  const el = document.getElementById(sectionId);
-  if (!el) return;
-  el.classList.toggle("loading", !!on);
-}
-
 /* =====================================================
  * 공통: pagebar(A안) 렌더 도우미
  * ===================================================== */
@@ -396,11 +391,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   startDateInput.val(today.format("YYYY.MM.DD"));
   endDateInput.val(today.format("YYYY.MM.DD"));
 
-  // 초기 데이터 로드(오늘)
-  await loadProvisionHistoryByRange(today.toDate(), today.toDate());
-  await renderTopStatistics();
-  calculateMonthlyVisitRate();
-  await loadVisitLogTable(getCurrentPeriodKey());
+  // 초기 데이터 로드(오늘) — 전역 로딩 오버레이
+  await withLoading(async () => {
+    await loadProvisionHistoryByRange(today.toDate(), today.toDate());
+    await renderTopStatistics();
+    await calculateMonthlyVisitRate();
+    await loadVisitLogTable(getCurrentPeriodKey());
+  }, "통계 데이터 로딩 중...");
 
   // 탭/필터
   const btnProvision = document.getElementById("btn-provision");
@@ -940,8 +937,12 @@ async function loadProvisionHistoryByRange(startDate, endDate) {
     provCursor.serverMode
   );
 
+  // 섹션 스켈레톤 (표 영역에 국소 로딩)
+  const __cleanupSkel = makeSectionSkeleton(
+    document.getElementById("provision-section"),
+    10
+  );
   try {
-    setLoading("provision-section", true);
     if (provCursor.serverMode) {
       await computeProvisionTotalPages();
       await loadProvisionPage("init");
@@ -982,7 +983,7 @@ async function loadProvisionHistoryByRange(startDate, endDate) {
     console.error(e);
     showToast?.("제공 내역을 불러오지 못했습니다.");
   } finally {
-    setLoading("provision-section", false);
+    __cleanupSkel?.();
   }
 }
 
@@ -1055,8 +1056,11 @@ async function loadProvisionPage(direction) {
     return;
   }
 
+  const __cleanupSkel = makeSectionSkeleton(
+    document.getElementById("provision-section"),
+    8
+  );
   try {
-    setLoading("provision-section", true);
     const snap = await getDocs(qy);
 
     // --- look-ahead 해석 + 정렬 보정 ---
@@ -1104,7 +1108,7 @@ async function loadProvisionPage(direction) {
     console.error(e);
     showToast?.("제공 내역(페이지)을 불러오지 못했습니다.");
   } finally {
-    setLoading("provision-section", false);
+    __cleanupSkel?.();
   }
 }
 
@@ -1156,8 +1160,12 @@ function renderProvisionPagerA() {
  * Visit
  * ===================================================== */
 async function loadVisitLogTable(periodKey) {
+  let __cleanupSkel;
   try {
-    setLoading("visit-log-section", true);
+    __cleanupSkel = makeSectionSkeleton(
+      document.getElementById("visit-log-section"),
+      10
+    );
     visitData = [];
     // visits에서 회계연도(periodKey)로 직접 조회 → 고객별 그룹핑
     const qv = query(
@@ -1168,7 +1176,6 @@ async function loadVisitLogTable(periodKey) {
     const snap = await getDocs(qv);
     if (snap.empty) {
       renderVisitTable([]);
-      setLoading("visit-log-section", false);
       return;
     }
     const byCustomer = new Map(); // id -> { dates: Set<string> }
@@ -1208,7 +1215,7 @@ async function loadVisitLogTable(periodKey) {
     console.error(e);
     showToast?.("방문 일자를 불러오지 못했습니다.");
   } finally {
-    setLoading("visit-log-section", false);
+    __cleanupSkel?.();
   }
 }
 
@@ -1233,67 +1240,75 @@ async function loadLifeTable(year, q) {
 
   const quarterKey = buildQuarterKey(year, q);
 
-  let provRows = [];
-  try {
-    const q1 = query(
-      collection(db, "provisions"),
-      where("lifelove", "==", true),
-      where("quarterKey", "==", quarterKey)
-    );
-    const snap1 = await getDocs(q1);
-    snap1.forEach((doc) => provRows.push(doc.data()));
-    console.debug(
-      "[Life][1] compound where count:",
-      provRows.length,
-      "key:",
-      quarterKey
-    );
-  } catch (err) {
-    console.warn("[Life][1] compound where error (index?)", err);
-  }
-
-  if (LIFE_DEBUG_FALLBACK && provRows.length === 0) {
-    const allProvSnap = await getDocs(collection(db, "provisions"));
-    const all = [];
-    allProvSnap.forEach((doc) => all.push(doc.data()));
-    const keyTrim = quarterKey.trim();
-    provRows = all.filter(
-      (d) =>
-        (d.lifelove === true || d.lifelove === "true") &&
-        typeof d.quarterKey === "string" &&
-        d.quarterKey.trim() === keyTrim
-    );
-    console.debug("[Life][3] fallback full-scan:", provRows.length);
-  }
-
-  const needIds = provRows.map((p) => p.customerId).filter(Boolean);
-  const customerMap = await fetchCustomersByIdsBatched(needIds);
-
-  lifeData = provRows.map((p) => {
-    const c = p.customerId ? customerMap[p.customerId] : null;
-    return {
-      name: c?.name ?? p.customerName ?? "",
-      birth: c?.birth ?? p.customerBirth ?? "",
-      gender: c?.gender ?? "",
-      userType: c?.type ?? "",
-      userClass: c?.category ?? "",
-    };
-  });
-
-  lifeData.sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  lifeCurrentPage = 1;
-  renderLifeTable();
-
-  console.debug(
-    "[Life][final] quarterKey:",
-    quarterKey,
-    "prov:",
-    provRows.length,
-    "rendered:",
-    lifeData.length
+  // Life 섹션 국소 스켈레톤
+  const __cleanupSkel = makeSectionSkeleton(
+    document.getElementById("life-section"),
+    10
   );
-}
+  try {
+    let provRows = [];
+    try {
+      const q1 = query(
+        collection(db, "provisions"),
+        where("lifelove", "==", true),
+        where("quarterKey", "==", quarterKey)
+      );
+      const snap1 = await getDocs(q1);
+      snap1.forEach((doc) => provRows.push(doc.data()));
+      console.debug(
+        "[Life][1] compound where count:",
+        provRows.length,
+        "key:",
+        quarterKey
+      );
+    } catch (err) {
+      console.warn("[Life][1] compound where error (index?)", err);
+    }
 
+    if (LIFE_DEBUG_FALLBACK && provRows.length === 0) {
+      const allProvSnap = await getDocs(collection(db, "provisions"));
+      const all = [];
+      allProvSnap.forEach((doc) => all.push(doc.data()));
+      const keyTrim = quarterKey.trim();
+      provRows = all.filter(
+        (d) =>
+          (d.lifelove === true || d.lifelove === "true") &&
+          typeof d.quarterKey === "string" &&
+          d.quarterKey.trim() === keyTrim
+      );
+      console.debug("[Life][3] fallback full-scan:", provRows.length);
+    }
+
+    const needIds = provRows.map((p) => p.customerId).filter(Boolean);
+    const customerMap = await fetchCustomersByIdsBatched(needIds);
+
+    lifeData = provRows.map((p) => {
+      const c = p.customerId ? customerMap[p.customerId] : null;
+      return {
+        name: c?.name ?? p.customerName ?? "",
+        birth: c?.birth ?? p.customerBirth ?? "",
+        gender: c?.gender ?? "",
+        userType: c?.type ?? "",
+        userClass: c?.category ?? "",
+      };
+    });
+
+    lifeData.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    lifeCurrentPage = 1;
+    renderLifeTable();
+
+    console.debug(
+      "[Life][final] quarterKey:",
+      quarterKey,
+      "prov:",
+      provRows.length,
+      "rendered:",
+      lifeData.length
+    );
+  } finally {
+    __cleanupSkel?.();
+  }
+}
 /* =====================================================
  * Renderers
  * ===================================================== */

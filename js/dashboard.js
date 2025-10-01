@@ -10,6 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 import { db } from "./components/firebase-config.js";
+import { withLoading, makeSectionSkeleton } from "./components/comp.js";
 
 // 로컬(KST) 기준 날짜 키: 'YYYY-MM-DD'
 function dateKeyLocal(d) {
@@ -30,24 +31,26 @@ function dateKey8Local(d) {
 async function loadRecentProducts() {
   const productsRef = collection(db, "products");
   const q = query(productsRef, orderBy("lastestAt", "desc"), limit(6));
-  const snapshot = await getDocs(q);
-
   const listEl = document.getElementById("recent-products-list");
-  if (!listEl) return;
-  listEl.innerHTML = ""; // 기존 내용 초기화
-
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    const dataObj = data.lastestAt?.toDate?.();
-
-    const formatted = `${dataObj.getFullYear()}.${String(
-      dataObj.getMonth() + 1
-    ).padStart(2, "0")}.${String(dataObj.getDate()).padStart(2, "0")}`;
-
-    const li = document.createElement("li");
-    li.textContent = `${data.name} (${formatted})`;
-    listEl.appendChild(li);
-  });
+  // 리스트 영역 스켈레톤
+  let __skList;
+  try {
+    __skList = makeSectionSkeleton(listEl, 6);
+    const snapshot = await getDocs(q);
+    listEl.innerHTML = ""; // 기존 내용 초기화
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const dataObj = data.lastestAt?.toDate?.();
+      const formatted = `${dataObj.getFullYear()}.${String(
+        dataObj.getMonth() + 1
+      ).padStart(2, "0")}.${String(dataObj.getDate()).padStart(2, "0")}`;
+      const li = document.createElement("li");
+      li.textContent = `${data.name} (${formatted})`;
+      listEl.appendChild(li);
+    });
+  } finally {
+    __skList?.();
+  }
 }
 
 function navigateTo(url) {
@@ -74,9 +77,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
-  await loadDashboardData();
-  loadRecentProducts();
-  setExpiryInfo();
+  // 초기 로딩을 전역 오버레이로 묶어 사용자가 '모두 로드된 뒤' 이용하게 함
+  await withLoading(async () => {
+    await loadDashboardData();
+    await loadRecentProducts();
+    setExpiryInfo();
+  }, "대시보드 데이터 불러오는 중…");
 
   // 통계로 이동: 이용 고객 수 / 제공된 물품 수
   const visitCard = document.getElementById("visit-card");
@@ -97,7 +103,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadDashboardData() {
+  // 방문/품목 카드에 국소 스켈레톤 표시
+  let __skVisit, __skItems;
   try {
+    __skVisit = makeSectionSkeleton(document.getElementById("visit-card"), 6);
+    __skItems = makeSectionSkeleton(document.getElementById("item-card"), 6);
     const { visitData, todayItemsMap, todayItemsTotal, prevItemsTotal } =
       await fetchProvisionStats();
 
@@ -107,6 +117,9 @@ async function loadDashboardData() {
     console.error(err);
     renderVisitSection([]);
     renderItemSection({}, 0, 0);
+  } finally {
+    __skVisit?.();
+    __skItems?.();
   }
 }
 
