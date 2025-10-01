@@ -1,0 +1,219 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Project components mapped to Tailwind tokens ===== */
+@layer components {
+  /* Buttons (base + variants) */
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium
+           bg-blue-600 text-white shadow hover:brightness-95 active:brightness-90
+            disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+  .btn-outline {
+    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium
+           border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+  } 
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium
+           border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+  }
+  .btn-info {
+    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold
+           bg-sky-500 text-white hover:brightness-95;
+  }
+  .btn--danger,
+  .btn.danger {
+    @apply bg-red-600 text-white hover:brightness-95 active:brightness-90;
+  }
+  .btn-ghost,
+  .btn.btn-ghost {
+    @apply bg-transparent border border-slate-300 text-slate-700 hover:bg-slate-50;
+  }
+  .btn-warn {
+    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold
+           bg-red-100 border border-red-200 text-red-700 hover:bg-red-600 hover:text-white;
+  }
+  .small-btn {
+    @apply text-sm px-2 py-1 rounded-lg;
+  }
+
+  /* Tabs (support both .tab and .tab-btn; JS toggles .active) */
+  .tab,
+  .tab-btn {
+    @apply rounded-full border border-slate-300 bg-white text-slate-700
+           font-semibold px-3 py-2 shadow-sm cursor-pointer;
+  }
+  .tab.active,
+  .tab-btn.active,
+  .tab-btn.is-active {
+    @apply bg-blue-50 border-blue-300 text-blue-700;
+  }
+
+  /* Inputs / Selects */
+  .input {
+    @apply h-10 w-full rounded-lg border border-slate-300 bg-white text-slate-800
+           px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+  .select {
+    @apply h-10 rounded-lg border border-slate-300 bg-white text-slate-800
+           px-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+  .input-sm {
+    @apply text-sm px-2 py-1 rounded-md;
+  }
+  .label {
+    @apply text-slate-700 font-medium;
+  }
+  textarea.input {
+    @apply h-auto min-h-[2.5rem];
+  }
+
+  /* Cards */
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white shadow;
+  }
+  .card-header {
+    @apply px-4 py-3 border-b border-slate-200 font-semibold text-slate-800;
+  }
+  .card-body {
+    @apply p-4;
+  }
+  .card-footer {
+    @apply px-4 py-3 border-t border-slate-200;
+  }
+
+  /* Tables */
+  .table {
+    @apply w-full text-sm;
+  }
+  .table th {
+    @apply bg-slate-50 font-semibold text-slate-700;
+  }
+  .table th,
+  .table td {
+    @apply border border-slate-200 px-3 py-2;
+  }
+  .table-wrapper {
+    @apply overflow-auto rounded-md border border-slate-200;
+  }
+
+  /* Modal */
+  .modal {
+    @apply fixed inset-0 flex items-center justify-center bg-black/40;
+  }
+  .modal-content {
+    @apply bg-white rounded-xl shadow-lg w-full max-w-xl p-5;
+  }
+  .modal-buttons {
+    @apply flex gap-2 justify-end mt-4;
+  }
+
+  /* Toast */
+  .toast,
+  #toast {
+    @apply fixed bottom-4 left-1/2 -translate-x-1/2 rounded-md px-4 py-2 bg-black/80 text-white shadow-lg;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold border;
+  }
+  .badge--admin {
+    @apply bg-blue-50 text-blue-700 border-blue-300;
+  }
+  .badge--pending {
+    @apply bg-yellow-50 text-yellow-700 border-yellow-300;
+  }
+  .badge--danger {
+    @apply bg-red-50 text-red-700 border-red-300;
+  }
+
+  /* Pagination */
+  .pagination {
+    @apply flex items-center gap-2 text-sm;
+  }
+  .page-btn {
+    @apply btn;
+  }
+  .page-input {
+    @apply w-16 input text-center;
+  }
+
+  /* Utility bridges used in legacy HTML */
+  .center {
+    @apply flex items-center justify-center;
+  }
+  .muted {
+    @apply text-slate-500;
+  }
+  .hidden {
+    @apply hidden;
+  } /* Tailwind에도 있지만 레거시 호환용 */
+}
+
+/* ===== Dark theme corrections (scoped; no duplicates) ===== */
+@layer components {
+  .dark body {
+    @apply bg-slate-900 text-slate-100;
+  }
+  .dark header {
+    @apply bg-slate-800 text-white;
+  }
+  .dark .main-nav a.active {
+    @apply border-white;
+  }
+
+  .dark .card {
+    @apply bg-slate-900 border-slate-700 text-slate-100;
+  }
+  .dark .modal-content {
+    @apply bg-slate-900 text-slate-100 border border-slate-700;
+  }
+
+  .dark .table th {
+    @apply bg-slate-800 text-slate-200;
+  }
+  .dark .table th,
+  .dark .table td {
+    @apply border-slate-700;
+  }
+
+  .dark .tab,
+  .dark .tab-btn {
+    @apply bg-slate-900 border-slate-700 text-slate-200;
+  }
+  .dark .tab.active,
+  .dark .tab-btn.active,
+  .dark .tab-btn.is-active {
+    @apply bg-slate-800 border-slate-600 text-white;
+  }
+
+  .dark .btn-outline,
+  .dark .btn-secondary {
+    @apply border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700;
+  }
+  .dark .btn-ghost,
+  .dark .btn.btn-ghost {
+    @apply border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700;
+  }
+  .dark .btn-warn {
+    @apply bg-red-900/30 border-red-800 text-red-100 hover:bg-red-600 hover:text-white;
+  }
+
+  .dark .badge {
+    @apply bg-slate-800 text-slate-200 border-slate-600;
+  }
+  .dark .toast,
+  .dark #toast {
+    @apply bg-black/80 text-white;
+  }
+
+  /* Optional: Login page tweaks (safe, 범용 요소만) */
+  .dark .pw-toggle {
+    color: #94a3b8;
+  } /* slate-400 */
+  .dark .pw-toggle:hover {
+    color: #e2e8f0;
+  } /* slate-200 */
+}
