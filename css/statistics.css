@@ -6,7 +6,7 @@
   flex-wrap: wrap;
   gap: 1.5rem;
   justify-content: center;
-  margin-bottom: 3rem;
+  margin: 1rem 0 3rem;
 }
 /* 카드 스타일 */
 .card {
