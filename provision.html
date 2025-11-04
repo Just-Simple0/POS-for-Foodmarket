@@ -19,6 +19,7 @@
     </script>
 
     <!-- 공통 parts 삽입 -->
+    <link rel="stylesheet" href="css/tw.css" />
     <link rel="stylesheet" href="css/common.css" />
 
     <link
@@ -44,7 +45,6 @@
     <!-- 개별 css, js 삽입 -->
     <link rel="stylesheet" href="css/provision.css" />
     <script type="module" src="js/provision.js" defer></script>
-    <link rel="stylesheet" href="css/tw.css" />
   </head>
 
   <body>
@@ -184,7 +184,11 @@
           >
             <i class="fas fa-pause-circle"></i> 보류 저장
           </button>
-          <button id="hold-load-btn" class="btn btn-outline" title="임시 저장된 장바구니 불러오기">
+          <button
+            id="hold-load-btn"
+            class="btn btn-outline"
+            title="임시 저장된 장바구니 불러오기"
+          >
             <i class="fas fa-play-circle"></i> 보류 불러오기
           </button>
         </div>
@@ -194,7 +198,12 @@
       <section id="exchange-section" data-tab-panel="exchange" class="hidden">
         <h3>이용자 조회(교환)</h3>
         <section id="ex-customer-lookup">
-          <input type="text" id="ex-customer-search" class="input w-72 md:w-96" placeholder="예: 홍길동" />
+          <input
+            type="text"
+            id="ex-customer-search"
+            class="input w-72 md:w-96"
+            placeholder="예: 홍길동"
+          />
           <button id="ex-lookup-btn" class="btn" type="button">
             <i class="fas fa-search"></i> 조회
           </button>
@@ -211,7 +220,7 @@
           <h3>교환 (최근 50일, 환불 없음)</h3>
           50일 이내 제공내역에서 교환할 내역을 선택하세요.
           <div class="table-wrapper">
-            <table id="exchange-history-table"class="table">
+            <table id="exchange-history-table" class="table">
               <thead>
                 <tr>
                   <th>일시</th>
@@ -238,7 +247,12 @@
               pattern="\\d*"
             />
             <div class="autocomplete-wrapper">
-              <input type="text" id="ex-name-input" class="input w-64 md:w-72" placeholder="상품명 입력" />
+              <input
+                type="text"
+                id="ex-name-input"
+                class="input w-64 md:w-72"
+                placeholder="상품명 입력"
+              />
               <div
                 class="autocomplete-list hidden"
                 id="ex-autocomplete"
@@ -313,7 +327,11 @@
           >
             <i class="fas fa-check"></i> 삽입
           </button>
-          <button id="close-duplicate-modal" class="btn btn-outline" type="button">
+          <button
+            id="close-duplicate-modal"
+            class="btn btn-outline"
+            type="button"
+          >
             <i class="fas fa-times"></i> 닫기
           </button>
         </div>

@@ -8,14 +8,17 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem('theme');
-          var d = t ? (t === 'dark')
-                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (d) document.documentElement.classList.add('dark');
+          var t = localStorage.getItem("theme");
+          var d = t
+            ? t === "dark"
+            : window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (d) document.documentElement.classList.add("dark");
         } catch (e) {}
       })();
     </script>
     <!-- 공통 parts 삽입 -->
+    <link rel="stylesheet" href="css/tw.css" />
     <link rel="stylesheet" href="css/common.css" />
     <link
       rel="stylesheet"
@@ -37,8 +40,7 @@
     <!-- 개별 css, js 삽입 -->
     <link rel="stylesheet" href="css/customers.css" />
     <script type="module" src="js/customers.js" defer></script>
-    <link rel="stylesheet" href="css/tw.css">
-</head>
+  </head>
   <body>
     <div id="header-container"></div>
 
@@ -47,7 +49,8 @@
       <div id="top-bar">
         <div class="search-bar">
           <input
-            id="global-search" class="input w-72 md:w-96"
+            id="global-search"
+            class="input w-72 md:w-96"
             placeholder="이름/행정구역 접두 또는 전화 숫자"
           />
           <button id="btn-run-search" class="btn">검색</button>
@@ -76,8 +79,14 @@
             <option value="category">이용자분류</option>
             <option value="note">비고</option>
           </select>
-          <input id="field-search" class="input w-64 md:w-80" placeholder="선택 필드 검색" />
-          <button id="btn-run-field-search" class="btn"><i class="fas fa-search"></i> 조회</button>
+          <input
+            id="field-search"
+            class="input w-64 md:w-80"
+            placeholder="선택 필드 검색"
+          />
+          <button id="btn-run-field-search" class="btn">
+            <i class="fas fa-search"></i> 조회
+          </button>
         </div>
       </div>
 
@@ -152,18 +161,25 @@
         </div>
         <div class="modal-body">
           <div class="tabs">
-            <button class="tab tab-btn active" data-tab="direct">직접 입력</button>
+            <button class="tab tab-btn active" data-tab="direct">
+              직접 입력
+            </button>
             <button class="tab tab-btn" data-tab="upload">엑셀 업로드</button>
           </div>
           <div class="tab-panel" id="tab-direct">
             <!-- 사진처럼 2열 그리드 배치 -->
             <div class="form-grid">
               <label
-                ><span>이름</span><input id="create-name" type="text" class="input"
+                ><span>이름</span
+                ><input id="create-name" type="text" class="input"
               /></label>
               <label
                 ><span>생년월일</span
-                ><input id="create-birth" type="text" class="input" placeholder="YYYY.MM.DD"
+                ><input
+                  id="create-birth"
+                  type="text"
+                  class="input"
+                  placeholder="YYYY.MM.DD"
               /></label>
 
               <label
@@ -188,11 +204,13 @@
                 ><span>행정구역</span
                 ><input
                   id="create-region1"
-                  type="text" class="input"
+                  type="text"
+                  class="input"
                   placeholder="예: 두류1,2동"
               /></label>
               <label class="col-2"
-                ><span>주소</span><input id="create-address" type="text" class="input"
+                ><span>주소</span
+                ><input id="create-address" type="text" class="input"
               /></label>
 
               <!-- 전화번호(여러 개 입력 + 버튼) -->
@@ -234,7 +252,8 @@
               </label>
 
               <label class="col-2"
-                ><span>비고</span><input id="create-note" type="text" class="input"
+                ><span>비고</span
+                ><input id="create-note" type="text" class="input"
               /></label>
             </div>
             <div class="modal-buttons">
@@ -245,7 +264,11 @@
               >
                 <i class="fas fa-save"></i> 저장
               </button>
-              <button type="button" id="create-modal-close" class="btn btn-outline">
+              <button
+                type="button"
+                id="create-modal-close"
+                class="btn btn-outline"
+              >
                 닫기
               </button>
             </div>
@@ -306,7 +329,11 @@
                 <button class="btn" id="btn-upload-exec" disabled>
                   <i class="fas fa-cloud-upload-alt"></i> 실행
                 </button>
-                <button type="button" id="create-modal-close" class="btn btn-outline">
+                <button
+                  type="button"
+                  id="create-modal-close"
+                  class="btn btn-outline"
+                >
                   닫기
                 </button>
               </div>
@@ -331,7 +358,11 @@
           <label><span>이름</span><input id="edit-name" class="input" /></label>
           <label
             ><span>생년월일</span
-            ><input id="edit-birth" type="text" class="input" placeholder="YYYY.MM.DD"
+            ><input
+              id="edit-birth"
+              type="text"
+              class="input"
+              placeholder="YYYY.MM.DD"
           /></label>
 
           <label
@@ -394,11 +425,15 @@
             />
           </label>
 
-          <label class="col-2"><span>비고</span><input id="edit-note" class="input"/></label>
+          <label class="col-2"
+            ><span>비고</span><input id="edit-note" class="input"
+          /></label>
         </div>
 
         <div class="modal-buttons">
-          <button type="submit" class="btn"><i class="fas fa-save"></i> 저장</button>
+          <button type="submit" class="btn">
+            <i class="fas fa-save"></i> 저장
+          </button>
           <button type="button" id="close-edit-modal" class="btn btn-outline">
             <i class="fas fa-times"></i> 취소
           </button>

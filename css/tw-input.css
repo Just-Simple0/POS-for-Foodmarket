@@ -2,218 +2,159 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== Project components mapped to Tailwind tokens ===== */
+/* ===== Toss-tone Components ===== */
 @layer components {
-  /* Buttons (base + variants) */
+  /* Buttons */
   .btn {
-    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium
-           bg-blue-600 text-white shadow hover:brightness-95 active:brightness-90
-            disabled:opacity-60 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium appearance-none
+           border border-neutral-300 bg-white text-text-primary
+           hover:bg-neutral-50 active:scale-[.99] transition
+           disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold
+           bg-primary text-white hover:bg-primary-dark active:scale-[.99];
   }
   .btn-outline {
-    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium
-           border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
-  } 
-  .btn-secondary {
-    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium
-           border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium appearance-none
+           border border-neutral-300 bg-white text-text-primary hover:bg-neutral-50;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium appearance-none
+           border border-neutral-300 bg-white text-text-primary hover:bg-neutral-50;
   }
   .btn-info {
-    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold
-           bg-sky-500 text-white hover:brightness-95;
+    @apply bg-primary text-white hover:bg-primary-dark;
   }
   .btn--danger,
   .btn.danger {
-    @apply bg-red-600 text-white hover:brightness-95 active:brightness-90;
-  }
-  .btn-ghost,
-  .btn.btn-ghost {
-    @apply bg-transparent border border-slate-300 text-slate-700 hover:bg-slate-50;
-  }
-  .btn-warn {
-    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold
-           bg-red-100 border border-red-200 text-red-700 hover:bg-red-600 hover:text-white;
-  }
-  .small-btn {
-    @apply text-sm px-2 py-1 rounded-lg;
+    @apply bg-danger text-white hover:brightness-95;
   }
 
-  /* Tabs (support both .tab and .tab-btn; JS toggles .active) */
+  /* Tabs */
   .tab,
   .tab-btn {
-    @apply rounded-full border border-slate-300 bg-white text-slate-700
+    @apply rounded-full border border-neutral-300 bg-white text-text-primary
            font-semibold px-3 py-2 shadow-sm cursor-pointer;
   }
+
   .tab.active,
   .tab-btn.active,
-  .tab-btn.is-active {
-    @apply bg-blue-50 border-blue-300 text-blue-700;
+  .tab-btn.is-active,
+  .tab-btn[data-active="true"] {
+    @apply bg-primary text-white border-primary;
   }
 
   /* Inputs / Selects */
   .input {
-    @apply h-10 w-full rounded-lg border border-slate-300 bg-white text-slate-800
-           px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+    @apply h-10 w-full rounded-lg border border-neutral-300 bg-white text-text-primary
+           px-3 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary
+           placeholder-neutral-500;
   }
   .select {
-    @apply h-10 rounded-lg border border-slate-300 bg-white text-slate-800
-           px-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+    @apply h-10 rounded-lg border border-neutral-300 bg-white text-text-primary
+           px-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary;
   }
   .input-sm {
     @apply text-sm px-2 py-1 rounded-md;
   }
   .label {
-    @apply text-slate-700 font-medium;
+    @apply text-neutral-700 font-medium;
   }
   textarea.input {
     @apply h-auto min-h-[2.5rem];
   }
 
-  /* Cards */
-  .card {
-    @apply rounded-2xl border border-slate-200 bg-white shadow;
-  }
-  .card-header {
-    @apply px-4 py-3 border-b border-slate-200 font-semibold text-slate-800;
-  }
-  .card-body {
-    @apply p-4;
-  }
-  .card-footer {
-    @apply px-4 py-3 border-t border-slate-200;
-  }
-
-  /* Tables */
+  /* Table */
   .table {
-    @apply w-full text-sm;
+    @apply w-full border-collapse;
   }
-  .table th {
-    @apply bg-slate-50 font-semibold text-slate-700;
+  .table thead {
+    @apply sticky top-0 bg-neutral-50;
   }
-  .table th,
-  .table td {
-    @apply border border-slate-200 px-3 py-2;
+  .table thead th {
+    @apply text-left font-medium text-neutral-700 whitespace-nowrap
++           border-b border-neutral-300 px-3 py-2;
   }
-  .table-wrapper {
-    @apply overflow-auto rounded-md border border-slate-200;
+  .table tbody td {
+    @apply border-b border-neutral-200 align-middle px-3 py-2 text-neutral-900;
+  }
+  .table tfoot td {
+    @apply border-t border-neutral-200 px-3 py-2;
   }
 
-  /* Modal */
-  .modal {
-    @apply fixed inset-0 flex items-center justify-center bg-black/40;
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-none;
   }
-  .modal-content {
-    @apply bg-white rounded-xl shadow-lg w-full max-w-xl p-5;
+  .badge-info {
+    @apply border-neutral-300 bg-neutral-100 text-neutral-700;
   }
-  .modal-buttons {
-    @apply flex gap-2 justify-end mt-4;
+  .badge-success {
+    @apply border-success/40 bg-success/15 text-success;
+  }
+  .badge-danger {
+    @apply border-danger/40 bg-danger/15 text-danger;
+  }
+  .badge-warning {
+    @apply border-warning/40 bg-warning/15 text-warning;
+  }
+  .badge-primary {
+    @apply border-primary/30 bg-primary/10 text-primary;
   }
 
   /* Toast */
-  .toast,
-  #toast {
-    @apply fixed bottom-4 left-1/2 -translate-x-1/2 rounded-md px-4 py-2 bg-black/80 text-white shadow-lg;
+  .toast {
+    @apply fixed left-1/2 -translate-x-1/2 bottom-6 z-[1100] min-w-64 max-w-sm rounded-xl px-4 py-3 text-sm shadow-card;
+  }
+  .toast-info {
+    @apply bg-text-primary text-white;
+  }
+  .toast-success {
+    @apply bg-success text-white;
+  }
+  .toast-danger {
+    @apply bg-danger text-white;
+  }
+  .toast-warning {
+    @apply bg-warning text-black;
   }
 
-  /* Badge */
-  .badge {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold border;
+  /* States */
+  .limit-violation {
+    @apply bg-danger/10 text-danger;
   }
-  .badge--admin {
-    @apply bg-blue-50 text-blue-700 border-blue-300;
-  }
-  .badge--pending {
-    @apply bg-yellow-50 text-yellow-700 border-yellow-300;
-  }
-  .badge--danger {
-    @apply bg-red-50 text-red-700 border-red-300;
-  }
-
-  /* Pagination */
-  .pagination {
-    @apply flex items-center gap-2 text-sm;
-  }
-  .page-btn {
-    @apply btn;
-  }
-  .page-input {
-    @apply w-16 input text-center;
-  }
-
-  /* Utility bridges used in legacy HTML */
-  .center {
-    @apply flex items-center justify-center;
-  }
-  .muted {
-    @apply text-slate-500;
-  }
-  .hidden {
-    @apply hidden;
-  } /* Tailwind에도 있지만 레거시 호환용 */
 }
 
-/* ===== Dark theme corrections (scoped; no duplicates) ===== */
-@layer components {
+/* Dark */
+@layer base {
   .dark body {
-    @apply bg-slate-900 text-slate-100;
+    @apply bg-[#0B0B0B] text-neutral-100;
   }
-  .dark header {
-    @apply bg-slate-800 text-white;
-  }
-  .dark .main-nav a.active {
-    @apply border-white;
-  }
-
   .dark .card {
-    @apply bg-slate-900 border-slate-700 text-slate-100;
+    @apply bg-neutral-900 border-neutral-700 shadow-none;
   }
-  .dark .modal-content {
-    @apply bg-slate-900 text-slate-100 border border-slate-700;
+  .dark .table thead {
+    @apply bg-neutral-800;
   }
-
-  .dark .table th {
-    @apply bg-slate-800 text-slate-200;
+  .dark .table thead th {
+    @apply text-neutral-100 border-neutral-700;
   }
-  .dark .table th,
-  .dark .table td {
-    @apply border-slate-700;
+  .dark .table tbody td {
+    @apply text-neutral-100 border-neutral-800;
   }
-
-  .dark .tab,
-  .dark .tab-btn {
-    @apply bg-slate-900 border-slate-700 text-slate-200;
+  .dark .btn,
+  .dark .btn-outline {
+    @apply border-neutral-700 bg-neutral-900 text-neutral-100 hover:bg-neutral-800;
   }
-  .dark .tab.active,
-  .dark .tab-btn.active,
-  .dark .tab-btn.is-active {
-    @apply bg-slate-800 border-slate-600 text-white;
+  .dark .btn-ghost {
+    @apply border-neutral-700 bg-neutral-900 text-neutral-100 hover:bg-neutral-800;
   }
-
-  .dark .btn-outline,
-  .dark .btn-secondary {
-    @apply border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700;
+  .dark .btn-primary {
+    @apply bg-primary text-white hover:bg-primary-dark;
   }
-  .dark .btn-ghost,
-  .dark .btn.btn-ghost {
-    @apply border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700;
+  .dark .input,
+  .dark .select {
+    @apply border-neutral-700 bg-neutral-900 text-neutral-100 placeholder-neutral-400;
   }
-  .dark .btn-warn {
-    @apply bg-red-900/30 border-red-800 text-red-100 hover:bg-red-600 hover:text-white;
-  }
-
-  .dark .badge {
-    @apply bg-slate-800 text-slate-200 border-slate-600;
-  }
-  .dark .toast,
-  .dark #toast {
-    @apply bg-black/80 text-white;
-  }
-
-  /* Optional: Login page tweaks (safe, 범용 요소만) */
-  .dark .pw-toggle {
-    color: #94a3b8;
-  } /* slate-400 */
-  .dark .pw-toggle:hover {
-    color: #e2e8f0;
-  } /* slate-200 */
 }

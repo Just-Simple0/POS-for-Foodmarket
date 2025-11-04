@@ -8,15 +8,18 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem('theme');
-          var d = t ? (t === 'dark')
-                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (d) document.documentElement.classList.add('dark');
+          var t = localStorage.getItem("theme");
+          var d = t
+            ? t === "dark"
+            : window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (d) document.documentElement.classList.add("dark");
         } catch (e) {}
       })();
     </script>
 
     <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="css/tw.css" />
     <link rel="stylesheet" href="css/index.css" />
     <link
       rel="stylesheet"
@@ -38,8 +41,7 @@
         margin-top: 12px;
       }
     </style>
-    <link rel="stylesheet" href="css/tw.css">
-</head>
+  </head>
   <body>
     <div class="login-container">
       <h1>POS 시스템 로그인</h1>
@@ -279,8 +281,12 @@
           <p id="signup-error"></p>
 
           <div class="modal-buttons">
-            <button id="signup-submit-btn" class="btn" type="button">계정 생성</button>
-            <button id="signup-cancel-btn" class="btn" type="button">취소</button>
+            <button id="signup-submit-btn" class="btn" type="button">
+              계정 생성
+            </button>
+            <button id="signup-cancel-btn" class="btn" type="button">
+              취소
+            </button>
           </div>
         </form>
       </div>
@@ -326,7 +332,9 @@
             <button id="reset-submit-btn" class="btn" type="button">
               재설정 메일 보내기
             </button>
-            <button id="reset-cancel-btn" class="btn" type="button">취소</button>
+            <button id="reset-cancel-btn" class="btn" type="button">
+              취소
+            </button>
           </div>
         </form>
       </div>

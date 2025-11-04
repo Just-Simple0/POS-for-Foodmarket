@@ -7,14 +7,16 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem('theme');
-          var d = t ? (t === 'dark')
-                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (d) document.documentElement.classList.add('dark');
+          var t = localStorage.getItem("theme");
+          var d = t
+            ? t === "dark"
+            : window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (d) document.documentElement.classList.add("dark");
         } catch (e) {}
       })();
     </script>
-
+    <link rel="stylesheet" href="css/tw.css" />
     <link rel="stylesheet" href="css/common.css" />
     <link rel="stylesheet" href="css/mypage.css" />
     <link
@@ -37,8 +39,7 @@
     <script type="module" src="js/components/firebase-config.js"></script>
     <!-- Page JS -->
     <script type="module" src="js/mypage.js" defer></script>
-    <link rel="stylesheet" href="css/tw.css">
-</head>
+  </head>
   <body>
     <div id="header-container"></div>
 

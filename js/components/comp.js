@@ -104,40 +104,42 @@ export function loadHeader(containerID = null) {
   } catch {}
 
   const headerHTML = `
-    <header>
-      <div class="header-top">
-        <h1 id="page-title">POS System</h1>
-        <div class="user-info">
-          <span id="user-name-header">
-          <i class="fas fa-circle-user"></i> 직원</span>
-          <span id="admin-badge-header" class="admin-badge-header" style="display: none;">
+    <header class="bg-primary text-white pt-4 px-8 pb-2">
+      <div class="flex justify-between items-center text-[0.85rem] gap-[0.8rem] mb-2">
+        <h1 id="page-title" class="text-[1.6rem] font-bold text-white">POS System</h1>
+        <div class="flex items-center gap-2">
+          <span id="user-name-header" class="font-semibold whitespace-nowrap">
+            <i class="fas fa-circle-user"></i> 직원
+          </span>
+          <span id="admin-badge-header" class="inline-flex items-center rounded-md bg-yellow-400 text-neutral-800 text-[0.7rem] font-bold px-1 py-0.5" style="display: none;">
             <i class="fas fa-crown"></i>
           </span>
-          <div class="user-actions">
-            <a href="mypage.html" class="small-btn" id="mypage-btn">
+          <div class="flex items-center gap-2">
+            <a href="mypage.html" class="btn btn-outline" id="mypage-btn">
               <i class="fas fa-user-cog"></i> 마이페이지
             </a>
-            <button id="theme-toggle" class="small-btn" title="라이트/다크 전환">
+            <button id="theme-toggle" class="btn-ghost" title="라이트/다크 전환" type="button">
               <i class="fas fa-moon"></i> 테마
             </button>
-            <button id="logout-btn-header" class="small-btn">
+            <button id="logout-btn-header" class="btn btn-outline" type="button">
               <i class="fas fa-sign-out-alt"></i> 로그아웃
             </button>
           </div>
         </div>
       </div>
 
-      <div class="header-bottom">
-        <nav class="main-nav">
-          <a href="dashboard.html">대시보드</a>
-          <a href="provision.html">제공등록</a>
-          <a href="customers.html">이용자 관리</a>
-          <a href="products.html">상품 관리</a>
-          <a href="statistics.html">통계</a>
-          <a href="admin.html" id="nav-admin" style="display: none">관리자</a>
+      <div class="flex flex-col items-center gap-[0.7rem] pb-2">
+        <nav class="flex gap-6 justify-center flex-wrap">
+          <a class="font-bold text-white pb-[3px]" href="dashboard.html">대시보드</a>
+          <a class="font-bold text-white pb-[3px]" href="provision.html">제공등록</a>
+          <a class="font-bold text-white pb-[3px]" href="customers.html">이용자 관리</a>
+          <a class="font-bold text-white pb-[3px]" href="products.html">상품 관리</a>
+          <a class="font-bold text-white pb-[3px]" href="statistics.html">통계</a>
+          <a class="font-bold text-white pb-[3px]" href="admin.html" id="nav-admin" style="display: none">관리자</a>
         </nav>
       </div>
     </header>
+
   `;
   const container = containerID
     ? document.getElementById(containerID)
@@ -691,32 +693,38 @@ export async function getTurnstileToken(action = "secure_action") {
   }
 }
 
-// 🔔 공통 토스트 메시지 함수
+// 🔔 공통 토스트 메시지 함수 (Toss 톤, 상태 클래스 기반)
 let toastTimeout;
+/**
+ * @param {string} message
+ * @param {boolean|string} isErrorOrVariant  true/false 하위호환 또는 "info"|"success"|"danger"|"warning"
+ */
+export function showToast(message, isErrorOrVariant = false) {
+  // 기존 토스트 제거(겹침 방지)
+  const old = document.getElementById("toast");
+  if (old) old.remove();
 
-export function showToast(message, isError = false) {
-  let toast = document.getElementById("toast");
-  if (!toast) {
-    toast = document.createElement("div");
-    toast.id = "toast";
-    toast.setAttribute("role", "status");
-    toast.setAttribute("aria-live", "polite");
-    document.body.appendChild(toast);
-  }
+  const toast = document.createElement("div");
+  toast.id = "toast";
+  toast.className = "toast"; // ✅ 기본 토스트 클래스
+  toast.setAttribute("role", "status");
+  toast.setAttribute("aria-live", "polite");
+  toast.textContent = message;
 
-  toast.innerHTML = message;
-  toast.classList.add("show");
+  // 상태 클래스 결정
+  const variant =
+    typeof isErrorOrVariant === "string"
+      ? isErrorOrVariant // "info" | "success" | "danger" | "warning"
+      : isErrorOrVariant
+      ? "danger"
+      : "info";
+  toast.classList.add(`toast-${variant}`);
 
-  if (isError) {
-    toast.classList.add("error");
-  } else {
-    toast.classList.remove("error");
-  }
+  document.body.appendChild(toast);
 
-  // 기존 타이머 제거 (중복 제거 핵심!)
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => {
-    toast.classList.remove("show");
+    toast.remove();
   }, 2000);
 }
 
