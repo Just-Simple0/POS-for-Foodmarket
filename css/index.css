@@ -8,12 +8,14 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #4a90e2, #357abd);
+  background: radial-gradient(circle at 20% 20%, rgba(49, 130, 246, 0.14), transparent 38%),
+    radial-gradient(circle at 80% 30%, rgba(49, 130, 246, 0.14), transparent 36%),
+    #f2f4f6;
   font-family: "Pretendard Variable", Pretendard, -apple-system,
     BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI",
     "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
     "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
-  color: #fff;
+  color: #0f172a;
   margin: 0;
 }
 .hidden {
@@ -22,13 +24,23 @@ body {
 
 /* ===== 로그인 카드 ===== */
 .login-container {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.92);
   padding: 3rem 4rem;
-  border-radius: 12px;
-  width: min(360px, 92vw);
+  border-radius: 18px;
+  width: min(380px, 92vw);
   text-align: center;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(4px);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  position: relative;
+  overflow: hidden;
+}
+.login-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(49, 130, 246, 0.12), rgba(255, 255, 255, 0));
+  pointer-events: none;
 }
 .is-modal-open {
   overflow: hidden;
@@ -37,9 +49,10 @@ body {
   box-shadow: none !important;
 }
 .login-container h1 {
-  margin-bottom: 2rem;
+  margin-bottom: 1.6rem;
   font-weight: 800;
   font-size: 1.9rem;
+  color: #0f172a;
 }
 
 /* ===== 이메일 폼 (모달과 동일 룩으로 통일) ===== */
@@ -53,15 +66,22 @@ body {
 .email-form input[type="text"] {
   display: block;
   width: 100%;
-  height: 44px; /* 모달과 동일 높이 */
+  height: 48px;
   box-sizing: border-box;
-  padding: 10px; /* 모달과 동일 패딩 */
-  font-size: 14px;
-  line-height: 1.4;
-  border: 1px solid #ccc;
-  border-radius: 6px; /* 모달과 동일 라운드 */
+  padding: 12px;
+  font-size: 15px;
+  line-height: 1.45;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
   background: #fff;
-  color: #111; /* 모달과 동일 텍스트 컬러 */
+  color: #0f172a;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+}
+.email-form input:focus {
+  border-color: #3182f6;
+  box-shadow: 0 0 0 4px rgba(49, 130, 246, 0.16);
+  outline: none;
 }
 
 /* 로그인 유지 체크박스 */
@@ -101,12 +121,12 @@ body {
   justify-content: center;
   border: 0;
   background: transparent;
-  color: #9ca3af;
+  color: #94a3b8;
   cursor: pointer;
   z-index: 2; /* input 위로 */
 }
 .pw-field > .pw-toggle:hover {
-  color: #374151;
+  color: #0f172a;
 }
 .pw-field > .pw-toggle:focus-visible {
   outline: 3px solid rgba(59, 130, 246, 0.35);
@@ -135,7 +155,7 @@ body {
 .caps-hint {
   margin-top: 6px;
   font-size: 12px;
-  color: #f59e0b;
+  color: #e07900;
 }
 
 /* ===== 보조 링크 ===== */
@@ -148,7 +168,7 @@ body {
 .text-btn {
   background: transparent;
   border: none;
-  color: #e6eef9;
+  color: #3182f6;
   font-weight: 700;
   padding: 0;
   cursor: pointer;
@@ -163,7 +183,7 @@ body {
   align-items: center;
   gap: 10px;
   margin: 16px 0;
-  color: #e6eef9;
+  color: #94a3b8;
   opacity: 0.9;
 }
 .divider::before,
@@ -171,7 +191,7 @@ body {
   content: "";
   flex: 1;
   height: 1px;
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(148, 163, 184, 0.4);
 }
 
 /* ===== 버튼 ===== */
@@ -180,21 +200,21 @@ body {
   align-items: center;
   justify-content: center;
   width: 100%;
-  background: #fff;
-  color: #444;
-  border-radius: 8px;
-  padding: 0.8rem 1rem;
-  font-weight: 700;
+  background: linear-gradient(135deg, #3a8bff, #2b6fef);
+  color: #fff;
+  border-radius: 14px;
+  padding: 0.95rem 1.1rem;
+  font-weight: 800;
   cursor: pointer;
   border: none;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
-  transition: background-color 0.2s, transform 0.05s;
+  box-shadow: 0 16px 36px rgba(49, 130, 246, 0.26);
+  transition: transform 0.12s ease, box-shadow 0.25s ease, opacity 0.15s ease;
 }
 .login-btn:hover {
-  background: #f0f0f0;
+  box-shadow: 0 20px 44px rgba(49, 130, 246, 0.32);
 }
 .login-btn:active {
-  transform: translateY(1px);
+  transform: translateY(1px) scale(0.985);
 }
 .login-btn:disabled {
   opacity: 0.6;

@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Toss-tone button presets */
+.btn,
+.btn-basic,
+.btn-dark,
+.btn-danger,
+.btn-light,
+.btn-basic-weak,
+.btn-dark-weak,
+.btn-danger-weak,
+.btn-light-weak,
+.btn-primary,
+.btn-outline,
+.btn-ghost {
+  @apply inline-flex items-center justify-center rounded-xl font-bold transition px-4 py-2 text-sm gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 active:scale-95;
+}
+
+.btn-basic {
+  @apply bg-primary text-common-white hover:bg-primary/90;
+}
+
+.btn-dark {
+  @apply bg-neutral-dark text-common-white;
+}
+
+.btn-danger {
+  @apply bg-danger text-common-white hover:bg-danger/90;
+}
+
+.btn-light {
+  @apply bg-common-white text-[#3182F6] border border-gray-200 hover:bg-gray-50;
+}
+
+.btn-basic-weak {
+  @apply bg-primary-weak text-[#3182F6];
+}
+
+.btn-dark-weak {
+  @apply bg-neutral-weak text-neutral-dark;
+}
+
+.btn-danger-weak {
+  @apply bg-danger-weak text-danger;
+}
+
+.btn-light-weak {
+  @apply bg-primary text-common-white;
+}
+
+.btn-primary {
+  @apply bg-primary text-common-white hover:bg-primary/90;
+}
+
+.btn-outline {
+  @apply bg-common-white text-[#3182F6] border border-gray-200 hover:bg-gray-50;
+}
+
+.btn-ghost {
+  @apply bg-neutral-weak text-neutral-dark;
+}
+
+.input {
+  @apply h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-slate-900 text-sm shadow-input transition duration-150 ease-out placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/40 focus:outline-none;
+}
+
+.input[readonly] {
+  @apply bg-slate-50 text-slate-500;
+}
+
+.card {
+  @apply rounded-2xl border border-slate-100 bg-white p-6 shadow-elevated transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-floating;
+}
+
+.table {
+  @apply w-full border-separate border-spacing-0 overflow-hidden rounded-xl bg-white text-sm shadow-input;
+}
+
+.table thead th {
+  @apply bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600 border-b border-slate-200;
+}
+
+.table tbody td {
+  @apply px-4 py-3 text-slate-800 border-b border-slate-100 align-middle;
+}
+
+.table tbody tr:last-child td {
+  @apply border-b-0;
+}
+
+.table tbody tr:hover {
+  @apply bg-primary/5;
+}
+
+.badge {
+  @apply inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary;
+}
+
+.tag-muted {
+  @apply inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600;
+}
+
+.chip-success {
+  @apply inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600;
+}
+
+.modal-panel {
+  @apply rounded-2xl bg-white/80 backdrop-blur-xl shadow-floating border border-white/60;
+}

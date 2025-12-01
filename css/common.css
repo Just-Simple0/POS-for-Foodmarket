@@ -10,12 +10,13 @@ body {
     BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI",
     "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
     "Segoe UI Emoji", "Segoe UI Symbol", sans-serif !important;
-  background-color: #f5f7fa;
-  color: #333;
-  line-height: 1.6;
+  background-color: #f2f4f6;
+  color: #0f172a;
+  line-height: 1.65;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* A11y: 스크린리더 전용 텍스트 */
@@ -33,35 +34,41 @@ body {
 }
 /* A11y: 키보드 포커스 가시화가 필요한 요소에 선택적으로 부여 */
 .focus-ring:focus-visible {
-  outline: 2px solid #1976d2;
+  outline: 2px solid #3182f6;
   outline-offset: 2px;
   border-radius: 6px;
 }
 
 /* 공통 링크 스타일 */
 a {
-  color: #1976d2;
+  color: #3182f6;
   text-decoration: none;
-  transition: color 0.3s ease;
+  transition: color 0.25s ease, text-decoration-color 0.25s ease;
 }
 a:hover {
-  color: #115293;
+  color: #245daa;
   text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 /* 공통 버튼 스타일 */
 button {
-  background-color: #1976d2;
+  background: linear-gradient(135deg, #3a8bff, #2b6fef);
   color: white;
   border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
+  padding: 0.65rem 1.15rem;
+  border-radius: 12px;
   cursor: pointer;
-  font-weight: 600;
-  transition: background-color 0.3s ease;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 12px 24px rgba(49, 130, 246, 0.22);
+  transition: transform 0.15s ease, box-shadow 0.3s ease, opacity 0.2s ease;
 }
 button:hover {
-  background-color: #115293;
+  box-shadow: 0 16px 36px rgba(49, 130, 246, 0.28);
+}
+button:active {
+  transform: translateY(1px) scale(0.98);
 }
 
 /* 공통 입력폼 스타일 */
@@ -70,41 +77,48 @@ input[type="number"],
 input[type="password"],
 select,
 textarea {
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
   font-size: 1rem;
   width: 100%;
-  transition: border-color 0.3s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   font-family: "Pretendard", sans-serif;
+  background-color: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
 }
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: #1976d2;
+  border-color: #3182f6;
   outline: none;
+  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.18);
 }
 
 /* 헤더 */
 header {
-  background-color: #1976d2;
+  background: linear-gradient(135deg, #2b6fef, #3a8bff);
   color: white;
-  padding: 1rem 2rem 0.5rem;
+  padding: 1.2rem 2rem 0.9rem;
+  box-shadow: 0 16px 40px rgba(34, 87, 185, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 900;
 }
 
 .header-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   gap: 0.8rem;
   margin-bottom: 0.5rem;
 }
 
 #page-title {
-  font-size: 1.6rem;
+  font-size: 1.7rem;
   font-weight: bold;
-  color: white;
+  color: #f8fbff;
 }
 
 .user-info {
@@ -136,23 +150,24 @@ header {
 }
 
 .small-btn {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.8rem;
-  border-radius: 4px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  border-radius: 999px;
   text-decoration: none;
   font-weight: 500;
-  border: 1px solid white;
-  background-color: transparent;
-  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #f8fbff;
+  backdrop-filter: blur(12px);
 }
 
 .small-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 #logout-btn-header {
   background-color: white;
-  color: #1976d2;
+  color: #3182f6;
 }
 #logout-btn-header:hover {
   background-color: #e3f2fd;
@@ -176,11 +191,12 @@ header {
 }
 .main-nav a {
   font-weight: bold;
-  color: white;
+  color: #e8f2ff;
   padding-bottom: 3px;
+  letter-spacing: 0.02em;
 }
 .main-nav a.active {
-  border-bottom: 2px solid white;
+  border-bottom: 2px solid #f8fbff;
 }
 
 /* Footer에 가려지지 않도록 main 영역 여유 공간 */
@@ -261,25 +277,27 @@ main {
   border-collapse: collapse;
   font-size: 0.95rem;
   background-color: #fff;
-  border-radius: 8px;
+  border-radius: 14px;
   overflow: hidden;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 .table-base thead th {
-  background-color: #f5f5f5;
-  padding: 0.8rem;
+  background-color: #f0f4ff;
+  padding: 0.9rem;
   text-align: center;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid #e5e9f2;
+  color: #1f2b50;
 }
 .table-base tbody td {
-  padding: 0.6rem 0.8rem;
-  border-bottom: 1px solid #eee;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid #eef2f6;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .table-base tbody tr:hover {
-  background-color: #f9f9f9;
+  background-color: #f6f9ff;
 }
 
 #provision-table,
@@ -321,7 +339,7 @@ main {
 #life-table tbody tr:hover,
 #customer-table tbody tr:hover,
 #login-table tbody tr:hover {
-  background-color: #f9f9f9;
+  background-color: #f6f9ff;
 }
 
 /* ===== A안 공통 커서 페이저(.pagebar) ===== */
@@ -343,9 +361,9 @@ main {
   font-size: 14px;
 }
 .pagebar .pager-num.active {
-  background-color: #1976d2;
+  background-color: #3182f6;
   color: #fff;
-  border-color: #1976d2;
+  border-color: #3182f6;
   font-weight: 700;
 }
 .pagebar .pager-btn:disabled {
@@ -413,7 +431,7 @@ body[data-loading="true"] {
   height: 22px;
   border-radius: 50%;
   border: 3px solid #e5e7eb; /* gray-200 */
-  border-top-color: #2d80f7; /* theme blue */
+  border-top-color: #3182f6; /* theme blue */
   animation: al-spin 0.9s linear infinite;
 }
 #app-loading .al-text {
@@ -516,7 +534,10 @@ body[data-loading="true"] {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.4);
+  background: radial-gradient(circle at 10% 10%, rgba(49, 130, 246, 0.08), transparent 25%),
+    radial-gradient(circle at 90% 20%, rgba(99, 102, 241, 0.08), transparent 22%),
+    rgba(9, 12, 32, 0.45);
+  backdrop-filter: blur(12px);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -524,13 +545,16 @@ body[data-loading="true"] {
 }
 
 .modal-content {
-  background-color: white;
-  padding: 16px 20px;
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 20px 22px;
+  border-radius: 18px;
   width: 90%;
-  max-width: 400px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  max-width: 460px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
   box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(18px);
+  animation: modal-pop 0.22s ease-out;
 }
 
 .modal-content h2 {
@@ -589,9 +613,20 @@ body[data-loading="true"] {
 }
 .modal textarea:focus {
   outline: none;
-  border-color: #2d80f7; /* index.css 체크박스와 톤 통일 */
-  box-shadow: 0 0 0 3px rgba(45, 128, 247, 0.18);
+  border-color: #3182f6; /* index.css 체크박스와 톤 통일 */
+  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.18);
   background-color: #fff;
+}
+
+@keyframes modal-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .modal #cf-turnstile-modal .modal-content.captcha-modal,
@@ -620,7 +655,7 @@ body[data-loading="true"] {
   border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
-  background-color: #2d80f7;
+  background-color: #3182f6;
   color: white;
 }
 
@@ -657,7 +692,7 @@ body[data-loading="true"] {
 }
 .modal--confirm .cm-header i {
   font-size: 1.1rem;
-  color: #2d80f7; /* info 기본 색 */
+  color: #3182f6; /* info 기본 색 */
 }
 .modal--confirm.cm-variant-warn .cm-header i {
   color: #f59e0b;
@@ -689,7 +724,7 @@ body[data-loading="true"] {
   cursor: pointer;
 }
 .modal--confirm .cm-btn:focus-visible {
-  outline: 2px solid #1976d2;
+  outline: 2px solid #3182f6;
   outline-offset: 2px;
   border-radius: 10px;
 }
@@ -698,7 +733,7 @@ body[data-loading="true"] {
   color: #111827;
 }
 .modal--confirm .cm-btn-primary {
-  background: #2d80f7;
+  background: #3182f6;
   color: #fff;
 }
 .modal--confirm .cm-btn-danger {
@@ -739,7 +774,7 @@ body[data-loading="true"] {
   height: 18px;
   margin: 2px 0 0;
   flex: 0 0 18px;
-  accent-color: #2d80f7; /* 파란 체크색 (index.css와 동일) */
+  accent-color: #3182f6; /* 파란 체크색 (index.css와 동일) */
 }
 .agree-row .checkbox-label {
   color: #374151;
@@ -775,7 +810,7 @@ body[data-loading="true"] {
   text-underline-offset: 2px;
 }
 .modal--admin-summary__content .mas-count-link:focus-visible {
-  outline: 2px solid #1976d2;
+  outline: 2px solid #3182f6;
   outline-offset: 2px;
   border-radius: 4px;
 }

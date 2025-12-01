@@ -3,14 +3,15 @@
   width: 100%;
   margin: 3rem auto;
   background: #fff;
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  padding: 2.2rem;
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+  border: 1px solid #e5ebf3;
 }
 
 .user-card h2 {
   margin-bottom: 1rem;
-  color: #1976d2;
+  color: #3182f6;
 }
 .user-card p {
   margin: 0.5rem 0;
@@ -27,24 +28,29 @@
 
 button#logout-btn {
   margin-top: 1.5rem;
-  background: #1976d2;
+  background: #3182f6;
   color: white;
   border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 6px;
+  padding: 0.75rem 1.2rem;
+  border-radius: 12px;
   cursor: pointer;
   font-weight: bold;
+  box-shadow: 0 16px 34px rgba(49, 130, 246, 0.2);
+  transition: transform 0.12s ease, box-shadow 0.25s ease;
+}
+button#logout-btn:active {
+  transform: translateY(1px) scale(0.985);
 }
 
 .admin-settings {
   margin-top: 2rem;
-  padding: 1.5rem;
-  background: #fffbe6;
-  border: 1px solid #fdd835;
-  border-radius: 8px;
+  padding: 1.6rem;
+  background: #f8fafc;
+  border: 1px solid #e5ebf3;
+  border-radius: 14px;
 }
 .admin-settings h2 {
-  color: #d32f2f;
+  color: #dc2626;
   margin-bottom: 1rem;
 }
 .admin-settings li {
@@ -77,9 +83,10 @@ button#logout-btn {
   justify-content: space-between;
   gap: 12px;
   padding: 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #fafafa;
+  border: 1px solid #e5ebf3;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
 }
 .provider {
   display: flex;
@@ -90,7 +97,7 @@ button#logout-btn {
   font-size: 24px;
   width: 28px;
   text-align: center;
-  color: #374151;
+  color: #0f172a;
 }
 .provider h3 {
   margin: 0;
@@ -105,8 +112,8 @@ button#logout-btn {
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 700;
-  background: #e5e7eb;
-  color: #374151;
+  background: #eef2f7;
+  color: #0f172a;
 }
 .status-badge.connected {
   background: #dcfce7;
@@ -124,19 +131,27 @@ button#logout-btn {
 .btn {
   border: none;
   cursor: pointer;
-  padding: 0.55rem 0.9rem;
-  border-radius: 8px;
-  font-weight: 700;
-  background: #e5e7eb;
-  color: #111;
+  padding: 0.65rem 1rem;
+  border-radius: 12px;
+  font-weight: 800;
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid #e5ebf3;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transition: transform 0.12s ease, box-shadow 0.25s ease;
 }
 .btn.primary {
-  background: #2d80f7;
+  background: #3182f6;
   color: #fff;
+  border-color: #3182f6;
+  box-shadow: 0 16px 34px rgba(49, 130, 246, 0.2);
 }
 .btn.danger {
   background: #ef4444;
   color: #fff;
+}
+.btn:active {
+  transform: translateY(1px) scale(0.985);
 }
 .btn:disabled {
   opacity: 0.6;
@@ -155,8 +170,8 @@ button#logout-btn {
 /* ===== 보안 & 모달 보조 ===== */
 .btn.btn-ghost {
   background: transparent;
-  border: 1px solid #d1d5db;
-  color: #374151;
+  border: 1px solid #e5ebf3;
+  color: #334155;
 }
 .btn.btn-ghost:hover {
   background: #f3f4f6;
@@ -176,7 +191,7 @@ button#logout-btn {
 }
 .security-card h2 {
   margin: 0 0 0.75rem;
-  color: #1976d2;
+  color: #3182f6;
 }
 .security-card .btn {
   margin-right: 0.5rem;

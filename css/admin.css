@@ -2,10 +2,11 @@
 
 .card {
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
   margin: 18px 0;
   overflow: hidden;
+  border: 1px solid #e5ebf3;
 }
 /* (6) 요약 위젯 */
 .counters {
@@ -13,34 +14,43 @@
   gap: 12px;
   align-items: center;
   padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(49, 130, 246, 0.08), rgba(49, 130, 246, 0.02));
+  border-radius: 14px;
 }
 .counter-card {
-  padding: 10px 12px;
-  border: 1px solid #eef2f7;
-  border-radius: 10px;
-  background: #fafcff;
+  padding: 12px 14px;
+  border: 1px solid #e5ebf3;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(49, 130, 246, 0.08);
+  min-width: 160px;
 }
 .counter-card .k {
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 4px;
+  color: #475569;
 }
 .counter-card .v {
   font-variant-numeric: tabular-nums;
+  font-size: 1.15rem;
+  color: #0f172a;
 }
 .counter-card.muted {
   background: #fff;
 }
 .card-header,
 .card-footer {
-  padding: 12px 16px;
+  padding: 14px 18px;
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
   justify-content: space-between;
+  background: linear-gradient(135deg, rgba(49, 130, 246, 0.05), rgba(49, 130, 246, 0));
 }
 .card h3 {
   margin: 0;
   font-size: 1.05rem;
+  color: #0f172a;
 }
 
 /* common.css의 input/select 기본 width:100%를 이 범위에서만 덮어쓰기 */
@@ -48,11 +58,12 @@
 #logs-card .logs-filter .input {
   width: auto; /* override global 100% */
   min-width: 160px;
-  height: 36px;
-  padding: 6px 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  height: 40px;
+  padding: 10px 12px;
+  border: 1px solid #e5ebf3;
+  border-radius: 12px;
   background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 .admin-filterbar #q {
   flex: 1;
@@ -65,8 +76,8 @@
 }
 .admin-filterbar .input:focus,
 #logs-card .logs-filter .input:focus {
-  border-color: #1976d2;
-  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.12);
+  border-color: #3182f6;
+  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.18);
   outline: none;
 }
 .admin-filterbar .input,
@@ -82,10 +93,11 @@
 .admin-actionbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 16px 12px;
+  gap: 10px;
+  padding: 10px 18px 14px;
   align-items: center;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid #e5ebf3;
+  background: #f8fafc;
 }
 .admin-actionbar .muted {
   opacity: 0.7;
@@ -107,7 +119,7 @@
 
 /* 선택된 행 하이라이트 */
 .table-base tbody tr.selected {
-  background: #f5faff;
+  background: #e8f2ff;
   transition: background 0.15s ease;
 }
 
@@ -124,12 +136,13 @@ tr.is-disabled .role-select {
 
 /* 경고 톤 버튼(삭제용) - 간단 테마 */
 .btn-warn {
-  background-color: #fee2e2;
-  border: 1px solid #fecaca;
+  background-color: #ffe5e5;
+  border: 1px solid #fecdd3;
   color: #b91c1c;
+  box-shadow: 0 10px 18px rgba(244, 63, 94, 0.08);
 }
 .btn-warn:hover {
-  background: #b91c1c;
+  background: #dc2626;
   color: #fff;
 }
 
@@ -212,12 +225,12 @@ tr.is-disabled .role-select {
   color: #475569;
 }
 .badge-ok {
-  background: #e7f8ef;
-  color: #0f8a47;
+  background: #e8f7ef;
+  color: #15803d;
 }
 .badge-alert {
-  background: #fff0f0;
-  color: #d1282a;
+  background: #fde8e8;
+  color: #c81e1e;
 }
 
 /* ===== 감사 로그 헤더: 검색/액션/조회 가로 정렬 고정 ===== */
@@ -314,22 +327,24 @@ tr.is-disabled .role-select {
 }
 .tab {
   padding: 10px 20px;
-  border: 2px solid #ccc;
+  border: 2px solid #e5ebf3;
   background-color: #fff;
-  color: #ccc;
-  border-radius: 10px;
-  font-weight: bold;
+  color: #94a3b8;
+  border-radius: 12px;
+  font-weight: 800;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 .tab.active {
-  background-color: #007bff;
+  background-color: #3182f6;
   color: #fff;
-  border-color: #007bff;
+  border-color: #3182f6;
+  box-shadow: 0 18px 34px rgba(49, 130, 246, 0.24);
 }
 .tab:not(.active):hover {
-  background-color: #e0e0e0;
-  color: #000;
+  background-color: #f8fafc;
+  color: #0f172a;
 }
 
 /* 승인 테이블 가독성 보강 */
