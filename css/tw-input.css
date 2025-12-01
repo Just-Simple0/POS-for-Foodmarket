@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+<<<<<<< ours
 /* Toss-tone component adapters */
 .btn {
   @apply inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-primary text-white font-semibold px-4 py-2 shadow-soft transition-transform transition-shadow duration-200 ease-out active:scale-95 hover:shadow-lifted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40;
@@ -30,6 +31,66 @@
 .btn:disabled,
 .btn[disabled] {
   @apply opacity-60 cursor-not-allowed shadow-none;
+=======
+/* Toss-tone button presets */
+.btn,
+.btn-basic,
+.btn-dark,
+.btn-danger,
+.btn-light,
+.btn-basic-weak,
+.btn-dark-weak,
+.btn-danger-weak,
+.btn-light-weak,
+.btn-primary,
+.btn-outline,
+.btn-ghost {
+  @apply inline-flex items-center justify-center rounded-xl font-bold transition px-4 py-2 text-sm gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 active:scale-95;
+}
+
+.btn-basic {
+  @apply bg-primary text-common-white hover:bg-primary/90;
+}
+
+.btn-dark {
+  @apply bg-neutral-dark text-common-white;
+}
+
+.btn-danger {
+  @apply bg-danger text-common-white hover:bg-danger/90;
+}
+
+.btn-light {
+  @apply bg-common-white text-[#3182F6] border border-gray-200 hover:bg-gray-50;
+}
+
+.btn-basic-weak {
+  @apply bg-primary-weak text-[#3182F6];
+}
+
+.btn-dark-weak {
+  @apply bg-neutral-weak text-neutral-dark;
+}
+
+.btn-danger-weak {
+  @apply bg-danger-weak text-danger;
+}
+
+.btn-light-weak {
+  @apply bg-primary text-common-white;
+}
+
+.btn-primary {
+  @apply bg-primary text-common-white hover:bg-primary/90;
+}
+
+.btn-outline {
+  @apply bg-common-white text-[#3182F6] border border-gray-200 hover:bg-gray-50;
+}
+
+.btn-ghost {
+  @apply bg-neutral-weak text-neutral-dark;
+>>>>>>> theirs
 }
 
 .input {

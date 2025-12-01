@@ -27,6 +27,10 @@ module.exports = {
       colors: {
         primary: {
           DEFAULT: "#3182F6",
+<<<<<<< ours
+=======
+          weak: "#E8F3FF",
+>>>>>>> theirs
           50: "#E8F2FF",
           100: "#D4E6FF",
           200: "#A9CCFF",
@@ -38,6 +42,20 @@ module.exports = {
           800: "#1E4B88",
           900: "#163761",
         },
+<<<<<<< ours
+=======
+        neutral: {
+          dark: "#333D4B",
+          weak: "#F2F4F6",
+        },
+        danger: {
+          DEFAULT: "#EF4444",
+          weak: "#FEE2E2",
+        },
+        common: {
+          white: "#FFFFFF",
+        },
+>>>>>>> theirs
         surface: "#F2F4F6",
       },
       boxShadow: {
