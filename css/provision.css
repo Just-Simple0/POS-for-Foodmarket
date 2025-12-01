@@ -1,12 +1,19 @@
 /* ===== Provision page layout (Tailwind로 톤 대체, 여기선 레이아웃만 유지) ===== */
 
 .container h3 {
-  font-size: 1.3rem;
+  font-size: 1.35rem;
   margin-top: 2rem;
   margin-bottom: 1rem;
+  color: #0f172a;
+  letter-spacing: -0.01em;
 }
 .container section {
   margin-bottom: 2rem;
+  background: #ffffff;
+  padding: 1.2rem 1.4rem;
+  border-radius: 18px;
+  border: 1px solid #e8edf5;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
 }
 
 /* 조회 바 */
@@ -16,6 +23,7 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 10px;
+  align-items: center;
 }
 /* 검색 인풋은 Tailwind .input로 스타일링 → 레이아웃만 */
 #prov-customer-search,
@@ -33,10 +41,13 @@
 /* 상품 입력 영역 */
 .product-input-area {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 1rem;
   flex-wrap: wrap;
   position: relative;
+  padding: 0.75rem 0.8rem;
+  background: #f7f9fb;
+  border-radius: 14px;
 }
 /* 각 인풋은 Tailwind .input로 스타일링 → 여기선 유연 폭만 */
 .product-input-area input {
@@ -74,13 +85,55 @@
 
 /* 선택 상품 테이블 (보더/패딩은 Tailwind .table로) */
 #selected-table {
-  min-width: 600px;
-  margin-top: 10px;
+  width: 100%;
+  margin-top: 12px;
   font-size: 0.95rem;
+  border-collapse: separate;
+  border-spacing: 0 12px;
+  background: transparent;
 }
 #selected-table td:first-child {
   text-align: left;
   padding-left: 12px;
+}
+
+#selected-table thead tr {
+  display: grid;
+  grid-template-columns: 1.2fr repeat(3, 0.8fr) 0.8fr;
+  gap: 10px;
+}
+
+#selected-table thead th {
+  background: #ffffff;
+  border: 1px solid #e4e9f4;
+  border-radius: 12px;
+  padding: 0.85rem 0.9rem;
+  color: #0f172a;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+#selected-table tbody {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+#selected-table tbody tr {
+  display: grid;
+  grid-template-columns: 1.2fr repeat(3, 0.8fr) 0.8fr;
+  gap: 10px 12px;
+  padding: 14px 16px;
+  background: linear-gradient(145deg, #ffffff, #f7f9fb);
+  border: 1px solid #e4e9f4;
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  align-items: center;
+}
+
+#selected-table tbody td {
+  padding: 4px 2px;
+  color: #0f172a;
+  font-weight: 600;
 }
 
 /* 수량 컨트롤(버튼/인풋 스타일은 Tailwind 클래스) */
@@ -131,18 +184,20 @@
   padding: 0;
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
 }
 .visitor-list li {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: #fff;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid #e7ecf4;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #ffffff, #f8fbff);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
 .visitor-list li .meta {
   display: grid;
@@ -162,8 +217,14 @@
 }
 /* 버튼 룩은 JS에서 .btn /.btn--danger를 추가해 Tailwind로 처리 */
 .visitor-list li.active {
-  border-color: #90caf9;
-  background: #e3f2fd;
+  border-color: rgba(49, 130, 246, 0.35);
+  background: #e8f2ff;
+  box-shadow: 0 18px 50px rgba(49, 130, 246, 0.16);
+}
+
+.visitor-list li:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
 }
 
 /* 배지 */
@@ -189,15 +250,18 @@
   margin-bottom: 10px;
 }
 #duplicate-list li {
-  padding: 0.8rem;
-  border-bottom: 1px solid #ddd;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid transparent;
   cursor: pointer;
-  background-color: #fff;
-  border-radius: 6px;
-  transition: background-color 0.2s ease;
+  background: linear-gradient(145deg, #ffffff, #f7f9fb);
+  border-radius: 14px;
+  transition: background-color 0.2s ease, transform 0.16s ease, box-shadow 0.16s ease;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.06);
 }
 #duplicate-list li:hover {
-  background-color: #f1f8ff;
+  background-color: #e8f2ff;
+  transform: translateY(-2px);
+  box-shadow: 0 18px 50px rgba(49, 130, 246, 0.14);
 }
 #duplicate-list .dup-name {
   font-size: 1rem;
@@ -209,9 +273,9 @@
   color: #666;
 }
 #duplicate-list .duplicate-item.selected {
-  background-color: #e3f2fd;
-  border-radius: 6px;
-  border: 1px solid #90caf9;
+  background-color: #e8f2ff;
+  border-radius: 14px;
+  border: 1px solid rgba(49, 130, 246, 0.35);
   font-weight: bold;
 }
 #duplicate-list .duplicate-item:focus {
@@ -291,15 +355,17 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 10px;
+  align-items: center;
 }
 
 #prov-customer-search,
 #ex-customer-search {
   flex: 1;
-  padding: 8px 12px;
+  padding: 12px 14px;
   font-size: 14px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
 }
 
 /* 입력/버튼(공통 입력 기본 적용됨, 여기선 레이아웃만) */
@@ -314,28 +380,33 @@
 #provision-customer-info,
 #exchange-customer-info {
   margin-top: 1rem;
-  padding: 1rem;
-  background-color: #f5f5f5;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  font-size: 0.95rem;
-  line-height: 1.5;
+  padding: 1.2rem 1.3rem;
+  background: linear-gradient(135deg, #ffffff, #f6f8fb);
+  border-radius: 16px;
+  border: 1px solid #e4e9f4;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
 }
 
 /* 자동완성/상품 입력 영역 */
 .product-input-area {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 1rem;
   flex-wrap: wrap;
   position: relative;
+  padding: 0.75rem 0.8rem;
+  background: #f7f9fb;
+  border-radius: 14px;
 }
 .product-input-area input {
-  padding: 10px;
+  padding: 12px;
   font-size: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
   flex: 1;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
 }
 
 .autocomplete-wrapper {
@@ -372,14 +443,31 @@
 }
 #selected-table {
   width: 100%;
-  min-width: 600px;
-  border-collapse: collapse;
-  margin-top: 10px;
+  min-width: 0;
+  margin-top: 12px;
   font-size: 0.95rem;
+  border-collapse: separate;
+  border-spacing: 0 12px;
+  background: transparent;
 }
 #selected-table td:first-child {
   text-align: left;
   padding-left: 12px;
+}
+
+#selected-table thead tr {
+  display: grid;
+  grid-template-columns: 1.2fr repeat(3, 0.8fr) 0.8fr;
+  gap: 10px;
+}
+
+#selected-table thead th {
+  background: #ffffff;
+  border: 1px solid #e4e9f4;
+  border-radius: 12px;
+  padding: 0.85rem 0.9rem;
+  color: #0f172a;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
 }
 
 /* 수량 열 너비 */
@@ -387,6 +475,30 @@
 #selected-table th:nth-child(2) {
   min-width: 80px;
   text-align: center;
+}
+
+#selected-table tbody {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+#selected-table tbody tr {
+  display: grid;
+  grid-template-columns: 1.2fr repeat(3, 0.8fr) 0.8fr;
+  gap: 10px 12px;
+  padding: 14px 16px;
+  background: linear-gradient(145deg, #ffffff, #f7f9fb);
+  border: 1px solid #e4e9f4;
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  align-items: center;
+}
+
+#selected-table tbody td {
+  padding: 4px 2px;
+  color: #0f172a;
+  font-weight: 600;
 }
 
 /* 수량 컨트롤 */
@@ -397,21 +509,32 @@
   gap: 2px;
 }
 .quantity-wrapper button {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   font-size: 0.9rem;
   padding: 0;
-  border: none;
-  border-radius: 4px;
-  background-color: #ddd;
-  color: #333;
+  border: 1px solid #cfe0ff;
+  border-radius: 10px;
+  background-color: #e8f2ff;
+  color: #245daa;
   cursor: pointer;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  transition: transform 0.12s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.quantity-wrapper button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(49, 130, 246, 0.14);
+  background-color: #d6e7ff;
 }
 .quantity-wrapper input.quantity-input {
-  max-width: 50px;
-  height: 24px;
-  font-size: 0.9rem;
+  max-width: 60px;
+  height: 32px;
+  font-size: 0.95rem;
   text-align: center;
+  border-radius: 10px;
+  border: 1px solid #d9e2ec;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 .quantity-wrapper input[type="number"] {
   appearance: textfield;
@@ -429,9 +552,9 @@
 
 #selected-table th,
 #selected-table td {
-  border: 1px solid #ccc;
-  padding: 8px 10px;
-  text-align: center;
+  border: none;
+  padding: 6px 8px;
+  text-align: left;
 }
 
 /* ✅ 제한 위반 강조 */

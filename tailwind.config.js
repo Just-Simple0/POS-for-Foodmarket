@@ -14,6 +14,7 @@ module.exports = {
     extend: {
       fontFamily: {
         sans: [
+          "Pretendard Variable",
           "Pretendard",
           "ui-sans-serif",
           "system-ui",
@@ -24,21 +25,40 @@ module.exports = {
         ],
       },
       colors: {
-        brand: {
-          50: "#EFF6FF",
-          100: "#DBEAFE",
-          300: "#93C5FD",
-          600: "#2563EB",
-          700: "#1D4ED8",
+        primary: {
+          DEFAULT: "#3182F6",
+          50: "#E8F2FF",
+          100: "#D4E6FF",
+          200: "#A9CCFF",
+          300: "#7EB2FF",
+          400: "#559AF9",
+          500: "#3182F6",
+          600: "#2A70D1",
+          700: "#245DAA",
+          800: "#1E4B88",
+          900: "#163761",
         },
+        surface: "#F2F4F6",
+      },
+      boxShadow: {
+        soft: "0 10px 30px rgba(15, 23, 42, 0.12)",
+        lifted: "0 16px 40px rgba(15, 23, 42, 0.14)",
+        floating: "0 20px 60px rgba(15, 23, 42, 0.18)",
+        elevated: "0 10px 24px rgba(0, 0, 0, 0.08)",
+        input: "0 6px 20px rgba(15, 23, 42, 0.06)",
+      },
+      borderRadius: {
+        xl: "12px",
+        "2xl": "18px",
       },
     },
   },
   safelist: [
     "hidden",
-    "bg-brand-50",
-    "border-brand-300",
-    "text-brand-700",
+    "bg-primary",
+    "bg-primary-50",
+    "border-primary",
+    "text-primary",
     "bg-white",
     "text-slate-700",
     "border-slate-300",
