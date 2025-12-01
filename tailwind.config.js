@@ -28,6 +28,10 @@ module.exports = {
         primary: {
           DEFAULT: "#3182F6",
 <<<<<<< ours
+<<<<<<< ours
+=======
+          weak: "#E8F3FF",
+>>>>>>> theirs
 =======
           weak: "#E8F3FF",
 >>>>>>> theirs
@@ -43,7 +47,10 @@ module.exports = {
           900: "#163761",
         },
 <<<<<<< ours
+<<<<<<< ours
 =======
+=======
+>>>>>>> theirs
         neutral: {
           dark: "#333D4B",
           weak: "#F2F4F6",
@@ -55,6 +62,9 @@ module.exports = {
         common: {
           white: "#FFFFFF",
         },
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
         surface: "#F2F4F6",
       },

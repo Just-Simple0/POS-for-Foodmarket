@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 <<<<<<< ours
+<<<<<<< ours
 /* Toss-tone component adapters */
 .btn {
   @apply inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-primary text-white font-semibold px-4 py-2 shadow-soft transition-transform transition-shadow duration-200 ease-out active:scale-95 hover:shadow-lifted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40;
@@ -32,6 +33,8 @@
 .btn[disabled] {
   @apply opacity-60 cursor-not-allowed shadow-none;
 =======
+=======
+>>>>>>> theirs
 /* Toss-tone button presets */
 .btn,
 .btn-basic,
@@ -90,6 +93,9 @@
 
 .btn-ghost {
   @apply bg-neutral-weak text-neutral-dark;
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
 }
 
