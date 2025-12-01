@@ -3,6 +3,9 @@
 /* Layout */
 .container {
   max-width: 1200px;
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 18px;
 }
 
 /* ------------------------------------------------------------------ */
@@ -27,13 +30,21 @@ form#search-form {
 /* Inputs/selects inside search row */
 #search-form .form-row input,
 #search-form .form-row select {
-  padding: 10px;
+  padding: 12px;
   font-size: 14px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
   background: #fff;
   width: 100%;
   box-sizing: border-box;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+#search-form .form-row input:focus,
+#search-form .form-row select:focus {
+  border-color: #3182f6;
+  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.16);
+  outline: none;
 }
 
 /* Buttons row: right-aligned on desktop, stacked on mobile */
@@ -46,20 +57,28 @@ form#search-form {
   margin-top: 10px;
 }
 .form-buttons button {
-  padding: 10px 14px;
+  padding: 12px 16px;
   border: none;
-  border-radius: 8px;
-  background: #2d80f7;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3a8bff, #2b6fef);
   color: #fff;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
+  box-shadow: 0 16px 36px rgba(49, 130, 246, 0.24);
+  transition: transform 0.12s ease, box-shadow 0.25s ease;
 }
 .form-buttons button#reset-btn {
-  background: #e5e7eb;
-  color: #111827;
+  background: #eef2f7;
+  color: #0f172a;
 }
 .form-buttons button#btn-product-create {
   background: #16a34a;
+}
+.form-buttons button:hover {
+  box-shadow: 0 20px 44px rgba(49, 130, 246, 0.32);
+}
+.form-buttons button:active {
+  transform: translateY(1px) scale(0.985);
 }
 
 /* Sort bar */
@@ -72,11 +91,12 @@ form#search-form {
   flex-wrap: wrap;
 }
 #sort-select {
-  padding: 8px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
   background: #fff;
   width: fit-content;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 .pagesize-label {
   display: flex;
@@ -97,16 +117,16 @@ form#search-form {
 /* Product card */
 .product-card {
   background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e5ebf3;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
   display: grid;
   gap: 8px;
 }
 .product-card:hover {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
+  box-shadow: 0 22px 44px rgba(15, 23, 42, 0.16);
+  transform: translateY(-2px);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 .product-card .name {
@@ -132,13 +152,14 @@ form#search-form {
   margin-top: 6px;
 }
 .product-card button {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-  color: #111827;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e5ebf3;
+  background: #f8fafc;
+  color: #0f172a;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
 }
 .product-card button.edit {
   background: #eef2ff;
@@ -150,12 +171,16 @@ form#search-form {
   color: #b91c1c;
 }
 .product-card button.edit:hover {
-  background-color: #2563eb;
+  background-color: #3182f6;
   color: #fff;
+  box-shadow: 0 16px 30px rgba(49, 130, 246, 0.18);
 }
 .product-card button.delete-btn:hover {
   background: #b91c1c;
   color: #fff;
+}
+.product-card button:active {
+  transform: translateY(1px) scale(0.985);
 }
 
 /* Pagination placeholder */
@@ -168,12 +193,13 @@ form#search-form {
 
 /* ✅ 제한 상품 설정 (관리 UI) */
 .policy-editor {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid #e5ebf3;
+  border-radius: 16px;
   background: #fff;
-  padding: 12px;
+  padding: 14px;
   display: grid;
   gap: 10px;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
 }
 .policy-head {
   display: flex;
@@ -185,9 +211,10 @@ form#search-form {
 .policy-title {
   font-weight: 800;
   font-size: 16px;
+  color: #0f172a;
 }
 .policy-sub {
-  color: #6b7280;
+  color: #64748b;
   font-size: 13px;
 }
 .policy-actions {
@@ -195,11 +222,11 @@ form#search-form {
   gap: 8px;
 }
 .policy-actions .btn {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  background: #f9f9f9;
-  color: #333;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e5ebf3;
+  background: #f8fafc;
+  color: #0f172a;
   cursor: pointer;
   font-weight: 700;
 }
@@ -207,9 +234,10 @@ form#search-form {
   background: #e0e0e0;
 }
 .policy-actions .btn.btn-primary {
-  background: #2d80f7;
+  background: #3182f6;
   color: #fff;
-  border-color: #2d80f7;
+  border-color: #3182f6;
+  box-shadow: 0 14px 28px rgba(49, 130, 246, 0.2);
 }
 .policy-table {
   display: grid;
@@ -225,10 +253,11 @@ form#search-form {
     );
   gap: 8px;
   align-items: center;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 10px;
-  background: #fafafa;
+  border: 1px solid #e5ebf3;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
 }
 .policy-row > * {
   min-width: 0;
@@ -240,9 +269,9 @@ form#search-form {
 .policy-row select,
 .policy-row input[type="checkbox"],
 .policy-row input[type="number"] {
-  padding: 8px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
   background: #fff;
 }
 .policy-row .policy-limit {
@@ -253,18 +282,18 @@ form#search-form {
 /* 토글(분류당/가격당) */
 .seg {
   display: inline-flex;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
   overflow: hidden;
 }
 .seg .opt {
-  padding: 6px 10px;
+  padding: 8px 12px;
   cursor: pointer;
   user-select: none;
   font-weight: 700;
   background: #fff;
-  color: #374151;
-  border-right: 1px solid #d1d5db;
+  color: #334155;
+  border-right: 1px solid #d9e2ec;
 }
 .seg .opt:last-child {
   border-right: none;
@@ -273,7 +302,7 @@ form#search-form {
   display: none;
 }
 .seg .opt.active {
-  background: #2d80f7;
+  background: #3182f6;
   color: #fff;
 }
 
@@ -291,23 +320,25 @@ form#search-form {
   margin-bottom: 16px;
 }
 .tabbar .tab {
-  padding: 10px 20px;
-  border: 2px solid #ccc;
+  padding: 12px 20px;
+  border: 2px solid #e5ebf3;
   background-color: #fff;
-  color: #666;
-  border-radius: 10px;
-  font-weight: 700;
+  color: #94a3b8;
+  border-radius: 14px;
+  font-weight: 800;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 .tabbar .tab.active {
-  background: #2d80f7;
+  background: #3182f6;
   color: #fff;
-  border-color: #2d80f7;
+  border-color: #3182f6;
+  box-shadow: 0 18px 34px rgba(49, 130, 246, 0.24);
 }
 .tabbar .tab:not(.active):hover {
-  background: #e0e0e0;
-  color: #000;
+  background: #f8fafc;
+  color: #0f172a;
 }
 .tabpane[hidden] {
   display: none !important;
@@ -321,17 +352,18 @@ form#search-form {
   margin-bottom: 10px;
 }
 .modal--product .tab {
-  padding: 6px 10px;
-  border: 2px solid #ccc;
-  color: #666;
+  padding: 8px 12px;
+  border: 2px solid #e5ebf3;
+  color: #94a3b8;
   border-radius: 999px;
   background: #fff;
   cursor: pointer;
+  font-weight: 700;
 }
 .modal--product .tab.active {
-  background: #2d80f7;
+  background: #3182f6;
   color: #fff;
-  border-color: #2d80f7;
+  border-color: #3182f6;
 }
 .modal--product .tab-panel.hidden {
   display: none;

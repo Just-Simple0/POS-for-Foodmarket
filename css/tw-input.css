@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Toss-tone component adapters */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-primary text-white font-semibold px-4 py-2 shadow-soft transition-transform transition-shadow duration-200 ease-out active:scale-95 hover:shadow-lifted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40;
+}
+
+.btn-primary {
+  @apply bg-primary text-white;
+}
+
+.btn-secondary {
+  @apply bg-white text-slate-800 border border-slate-200 shadow-sm hover:bg-slate-50;
+}
+
+.btn-outline {
+  @apply bg-white text-primary border border-primary shadow-none hover:bg-primary/5 hover:text-primary;
+}
+
+.btn-danger {
+  @apply bg-rose-500 text-white hover:bg-rose-600;
+}
+
+.btn-info {
+  @apply bg-sky-500 text-white hover:bg-sky-600;
+}
+
+.btn:disabled,
+.btn[disabled] {
+  @apply opacity-60 cursor-not-allowed shadow-none;
+}
+
+.input {
+  @apply h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-slate-900 text-sm shadow-input transition duration-150 ease-out placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/40 focus:outline-none;
+}
+
+.input[readonly] {
+  @apply bg-slate-50 text-slate-500;
+}
+
+.card {
+  @apply rounded-2xl border border-slate-100 bg-white p-6 shadow-elevated transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-floating;
+}
+
+.table {
+  @apply w-full border-separate border-spacing-0 overflow-hidden rounded-xl bg-white text-sm shadow-input;
+}
+
+.table thead th {
+  @apply bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600 border-b border-slate-200;
+}
+
+.table tbody td {
+  @apply px-4 py-3 text-slate-800 border-b border-slate-100 align-middle;
+}
+
+.table tbody tr:last-child td {
+  @apply border-b-0;
+}
+
+.table tbody tr:hover {
+  @apply bg-primary/5;
+}
+
+.badge {
+  @apply inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary;
+}
+
+.tag-muted {
+  @apply inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600;
+}
+
+.chip-success {
+  @apply inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600;
+}
+
+.modal-panel {
+  @apply rounded-2xl bg-white/80 backdrop-blur-xl shadow-floating border border-white/60;
+}
