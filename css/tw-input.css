@@ -2,64 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Toss-tone button presets */
-.btn,
-.btn-basic,
-.btn-dark,
-.btn-danger,
-.btn-light,
-.btn-basic-weak,
-.btn-dark-weak,
-.btn-danger-weak,
-.btn-light-weak,
-.btn-primary,
-.btn-outline,
-.btn-ghost {
-  @apply inline-flex items-center justify-center rounded-xl font-bold transition px-4 py-2 text-sm gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 active:scale-95;
-}
-
-.btn-basic {
-  @apply bg-primary text-common-white hover:bg-primary/90;
-}
-
-.btn-dark {
-  @apply bg-neutral-dark text-common-white;
-}
-
-.btn-danger {
-  @apply bg-danger text-common-white hover:bg-danger/90;
-}
-
-.btn-light {
-  @apply bg-common-white text-[#3182F6] border border-gray-200 hover:bg-gray-50;
-}
-
-.btn-basic-weak {
-  @apply bg-primary-weak text-[#3182F6];
-}
-
-.btn-dark-weak {
-  @apply bg-neutral-weak text-neutral-dark;
-}
-
-.btn-danger-weak {
-  @apply bg-danger-weak text-danger;
-}
-
-.btn-light-weak {
-  @apply bg-primary text-common-white;
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold gap-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  border-color: transparent !important;
 }
 
 .btn-primary {
-  @apply bg-primary text-common-white hover:bg-primary/90;
+  @apply bg-toss-blue text-white hover:bg-[#2b72d7];
+}
+
+.btn-dark {
+  @apply bg-toss-grey text-white hover:bg-[#3a4554];
+}
+
+.btn-danger {
+  @apply bg-toss-red text-white hover:bg-[#d03340];
+}
+
+.btn-light {
+  @apply bg-white text-toss-blue-dark hover:bg-slate-100;
+}
+
+.btn-primary-weak {
+  @apply bg-toss-blue-light text-[#2272eb] hover:bg-blue-100;
+}
+
+.btn-dark-weak {
+  @apply bg-toss-grey-light text-[#333d4b] hover:bg-gray-200;
+}
+
+.btn-danger-weak {
+  @apply bg-toss-red-light text-toss-red-dark hover:bg-red-100;
+}
+
+.btn-light-weak {
+  @apply bg-[rgba(222,222,255,0.19)] text-white hover:bg-white/20;
+}
+
+.btn-basic {
+  @apply btn-primary;
+}
+
+.btn-basic-weak {
+  @apply btn-primary-weak;
 }
 
 .btn-outline {
-  @apply bg-common-white text-[#3182F6] border border-gray-200 hover:bg-gray-50;
+  @apply btn-light;
 }
 
 .btn-ghost {
-  @apply bg-neutral-weak text-neutral-dark;
+  @apply btn-dark-weak;
 }
 
 .input {
@@ -108,4 +101,16 @@
 
 .modal-panel {
   @apply rounded-2xl bg-white/80 backdrop-blur-xl shadow-floating border border-white/60;
+}
+
+@layer components {
+  .visitor-list {
+    @apply list-none p-0 m-0 grid grid-cols-1 md:grid-cols-2 gap-2;
+  }
+  .visitor-list li {
+    @apply flex items-center justify-between gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white;
+  }
+  .visitor-list li.active {
+    @apply ring-1 ring-[#90caf9] bg-[#e3f2fd] !important;
+  }
 }

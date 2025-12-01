@@ -1,10 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <title>POS System - Provision</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- ⚡️ 테마 초기 적용(FOUC 방지) -->
     <script>
       (function () {
         try {
@@ -18,7 +17,6 @@
       })();
     </script>
 
-    <!-- 공통 parts 삽입 -->
     <link rel="stylesheet" href="css/common.css" />
 
     <link
@@ -35,13 +33,10 @@
     <script>
       window.CF_TURNSTILE_SITEKEY = "0x4AAAAAABtE3GFMWF3_Fd4E";
     </script>
-    <!-- SheetUS 삽입 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <!-- Firebase parts 삽입 -->
     <script type="module" src="js/components/firebase-config.js"></script>
 
-    <!-- 개별 css, js 삽입 -->
     <link rel="stylesheet" href="css/provision.css" />
     <script type="module" src="js/provision.js" defer></script>
     <link rel="stylesheet" href="css/tw.css" />
@@ -50,70 +45,92 @@
   <body>
     <div id="header-container"></div>
 
-    <main class="container">
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="provision">
-          <i class="fas fa-cash-register"></i> 제공 등록
+    <main class="container mx-auto px-4 py-6 space-y-6">
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          class="tab-btn btn btn-light rounded-full text-sm font-semibold shadow-soft border border-slate-200 text-slate-800 hover:bg-primary-weak hover:border-primary/50 hover:text-primary [&.active]:bg-primary [&.active]:text-white [&.active]:border-primary active"
+          data-tab="provision"
+        >
+          <i class="fas fa-cash-register"></i> 이용자 조회(제공)
         </button>
-        <button class="tab-btn" data-tab="exchange">
+        <button
+          class="tab-btn btn btn-light rounded-full text-sm font-semibold shadow-soft border border-slate-200 text-slate-800 hover:bg-primary-weak hover:border-primary/50 hover:text-primary [&.active]:bg-primary [&.active]:text-white [&.active]:border-primary"
+          data-tab="exchange"
+        >
           <i class="fas fa-right-left"></i> 교환
         </button>
       </div>
-      <!-- ===== 제공 등록 패널 ===== -->
-      <section id="provision-panel" data-tab-panel="provision">
-        <h3>이용자 조회(제공)</h3>
-        <section id="prov-customer-lookup">
+
+      <section
+        id="provision-panel"
+        data-tab-panel="provision"
+        class="space-y-6"
+      >
+        <h3 class="text-xl font-bold text-slate-900 tracking-tight">
+          이용자 조회(제공)
+        </h3>
+        <section
+          id="prov-customer-lookup"
+          class="card flex flex-wrap items-center gap-3 justify-between"
+        >
           <input
             type="text"
             id="prov-customer-search"
-            class="input w-72 md:w-96"
-            placeholder="예: 홍길동"
+            class="input w-full md:w-96 flex-1 min-w-[220px]"
+            placeholder="고객명 검색"
           />
-          <button id="prov-lookup-btn" type="button" class="btn">
+          <button id="prov-lookup-btn" type="button" class="btn btn-basic">
             <i class="fas fa-search"></i> 조회
           </button>
         </section>
 
-        <!-- ✅ 방문자 리스트 (여러 명 담아두고 선택) -->
-        <section id="visitor-list-section" class="hidden">
-          <h3>방문자 리스트</h3>
-          <ul id="visitor-list" class="visitor-list"></ul>
+        <section id="visitor-list-section" class="hidden card space-y-4">
+          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
+            방문자 리스트
+          </h3>
+          <ul
+            id="visitor-list"
+            class="visitor-list grid grid-cols-1 md:grid-cols-2 gap-2 list-none p-0 m-0"
+          ></ul>
         </section>
 
         <section id="customer-if">
-          <div id="provision-customer-info" class="hidden card card-body">
-            <!-- 제공 탭 고객 정보 -->
+          <div
+            id="provision-customer-info"
+            class="hidden card space-y-2 text-slate-800"
+          >
+            <!-- 제공 대상 고객 정보 -->
           </div>
         </section>
 
-        <!-- ✅ 상품 선택 영역 -->
-        <section id="product-selection" class="hidden">
-          <h3>상품 추가</h3>
+        <section id="product-selection" class="hidden card space-y-4">
+          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
+            상품 추가
+          </h3>
 
-          <div class="product-input-area">
-            <!-- 바코드 전용 입력 -->
+          <div
+            class="product-input-area flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-neutral-weak/70 p-3"
+          >
             <input
               type="text"
               id="barcode-input"
-              class="input w-64 md:w-72"
+              class="input w-full sm:w-64 md:w-72"
               placeholder="바코드 입력 (Enter)"
               inputmode="numeric"
               pattern="\\d*"
             />
-            <!-- 상품명 전용 입력 + 자동완성 -->
-            <div class="autocomplete-wrapper">
+            <div class="autocomplete-wrapper relative flex-1 min-w-[16rem]">
               <input
                 type="text"
                 id="name-input"
-                class="input w-64 md:w-72"
-                placeholder="상품명 입력 (Enter → 수량)"
+                class="input w-full"
+                placeholder="상품명 입력 (Enter 후 수량)"
               />
               <div
                 id="autocomplete-list"
-                class="autocomplete-list hidden"
+                class="autocomplete-list hidden absolute left-0 top-full z-50 mt-1 w-full max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-input"
               ></div>
             </div>
-            <!-- 수량 -->
             <input
               type="number"
               id="quantity-input"
@@ -122,103 +139,132 @@
               min="1"
               max="30"
             />
-            <button id="add-product-btn" class="btn">
+            <button id="add-product-btn" class="btn btn-basic">
               <i class="fas fa-plus-circle"></i> 추가
             </button>
           </div>
 
           <div class="selected-products table-wrapper">
-            <table id="selected-table" class="table">
+            <table id="selected-table" class="table min-w-[720px]">
               <thead>
                 <tr>
-                  <th>상품명</th>
-                  <th>수량</th>
-                  <th>단가</th>
-                  <th>총가격</th>
-                  <th>관리</th>
+                  <th class="text-left">상품명</th>
+                  <th class="text-center">수량</th>
+                  <th class="text-center">가격</th>
+                  <th class="text-center">총합계</th>
+                  <th class="text-center">관리</th>
                 </tr>
               </thead>
               <tbody></tbody>
             </table>
-            <div id="total-summary">
-              총 합계: <span id="total-points">0</span> 포인트
-              <span id="point-warning" class="hidden"
-                >⚠ 포인트 초과 (최대 30)</span
+            <div
+              id="total-summary"
+              class="mt-4 flex flex-wrap items-center gap-3 text-lg font-bold text-slate-900"
+            >
+              현재 총계: <span id="total-points">0</span> 포인트
+              <span id="point-warning" class="hidden text-danger font-bold"
+                >총 포인트 초과 (최대 30)</span
               >
             </div>
           </div>
+          <section id="submit-section" class="flex items-center gap-3" hidden>
+            <button id="submit-btn" class="btn btn-basic">
+              <i class="fas fa-check-circle"></i> 제공 등록 완료
+            </button>
+            <label
+              for="lifelove-checkbox"
+              class="flex items-center gap-2 text-slate-800"
+            >
+              <input type="checkbox" id="lifelove-checkbox" class="h-4 w-4" />
+              생명사랑 제공
+            </label>
+          </section>
         </section>
 
-        <!-- ✅ 제출 버튼 -->
-        <section id="submit-section" class="hidden">
-          <button id="submit-btn" class="btn">
-            <i class="fas fa-check-circle"></i> 제공 등록 완료
-          </button>
-          <label for="lifelove-checkbox">
-            <input type="checkbox" id="lifelove-checkbox" /> 생명사랑 제공
-          </label>
-        </section>
-
-        <!-- 🔁 기능 버튼들 (상품 테이블 하단) -->
         <div
           id="product-action-buttons"
-          style="margin-top: 1rem; display: flex; gap: 10px"
+          class="mt-4 flex flex-wrap items-center gap-3 card"
         >
-          <button id="undo-btn" class="btn btn-outline small-btn">
+          <button
+            id="undo-btn"
+            class="btn btn-dark-weak !px-3 !py-2 text-sm"
+            aria-label="되돌리기"
+          >
             <i class="fas fa-rotate-left"></i>
           </button>
-          <button id="redo-btn" class="btn btn-outline small-btn">
+          <button
+            id="redo-btn"
+            class="btn btn-dark-weak !px-3 !py-2 text-sm"
+            aria-label="다시 실행"
+          >
             <i class="fas fa-rotate-right"></i>
           </button>
-          <button id="clear-products-btn" class="btn btn-outline">
+          <button id="clear-products-btn" class="btn btn-dark-weak text-sm">
             <i class="fas fa-broom"></i> 물품 초기화
           </button>
-          <button id="clear-all-btn" class="btn btn--danger">
+          <button id="clear-all-btn" class="btn btn-danger text-sm">
             <i class="fas fa-trash-alt"></i> 전체 초기화
           </button>
-          <!-- ✅ 보류(임시 저장/불러오기: localStorage) -->
           <button
             id="hold-save-btn"
-            class="btn btn-outline"
+            class="btn btn-dark-weak text-sm"
             title="현재 선택 방문자의 장바구니를 임시 저장"
           >
             <i class="fas fa-pause-circle"></i> 보류 저장
           </button>
-          <button id="hold-load-btn" class="btn btn-outline" title="임시 저장된 장바구니 불러오기">
+          <button
+            id="hold-load-btn"
+            class="btn btn-dark-weak text-sm"
+            title="임시 저장된 장바구니 불러오기"
+          >
             <i class="fas fa-play-circle"></i> 보류 불러오기
           </button>
         </div>
       </section>
 
-      <!-- ===== 교환 패널 (최근 50일) ===== -->
-      <section id="exchange-section" data-tab-panel="exchange" class="hidden">
-        <h3>이용자 조회(교환)</h3>
-        <section id="ex-customer-lookup">
-          <input type="text" id="ex-customer-search" class="input w-72 md:w-96" placeholder="예: 홍길동" />
-          <button id="ex-lookup-btn" class="btn" type="button">
+      <section
+        id="exchange-section"
+        data-tab-panel="exchange"
+        class="hidden space-y-6"
+      >
+        <h3 class="text-xl font-bold text-slate-900 tracking-tight">
+          이용자 조회(교환)
+        </h3>
+        <section
+          id="ex-customer-lookup"
+          class="card flex flex-wrap items-center gap-3 justify-between"
+        >
+          <input
+            type="text"
+            id="ex-customer-search"
+            class="input w-full md:w-96 flex-1 min-w-[220px]"
+            placeholder="고객명 검색"
+          />
+          <button id="ex-lookup-btn" class="btn btn-basic" type="button">
             <i class="fas fa-search"></i> 조회
           </button>
         </section>
 
         <section id="exchange-customer-if">
-          <div id="exchange-customer-info" class="hidden">
-            <!-- 교환 탭 고객 정보 -->
-          </div>
+          <div
+            id="exchange-customer-info"
+            class="hidden card space-y-2 text-slate-800"
+          ></div>
         </section>
 
-        <section id="exchange-history-section" class="hidden">
-          <!-- ✅ 최근 50일 내 제공내역 테이블 -->
-          <h3>교환 (최근 50일, 환불 없음)</h3>
-          50일 이내 제공내역에서 교환할 내역을 선택하세요.
-          <div class="table-wrapper">
-            <table id="exchange-history-table"class="table">
+        <section id="exchange-history-section" class="hidden card space-y-4">
+          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
+            교환 (최근 50일 이내 제공 내역)
+          </h3>
+          <div class="table-wrapper overflow-x-auto">
+            <table id="exchange-history-table" class="table min-w-[720px]">
               <thead>
                 <tr>
-                  <th>일시</th>
-                  <th>항목수</th>
-                  <th>합계</th>
-                  <th>비고</th>
-                  <th>선택</th>
+                  <th class="text-left">일시</th>
+                  <th class="text-center">개수</th>
+                  <th class="text-center">합계</th>
+                  <th class="text-center">비고</th>
+                  <th class="text-center">선택</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -226,23 +272,31 @@
           </div>
         </section>
 
-        <div id="exchange-builder" class="hidden" style="margin-top: 1rem">
-          <h3>교환 편집</h3>
-          <div class="product-input-area">
+        <div id="exchange-builder" class="hidden card space-y-4">
+          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
+            교환 편집
+          </h3>
+          <div
+            class="product-input-area flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-neutral-weak/70 p-3"
+          >
             <input
               type="text"
               id="ex-barcode-input"
-              class="input w-64 md:w-72"
+              class="input w-full sm:w-64 md:w-72"
               placeholder="바코드 입력 (Enter)"
               inputmode="numeric"
               pattern="\\d*"
             />
-            <div class="autocomplete-wrapper">
-              <input type="text" id="ex-name-input" class="input w-64 md:w-72" placeholder="상품명 입력" />
+            <div class="autocomplete-wrapper relative flex-1 min-w-[16rem]">
+              <input
+                type="text"
+                id="ex-name-input"
+                class="input w-full"
+                placeholder="상품명 입력"
+              />
               <div
-                class="autocomplete-list hidden"
+                class="autocomplete-list hidden absolute left-0 top-full z-50 mt-1 w-full max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-input"
                 id="ex-autocomplete"
-                style="display: none"
               ></div>
             </div>
             <input
@@ -253,35 +307,38 @@
               min="1"
               max="30"
             />
-            <button id="ex-add-product-btn" class="btn">
+            <button id="ex-add-product-btn" class="btn btn-basic">
               <i class="fas fa-plus-circle"></i> 추가
             </button>
           </div>
 
           <div class="selected-products table-wrapper">
-            <table id="exchange-table" class="table">
+            <table id="exchange-table" class="table min-w-[720px]">
               <thead>
                 <tr>
-                  <th>상품명</th>
-                  <th>수량</th>
-                  <th>단가</th>
-                  <th>총가격</th>
-                  <th>관리</th>
+                  <th class="text-left">상품명</th>
+                  <th class="text-center">수량</th>
+                  <th class="text-center">가격</th>
+                  <th class="text-center">총합계</th>
+                  <th class="text-center">관리</th>
                 </tr>
               </thead>
               <tbody></tbody>
             </table>
-            <div id="total-summary">
+            <div
+              id="total-summary"
+              class="mt-4 flex flex-wrap items-center gap-3 text-lg font-bold text-slate-900"
+            >
               기존 합계: <b id="ex-original-total">0</b> | 교환 합계:
               <b id="ex-new-total">0</b>
-              <span id="ex-warning" class="hidden"
-                >⚠ 교환 합계는 기존 합계 이내이며, 최대 30 포인트입니다.</span
+              <span id="ex-warning" class="hidden text-danger font-bold"
+                >교환 합계는 기존 합계 이내며, 최대 30 포인트입니다.</span
               >
             </div>
           </div>
 
-          <div style="margin-top: 10px">
-            <button id="exchange-submit-btn" class="btn">
+          <div class="mt-2">
+            <button id="exchange-submit-btn" class="btn btn-basic">
               <i class="fas fa-right-left"></i> 교환 확정
             </button>
           </div>
@@ -291,17 +348,15 @@
 
     <div id="footer-container"></div>
 
-    <!-- ✅ 동명이인 선택 모달 -->
     <div id="duplicate-modal" class="modal hidden">
       <div class="modal-content">
         <h2>이용자 선택</h2>
-        <ul id="duplicate-list">
+        <ul id="duplicate-list" class="grid gap-3">
           <!-- 동적으로 후보 리스트 삽입 -->
         </ul>
         <div
           id="selected-info"
-          class="hidden"
-          style="margin-top: 1rem; font-size: 0.9rem"
+          class="hidden mt-4 text-sm text-slate-700"
         ></div>
 
         <div class="modal-buttons">
@@ -311,16 +366,19 @@
             type="button"
             title="방문자 리스트에 추가"
           >
-            <i class="fas fa-check"></i> 삽입
+            <i class="fas fa-check"></i> 선택
           </button>
-          <button id="close-duplicate-modal" class="btn btn-outline" type="button">
+          <button
+            id="close-duplicate-modal"
+            class="btn btn-light"
+            type="button"
+          >
             <i class="fas fa-times"></i> 닫기
           </button>
         </div>
       </div>
     </div>
 
-    <!-- ✅ 상품 빠른 등록 모달 (바코드 미등록 시 호출) -->
     <div
       id="quick-create-modal"
       class="modal hidden modal--quick"
@@ -333,42 +391,52 @@
         aria-labelledby="qc-title"
       >
         <h2 id="qc-title"><i class="fas fa-bolt"></i> 상품 빠른 등록</h2>
-        <div class="grid2" style="margin-top: 10px">
-          <label
-            ><span>상품명</span>
-            <input type="text" id="qc-name" />
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+          <label class="flex flex-col gap-1">
+            <span>상품명</span>
+            <input type="text" id="qc-name" class="input" />
           </label>
-          <label
-            ><span>분류</span>
-            <input type="text" id="qc-category" placeholder="예: 음료, 과자" />
+          <label class="flex flex-col gap-1">
+            <span>분류</span>
+            <input
+              type="text"
+              id="qc-category"
+              class="input"
+              placeholder="예: 음료, 과자"
+            />
           </label>
-          <label
-            ><span>가격</span>
+          <label class="flex flex-col gap-1">
+            <span>가격</span>
             <input
               type="number"
               id="qc-price"
+              class="input"
               min="0"
               step="0.5"
               placeholder="예: 0 또는 0.5 단위"
             />
           </label>
-          <label
-            ><span>바코드(EAN-13)</span>
-            <input type="text" id="qc-barcode" inputmode="numeric" />
+          <label class="flex flex-col gap-1">
+            <span>바코드(EAN-13)</span>
+            <input
+              type="text"
+              id="qc-barcode"
+              class="input"
+              inputmode="numeric"
+            />
           </label>
         </div>
         <div class="modal-buttons">
-          <button type="button" id="qc-save" class="btn btn-primary">
+          <button type="button" id="qc-save" class="btn btn-basic">
             <i class="fas fa-save"></i> 저장
           </button>
-          <button type="button" id="qc-close" class="btn">
+          <button type="button" id="qc-close" class="btn btn-light">
             <i class="fas fa-times"></i> 닫기
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Header/Footer 삽입 -->
     <script type="module">
       import { loadHeader, loadFooter } from "./js/components/comp.js";
       loadHeader("header-container");

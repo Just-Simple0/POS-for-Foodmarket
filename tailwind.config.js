@@ -26,15 +26,8 @@ module.exports = {
       },
       colors: {
         primary: {
-          DEFAULT: "#3182F6",
-<<<<<<< ours
-<<<<<<< ours
-=======
-          weak: "#E8F3FF",
->>>>>>> theirs
-=======
-          weak: "#E8F3FF",
->>>>>>> theirs
+          DEFAULT: "#3182F6", // Toss Blue
+          weak: "#E8F3FF", // Light Blue
           50: "#E8F2FF",
           100: "#D4E6FF",
           200: "#A9CCFF",
@@ -46,26 +39,27 @@ module.exports = {
           800: "#1E4B88",
           900: "#163761",
         },
-<<<<<<< ours
-<<<<<<< ours
-=======
-=======
->>>>>>> theirs
         neutral: {
-          dark: "#333D4B",
-          weak: "#F2F4F6",
+          dark: "#333D4B", // Dark Grey
+          weak: "#F2F4F6", // Light Grey
         },
         danger: {
-          DEFAULT: "#EF4444",
-          weak: "#FEE2E2",
+          DEFAULT: "#EF4444", // Red
+          weak: "#FEE2E2", // Light Red
         },
         common: {
           white: "#FFFFFF",
         },
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
+        toss: {
+          blue: "#3182f6",
+          "blue-dark": "#1b64da",
+          "blue-light": "rgba(100, 168, 255, 0.15)",
+          grey: "#4e5968",
+          "grey-light": "#f2f4f6",
+          red: "#f04452",
+          "red-dark": "#e42939",
+          "red-light": "rgba(251, 136, 144, 0.15)",
+        },
         surface: "#F2F4F6",
       },
       boxShadow: {

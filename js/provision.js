@@ -1,4 +1,4 @@
-import { db, auth } from "./components/firebase-config.js";
+﻿import { db, auth } from "./components/firebase-config.js";
 import {
   collection,
   doc,
@@ -1030,15 +1030,12 @@ function renderVisitorList() {
   visitorListEl.innerHTML = "";
   if (visitorList.length === 0) {
     visitorListSection.classList.add("hidden");
-    // ✅ 리스트가 비면 localStorage도 즉시 비워 동기화(양쪽 키 모두)
     try {
       clearVisitorDraft();
     } catch {}
-    // ✅ 교환 탭에서는 방문자 리스트가 비어도 선택 고객을 해제하지 않음
     const isExchangeActive =
       document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
     if (!isExchangeActive) {
-      // 제공 탭에서만 '비어있으면 선택 해제'
       selectedCustomer = null;
       productSection.classList.add("hidden");
       submitSection.classList.add("hidden");
@@ -1046,7 +1043,7 @@ function renderVisitorList() {
     }
     return;
   }
-  // ✅ 교환 탭에서는 방문자 리스트 표시 금지
+
   const isExchangeActive =
     document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
   if (isExchangeActive) {
@@ -1054,31 +1051,35 @@ function renderVisitorList() {
   } else {
     visitorListSection.classList.remove("hidden");
   }
+
   visitorList.forEach((v) => {
     const hasHold = localStorage.getItem(HOLD_PREFIX + v.id);
+    const isActive = selectedCustomer?.id === v.id;
     const li = document.createElement("li");
-    li.className =
-      "visitor-item" +
-      (selectedCustomer?.id === v.id ? " active" : "") +
-      (hasHold ? "has-hold" : "");
+    const baseClasses =
+      "flex items-center justify-between gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white transition";
+    li.className = `${baseClasses}`;
+    if (isActive) li.classList.add("active");
+
     const holdBadge = hasHold
-      ? `<i class="fas fa-bookmark hold-badge" style="font-size:11px;" title="보류 있음" aria-label="보류 있음"></i>`
+      ? `<i class="fas fa-bookmark text-primary text-xs" aria-label="on hold"></i>`
       : "";
+
     li.innerHTML = `
-      <div class="meta">
-        <div class="name">${v.name} ${holdBadge}</div>
-        <div class="sub">${v.birth || ""} ${
+      <div class="meta grid gap-1 text-sm text-slate-800">
+        <div class="name font-semibold text-slate-900 flex items-center gap-2">${v.name} ${holdBadge}</div>
+        <div class="sub text-xs text-slate-600">${v.birth || ""} ${
       v.phone ? " | " + v.phone : ""
     }</div>
       </div>
-      <div class="actions">
-        <button class="select btn btn-outline" data-id="${v.id}">선택</button>
-        <button class="remove btn btn--danger" data-id="${v.id}">삭제</button>
+      <div class="actions flex items-center gap-2">
+        <button class="select btn btn-dark-weak text-xs" data-id="${v.id}">선택</button>
+        <button class="remove btn btn-danger text-xs" data-id="${v.id}">삭제</button>
       </div>
     `;
     visitorListEl.appendChild(li);
   });
-  // ✅ 렌더 후 현재 리스트를 localStorage에 즉시 반영(멀티탭 안전 저장)
+
   try {
     saveVisitorDraft(visitorList);
   } catch {}
@@ -1271,7 +1272,7 @@ addProductBtn.addEventListener("click", async () => {
   try {
     // 1) 바코드 우선 경로
     if (code) {
-      if (!isValidEAN13(code)){
+      if (!isValidEAN13(code)) {
         barcodeInput.value = "";
         barcodeInput.focus();
         return showToast("유효한 바코드가 아닙니다.", true);
@@ -1554,17 +1555,17 @@ function renderSelectedList() {
 
     tr.innerHTML = `
       <td>${item.name}</td>
-      <td>
+      <td class="text-center">
         <div class="quantity-wrapper">
-        <button class="decrease-btn btn-outline small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
+        <button class="decrease-btn btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
         <input type="number" name="quantity-${idx}" min="1" max="30" value="${item.quantity}" data-idx="${idx}" class="quantity-input input w-16 text-center" />
-        <button class="increase-btn btn-outline small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
+        <button class="increase-btn btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
         </div>
       </td>
-      <td>${item.price}</td>
-      <td>${totalPrice}</td>
-      <td>
-        <button class="remove-btn btn btn--danger" data-idx="${idx}" aria-label="상품 삭제"><i class="fas fa-trash"></i></button>
+      <td class="text-center">${item.price}</td>
+      <td class="text-center">${totalPrice}</td>
+      <td class="text-center">
+        <button class="remove-btn btn btn-danger" data-idx="${idx}" aria-label="상품 삭제"><i class="fas fa-trash"></i></button>
       </td>
     `;
 
@@ -2034,19 +2035,19 @@ function renderExchangeList() {
     const totalPrice = (item.quantity || 0) * (item.price || 0);
     tr.innerHTML = `
       <td>${item.name}</td>
-      <td>
+      <td class="text-center">
         <div class="quantity-wrapper">
-          <button class="ex-dec btn-outline small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
+          <button class="ex-dec btn btn-dark small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
           <input type="number" class="quantity-input input w-16 text-center"
                 min="1" max="30" value="${
                   item.quantity || 1
                 }" data-idx="${idx}" />
-          <button class="ex-inc btn-outline small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
+          <button class="ex-inc btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
         </div>
       </td>
-      <td>${item.price || 0}</td>
-      <td>${totalPrice}</td>
-      <td><button class="ex-del btn btn--danger " data-idx="${idx}" aria-label="항목 삭제">
+      <td class="text-center">${item.price || 0}</td>
+      <td class="text-center">${totalPrice}</td>
+      <td class="text-center"><button class="ex-del btn btn-danger " data-idx="${idx}" aria-label="항목 삭제">
         <i class="fas fa-trash"></i>
       </button></td>
     `;
@@ -2256,3 +2257,8 @@ document.addEventListener("exchange_customer_switched", () => {
   if (isEx && exchangeSelectedCustomer)
     loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
 });
+
+
+
+
+

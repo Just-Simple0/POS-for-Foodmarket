@@ -51,25 +51,6 @@ a:hover {
   text-decoration-color: currentColor;
 }
 
-/* 공통 버튼 스타일 */
-button {
-  background: linear-gradient(135deg, #3a8bff, #2b6fef);
-  color: white;
-  border: none;
-  padding: 0.65rem 1.15rem;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  box-shadow: 0 12px 24px rgba(49, 130, 246, 0.22);
-  transition: transform 0.15s ease, box-shadow 0.3s ease, opacity 0.2s ease;
-}
-button:hover {
-  box-shadow: 0 16px 36px rgba(49, 130, 246, 0.28);
-}
-button:active {
-  transform: translateY(1px) scale(0.98);
-}
 
 /* 공통 입력폼 스타일 */
 input[type="text"],
