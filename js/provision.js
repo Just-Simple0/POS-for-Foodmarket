@@ -1994,10 +1994,10 @@ function renderExchangeHistory(rows) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${when}</td>
-      <td>${r.items?.length || 0}건</td>
-      <td>${r.total ?? 0}</td>
-      <td>${r.lifelove ? "생명사랑" : "-"}</td>
-      <td><button class="ex-pick btn btn-outline" data-id="${
+      <td class="text-center">${r.items?.length || 0}건</td>
+      <td class="text-center">${r.total ?? 0}</td>
+      <td class="text-center">${r.lifelove ? "생명사랑" : "-"}</td>
+      <td class="text-center"><button class="ex-pick btn btn-basic" data-id="${
         r.id
       }">선택</button></td>
     `;
@@ -2037,7 +2037,7 @@ function renderExchangeList() {
       <td>${item.name}</td>
       <td class="text-center">
         <div class="quantity-wrapper">
-          <button class="ex-dec btn btn-dark small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
+          <button class="ex-dec btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
           <input type="number" class="quantity-input input w-16 text-center"
                 min="1" max="30" value="${
                   item.quantity || 1

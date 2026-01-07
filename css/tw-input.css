@@ -113,4 +113,30 @@
   .visitor-list li.active {
     @apply ring-1 ring-[#90caf9] bg-[#e3f2fd] !important;
   }
+
+  /* === Provision Page: Duplicate List Style === */
+  #duplicate-list {
+    @apply list-none p-0 my-4 space-y-1;
+  }
+
+  #duplicate-list li {
+    @apply flex flex-col gap-1 p-3.5 border-b border-gray-200 bg-white rounded-xl cursor-pointer transition-all duration-200;
+  }
+
+  #duplicate-list li:hover {
+    @apply bg-blue-50 border-blue-200;
+  }
+
+  #duplicate-list li.selected,
+  #duplicate-list .duplicate-item.selected {
+    @apply bg-[#e3f2fd] border border-[#90caf9] ring-1 ring-[#90caf9] font-semibold shadow-sm;
+  }
+
+  #duplicate-list .dup-name {
+    @apply text-[15px] font-bold text-gray-900 mb-0.5;
+  }
+
+  #duplicate-list .dup-sub {
+    @apply text-[13px] text-gray-500;
+  }
 }
