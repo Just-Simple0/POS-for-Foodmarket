@@ -333,6 +333,7 @@ const HOLD_PREFIX = "provision:hold:";
 const productByBarcode = new Map(); // barcode -> {id,name,price,barcode,category}
 const productById = new Map(); // id -> product
 let nameReqSeq = 0; // 자동완성 최신 응답 가드
+let _allProductsCache = null; // 전체 상품 캐시 저장소 (클라이언트 검색용)
 
 // ✅ 분류 제한 정책 (읽기 전용): stats/categoryPolicies 문서에서 1회 로드
 //   문서 예시: { policies: { "생필품": {mode:"one_per_category",active:true}, "스낵":{mode:"one_per_price",active:true} } }
@@ -1030,23 +1031,53 @@ async function findProductByBarcode(code) {
   productById.set(p.id, p);
   return p;
 }
+
 let __nameAutoTimer = null;
-async function searchProductsByNamePrefix(prefix) {
-  // 서버 prefix 쿼리, 상위 5개만
-  const qy = query(
-    collection(db, "products"),
-    orderBy("name"),
-    startAt(prefix),
-    endAt(prefix + "\uf8ff"),
-    limit(5)
-  );
-  const snap = await getDocs(qy);
-  return snap.docs.map((d) => {
-    const p = { id: d.id, ...d.data() };
-    productById.set(p.id, p);
-    if (p.barcode) productByBarcode.set(p.barcode, p);
-    return p;
+
+// [추가] 전체 상품 로드 (최초 1회만 서버 통신)
+async function ensureAllProductsLoaded() {
+  // 이미 로드되었으면 서버 요청 없이 리턴 (비용 절감 핵심)
+  if (_allProductsCache !== null) return;
+
+  try {
+    const qy = query(collection(db, "products"), orderBy("name"));
+    const snap = await getDocs(qy);
+
+    _allProductsCache = [];
+
+    snap.docs.forEach((d) => {
+      const p = { id: d.id, ...d.data() };
+      _allProductsCache.push(p);
+
+      // 기존 Map들에도 동기화하여 바코드 스캔 등 다른 기능 지원
+      productById.set(p.id, p);
+      if (p.barcode) productByBarcode.set(p.barcode, p);
+    });
+
+    console.log(`상품 캐시 로드 완료: ${_allProductsCache.length}개`);
+  } catch (err) {
+    console.error("상품 로드 실패:", err);
+    _allProductsCache = []; // 실패 시 빈 배열로 초기화
+  }
+}
+
+// [수정] 상품명 검색 (로컬 캐시 기반: 대소문자 무시, 중간 글자 허용)
+async function searchProductsByNamePrefix(keyword) {
+  // 1. 데이터가 없으면 로드
+  await ensureAllProductsLoaded();
+
+  // 2. 검색어 정규화 (소문자 변환)
+  const term = keyword.toLowerCase().trim();
+  if (!term) return [];
+
+  // 3. 자바스크립트로 필터링 (최대 10개만 반환)
+  const matches = _allProductsCache.filter((p) => {
+    const pName = (p.name || "").toLowerCase();
+    // 상품명 포함 or 바코드 포함 검색
+    return pName.includes(term) || (p.barcode && p.barcode.includes(term));
   });
+
+  return matches.slice(0, 10);
 }
 
 let undoStack = [];
@@ -1568,6 +1599,9 @@ qcSaveBtn?.addEventListener("click", async () => {
     const prod = { id: ref.id, name, category, price, barcode };
     productById.set(prod.id, prod);
     if (barcode) productByBarcode.set(barcode, prod);
+    if (_allProductsCache) {
+      _allProductsCache.push(prod);
+    }
     addToSelected(prod, parseInt(quantityInput.value) || 1); // 장바구니에도 바로 추가
     showToast("상품이 등록되었습니다.");
     closeQuickCreateModal();
