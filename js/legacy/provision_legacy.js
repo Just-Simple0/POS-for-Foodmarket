@@ -1,4 +1,4 @@
-﻿import { db, auth } from "./components/firebase-config.js";
+import { db, auth } from "./components/firebase-config.js";
 import {
   collection,
   doc,
@@ -327,8 +327,6 @@ let visitorList = []; // ✅ 방문자 리스트
 const visitorListEl = document.getElementById("visitor-list");
 const visitorListSection = document.getElementById("visitor-list-section");
 
-const HOLD_PREFIX = "provision:hold:";
-
 // ── 상품: 선로딩 제거 → JIT 조회(로컬 캐시로 재조회 최소화)
 const productByBarcode = new Map(); // barcode -> {id,name,price,barcode,category}
 const productById = new Map(); // id -> product
@@ -636,70 +634,27 @@ exLookupBtn?.addEventListener("click", async () => {
   }
 });
 
+// 고객 정보 렌더링 (제공 탭)
 function renderProvisionCustomerInfo() {
   if (!selectedCustomer) {
     provisionCustomerInfoDiv.innerHTML = "";
     provisionCustomerInfoDiv.classList.add("hidden");
     return;
   }
-
-  // ✅ 배지 키우기: text-xs -> text-sm, 패딩(px-3 py-1) 증가, font-bold 추가
   const lifeBadge = selectedCustomer._lifeloveThisQuarter
-    ? '<span class="badge badge-life ring-1 ring-green-200 bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold">이번 분기 제공됨</span>'
-    : '<span class="badge bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg text-sm font-bold">미제공</span>';
-
+    ? '<span class="badge badge-life">이번 분기 생명사랑 제공됨</span>'
+    : '<span class="badge">이번 분기 미제공</span>';
   provisionCustomerInfoDiv.innerHTML = `
-    <div class="bg-white rounded-2xl border border-gray-200 p-4">
-      
-      <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-4">
-        <div class="flex items-center gap-3">
-          <span class="text-lg font-extrabold text-gray-900">${
-            selectedCustomer.name ?? "이름 없음"
-          }</span>
-          <span class="text-base text-gray-500 font-medium">(${
-            selectedCustomer.gender ?? "-"
-          })</span>
-        </div>
-        <div>${lifeBadge}</div>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-5 gap-x-6">
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">생년월일</span>
-          <span class="text-base text-gray-900 font-medium">${
-            selectedCustomer.birth ?? "-"
-          }</span>
-        </div>
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">전화번호</span>
-          <span class="text-base text-gray-900 font-medium">${
-            selectedCustomer.phone ?? "-"
-          }</span>
-        </div>
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">주소</span>
-          <span class="text-base text-gray-900 font-medium">${
-            selectedCustomer.address ?? "-"
-          }</span>
-        </div>
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">최근 방문일자</span>
-          <span class="text-base text-gray-900 font-medium">${
-            lastVisitDisplay(selectedCustomer) || "-"
-          }</span>
-        </div>
-      </div>
-
-      
-        <div class="mt-4 border-t border-gray-100">
-          <span class="block text-sm font-bold text-gray-500 mb-2">비고</span>
-          <div class="text-base text-gray-800 bg-gray-50 p-4 rounded-xl leading-relaxed">
-            ${selectedCustomer.note ? selectedCustomer.note : "-"}
-          </div>
-        </div>
-    </div>
-  `;
-
+      <strong>이용자명:</strong> ${selectedCustomer.name ?? ""}<br>
+      <strong>생년월일:</strong> ${selectedCustomer.birth ?? ""}<br>
+      <strong>주소:</strong> ${selectedCustomer.address ?? ""}<br>
+      <strong>전화번호:</strong> ${selectedCustomer.phone ?? ""}<br>
+      <strong>최근 방문일자:</strong> ${
+        lastVisitDisplay(selectedCustomer) || "-"
+      }<br>
+      <strong>생명사랑:</strong> ${lifeBadge}<br>
+      <strong>비고:</strong> ${selectedCustomer.note ?? ""}
+    `;
   provisionCustomerInfoDiv.classList.remove("hidden");
 }
 
@@ -710,63 +665,16 @@ function renderExchangeCustomerInfo() {
     return;
   }
   const lifeBadge = exchangeSelectedCustomer._lifeloveThisQuarter
-    ? '<span class="badge badge-life ring-1 ring-green-200 bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold">이번 분기 제공됨</span>'
-    : '<span class="badge bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg text-sm font-bold">미제공</span>';
+    ? '<span class="badge badge-life">이번 분기 생명사랑 제공됨</span>'
+    : '<span class="badge">이번 분기 미제공</span>';
   exchangeCustomerInfoDiv.innerHTML = `
-    <div class="bg-white rounded-2xl border border-gray-200 p-4">
-      
-      <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-4">
-        <div class="flex items-center gap-3">
-          <span class="text-lg font-extrabold text-gray-900">${
-            exchangeSelectedCustomer.name ?? "이름 없음"
-          }</span>
-          <span class="text-base text-gray-500 font-medium">(${
-            exchangeSelectedCustomer.gender ?? "-"
-          })</span>
-        </div>
-        <div>${lifeBadge}</div>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-5 gap-x-6">
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">생년월일</span>
-          <span class="text-base text-gray-900 font-medium">${
-            exchangeSelectedCustomer.birth ?? "-"
-          }</span>
-        </div>
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">전화번호</span>
-          <span class="text-base text-gray-900 font-medium">${
-            exchangeSelectedCustomer.phone ?? "-"
-          }</span>
-        </div>
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">주소</span>
-          <span class="text-base text-gray-900 font-medium">${
-            exchangeSelectedCustomer.address ?? "-"
-          }</span>
-        </div>
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">최근 방문일자</span>
-          <span class="text-base text-gray-900 font-medium">${
-            lastVisitDisplay(exchangeSelectedCustomer) || "-"
-          }</span>
-        </div>
-      </div>
-
-      
-        <div class="mt-4 border-t border-gray-100">
-          <span class="block text-sm font-bold text-gray-500 mb-2">비고</span>
-          <div class="text-base text-gray-800 bg-gray-50 p-4 rounded-xl leading-relaxed">
-            ${
-              exchangeSelectedCustomer.note
-                ? exchangeSelectedCustomer.note
-                : "-"
-            }
-          </div>
-        </div>
-    </div>
-  `;
+      <strong>이용자명:</strong> ${exchangeSelectedCustomer.name ?? ""}<br>
+      <strong>생년월일:</strong> ${exchangeSelectedCustomer.birth ?? ""}<br>
+      <strong>주소:</strong> ${exchangeSelectedCustomer.address ?? ""}<br>
+      <strong>전화번호:</strong> ${exchangeSelectedCustomer.phone ?? ""}<br>
+      <strong>생명사랑:</strong> ${lifeBadge}<br>
+      <strong>비고:</strong> ${exchangeSelectedCustomer.note ?? ""}
+    `;
   exchangeCustomerInfoDiv.classList.remove("hidden");
 }
 
@@ -1122,12 +1030,15 @@ function renderVisitorList() {
   visitorListEl.innerHTML = "";
   if (visitorList.length === 0) {
     visitorListSection.classList.add("hidden");
+    // ✅ 리스트가 비면 localStorage도 즉시 비워 동기화(양쪽 키 모두)
     try {
       clearVisitorDraft();
     } catch {}
+    // ✅ 교환 탭에서는 방문자 리스트가 비어도 선택 고객을 해제하지 않음
     const isExchangeActive =
       document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
     if (!isExchangeActive) {
+      // 제공 탭에서만 '비어있으면 선택 해제'
       selectedCustomer = null;
       productSection.classList.add("hidden");
       submitSection.classList.add("hidden");
@@ -1135,7 +1046,7 @@ function renderVisitorList() {
     }
     return;
   }
-
+  // ✅ 교환 탭에서는 방문자 리스트 표시 금지
   const isExchangeActive =
     document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
   if (isExchangeActive) {
@@ -1143,41 +1054,31 @@ function renderVisitorList() {
   } else {
     visitorListSection.classList.remove("hidden");
   }
-
   visitorList.forEach((v) => {
     const hasHold = localStorage.getItem(HOLD_PREFIX + v.id);
-    const isActive = selectedCustomer?.id === v.id;
     const li = document.createElement("li");
-    const baseClasses =
-      "flex items-center justify-between gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white transition";
-    li.className = `${baseClasses}`;
-    if (isActive) li.classList.add("active");
-
+    li.className =
+      "visitor-item" +
+      (selectedCustomer?.id === v.id ? " active" : "") +
+      (hasHold ? "has-hold" : "");
     const holdBadge = hasHold
-      ? `<i class="fas fa-bookmark text-primary text-xs" aria-label="on hold"></i>`
+      ? `<i class="fas fa-bookmark hold-badge" style="font-size:11px;" title="보류 있음" aria-label="보류 있음"></i>`
       : "";
-
     li.innerHTML = `
-      <div class="meta grid gap-1 text-sm text-slate-800">
-        <div class="name font-semibold text-slate-900 flex items-center gap-2">${
-          v.name
-        } ${holdBadge}</div>
-        <div class="sub text-xs text-slate-600">${v.birth || ""} ${
+      <div class="meta">
+        <div class="name">${v.name} ${holdBadge}</div>
+        <div class="sub">${v.birth || ""} ${
       v.phone ? " | " + v.phone : ""
     }</div>
       </div>
-      <div class="actions flex items-center gap-2">
-        <button class="select btn btn-dark-weak text-xs" data-id="${
-          v.id
-        }">선택</button>
-        <button class="remove btn btn-danger text-xs" data-id="${
-          v.id
-        }">삭제</button>
+      <div class="actions">
+        <button class="select btn btn-outline" data-id="${v.id}">선택</button>
+        <button class="remove btn btn--danger" data-id="${v.id}">삭제</button>
       </div>
     `;
     visitorListEl.appendChild(li);
   });
-
+  // ✅ 렌더 후 현재 리스트를 localStorage에 즉시 반영(멀티탭 안전 저장)
   try {
     saveVisitorDraft(visitorList);
   } catch {}
@@ -1207,8 +1108,6 @@ visitorListEl?.addEventListener("click", async (e) => {
       renderSelectedList();
       clearProvisionDraft();
     }
-    localStorage.removeItem(HOLD_PREFIX + id);
-
     visitorList.splice(idx, 1);
     renderVisitorList();
     saveVisitorDraft(visitorList);
@@ -1372,7 +1271,7 @@ addProductBtn.addEventListener("click", async () => {
   try {
     // 1) 바코드 우선 경로
     if (code) {
-      if (!isValidEAN13(code)) {
+      if (!isValidEAN13(code)){
         barcodeInput.value = "";
         barcodeInput.focus();
         return showToast("유효한 바코드가 아닙니다.", true);
@@ -1655,17 +1554,17 @@ function renderSelectedList() {
 
     tr.innerHTML = `
       <td>${item.name}</td>
-      <td class="text-center">
+      <td>
         <div class="quantity-wrapper">
-        <button class="decrease-btn btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
+        <button class="decrease-btn btn-outline small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
         <input type="number" name="quantity-${idx}" min="1" max="30" value="${item.quantity}" data-idx="${idx}" class="quantity-input input w-16 text-center" />
-        <button class="increase-btn btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
+        <button class="increase-btn btn-outline small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
         </div>
       </td>
-      <td class="text-center">${item.price}</td>
-      <td class="text-center">${totalPrice}</td>
-      <td class="text-center">
-        <button class="remove-btn btn btn-danger" data-idx="${idx}" aria-label="상품 삭제"><i class="fas fa-trash"></i></button>
+      <td>${item.price}</td>
+      <td>${totalPrice}</td>
+      <td>
+        <button class="remove-btn btn btn--danger" data-idx="${idx}" aria-label="상품 삭제"><i class="fas fa-trash"></i></button>
       </td>
     `;
 
@@ -1763,6 +1662,7 @@ function calculateTotal() {
 /* =========================
    보류: localStorage 저장/불러오기
    ========================= */
+const HOLD_PREFIX = "provision:hold:";
 const holdSaveBtn = document.getElementById("hold-save-btn");
 const holdLoadBtn = document.getElementById("hold-load-btn");
 
@@ -2093,10 +1993,10 @@ function renderExchangeHistory(rows) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${when}</td>
-      <td class="text-center">${r.items?.length || 0}건</td>
-      <td class="text-center">${r.total ?? 0}</td>
-      <td class="text-center">${r.lifelove ? "생명사랑" : "-"}</td>
-      <td class="text-center"><button class="ex-pick btn btn-basic" data-id="${
+      <td>${r.items?.length || 0}건</td>
+      <td>${r.total ?? 0}</td>
+      <td>${r.lifelove ? "생명사랑" : "-"}</td>
+      <td><button class="ex-pick btn btn-outline" data-id="${
         r.id
       }">선택</button></td>
     `;
@@ -2134,19 +2034,19 @@ function renderExchangeList() {
     const totalPrice = (item.quantity || 0) * (item.price || 0);
     tr.innerHTML = `
       <td>${item.name}</td>
-      <td class="text-center">
+      <td>
         <div class="quantity-wrapper">
-          <button class="ex-dec btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
+          <button class="ex-dec btn-outline small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
           <input type="number" class="quantity-input input w-16 text-center"
                 min="1" max="30" value="${
                   item.quantity || 1
                 }" data-idx="${idx}" />
-          <button class="ex-inc btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
+          <button class="ex-inc btn-outline small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
         </div>
       </td>
-      <td class="text-center">${item.price || 0}</td>
-      <td class="text-center">${totalPrice}</td>
-      <td class="text-center"><button class="ex-del btn btn-danger " data-idx="${idx}" aria-label="항목 삭제">
+      <td>${item.price || 0}</td>
+      <td>${totalPrice}</td>
+      <td><button class="ex-del btn btn--danger " data-idx="${idx}" aria-label="항목 삭제">
         <i class="fas fa-trash"></i>
       </button></td>
     `;

@@ -51,13 +51,13 @@
           class="tab-btn btn btn-light rounded-full text-sm font-semibold shadow-soft border border-slate-200 text-slate-800 hover:bg-primary-weak hover:border-primary/50 hover:text-primary [&.active]:bg-primary [&.active]:text-white [&.active]:border-primary active"
           data-tab="provision"
         >
-          <i class="fas fa-cash-register"></i> 이용자 조회(제공)
+          <i class="fas fa-cash-register"></i> 물품 제공
         </button>
         <button
           class="tab-btn btn btn-light rounded-full text-sm font-semibold shadow-soft border border-slate-200 text-slate-800 hover:bg-primary-weak hover:border-primary/50 hover:text-primary [&.active]:bg-primary [&.active]:text-white [&.active]:border-primary"
           data-tab="exchange"
         >
-          <i class="fas fa-right-left"></i> 교환
+          <i class="fas fa-right-left"></i> 물품 교환
         </button>
       </div>
 
@@ -66,22 +66,24 @@
         data-tab-panel="provision"
         class="space-y-6"
       >
-        <h3 class="text-xl font-bold text-slate-900 tracking-tight">
-          이용자 조회(제공)
-        </h3>
-        <section
-          id="prov-customer-lookup"
-          class="card flex flex-wrap items-center gap-3 justify-between"
-        >
-          <input
-            type="text"
-            id="prov-customer-search"
-            class="input w-full md:w-96 flex-1 min-w-[220px]"
-            placeholder="고객명 검색"
-          />
-          <button id="prov-lookup-btn" type="button" class="btn btn-basic">
-            <i class="fas fa-search"></i> 조회
-          </button>
+        <h2 class="text-3xl font-bold text-slate-900 tracking-tight">
+          물품 제공
+        </h2>
+        <section id="prov-customer-lookup" class="card space-y-4">
+          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
+            이용자 조회
+          </h3>
+          <div class="flex flex-wrap items-center gap-3 justify-between">
+            <input
+              type="text"
+              id="prov-customer-search"
+              class="input w-full md:w-96 flex-1 min-w-[220px]"
+              placeholder="고객명 검색"
+            />
+            <button id="prov-lookup-btn" type="button" class="btn btn-basic">
+              <i class="fas fa-search"></i> 조회
+            </button>
+          </div>
         </section>
 
         <section id="visitor-list-section" class="hidden card space-y-4">
@@ -161,13 +163,17 @@
               id="total-summary"
               class="mt-4 flex flex-wrap items-center gap-3 text-lg font-bold text-slate-900"
             >
-              현재 총계: <span id="total-points">0</span> 포인트
+              총 포인트: <span id="total-points">0</span> 포인트
               <span id="point-warning" class="hidden text-danger font-bold"
-                >총 포인트 초과 (최대 30)</span
+                ><i class="fas fa-triangle-exclamation"></i> 30 포인트 초과</span
               >
             </div>
           </div>
-          <section id="submit-section" class="flex items-center mt-4 gap-3" hidden>
+          <section
+            id="submit-section"
+            class="flex items-center mt-4 gap-3"
+            hidden
+          >
             <button id="submit-btn" class="btn btn-basic">
               <i class="fas fa-check-circle"></i> 제공 등록 완료
             </button>
@@ -227,22 +233,24 @@
         data-tab-panel="exchange"
         class="hidden space-y-6"
       >
-        <h3 class="text-xl font-bold text-slate-900 tracking-tight">
-          이용자 조회(교환)
-        </h3>
-        <section
-          id="ex-customer-lookup"
-          class="card flex flex-wrap items-center gap-3 justify-between"
-        >
-          <input
-            type="text"
-            id="ex-customer-search"
-            class="input w-full md:w-96 flex-1 min-w-[220px]"
-            placeholder="고객명 검색"
-          />
-          <button id="ex-lookup-btn" class="btn btn-basic" type="button">
-            <i class="fas fa-search"></i> 조회
-          </button>
+        <h2 class="text-3xl font-bold text-slate-900 tracking-tight">
+          물품 교환
+        </h2>
+        <section id="ex-customer-lookup" class="card space-y-4">
+          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
+            이용자 조회
+          </h3>
+          <div class="flex flex-wrap items-center gap-3 justify-between">
+            <input
+              type="text"
+              id="ex-customer-search"
+              class="input w-full md:w-96 flex-1 min-w-[220px]"
+              placeholder="고객명 검색"
+            />
+            <button id="ex-lookup-btn" class="btn btn-basic" type="button">
+              <i class="fas fa-search"></i> 조회
+            </button>
+          </div>
         </section>
 
         <section id="exchange-customer-if">
@@ -254,7 +262,7 @@
 
         <section id="exchange-history-section" class="hidden card space-y-4">
           <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
-            교환 (최근 50일 이내 제공 내역)
+            최근 50일 이내 제공 내역
           </h3>
           <div class="table-wrapper overflow-x-auto">
             <table id="exchange-history-table" class="table min-w-[720px]">
@@ -294,10 +302,7 @@
                 class="input w-full"
                 placeholder="상품명 입력"
               />
-              <div
-                class="autocomplete-list hidden absolute left-0 top-full z-50 mt-1 w-full max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-input"
-                id="ex-autocomplete"
-              ></div>
+              <div id="ex-autocomplete" class="autocomplete-list hidden"></div>
             </div>
             <input
               type="number"
@@ -316,7 +321,7 @@
             <table id="exchange-table" class="table min-w-[720px]">
               <thead>
                 <tr>
-                  <th class="text-left">상품명</th>
+                  <th class="text-center">상품명</th>
                   <th class="text-center">수량</th>
                   <th class="text-center">가격</th>
                   <th class="text-center">총합계</th>

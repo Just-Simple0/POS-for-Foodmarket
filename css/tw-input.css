@@ -139,4 +139,45 @@
   #duplicate-list .dup-sub {
     @apply text-[13px] text-gray-500;
   }
+
+  /* css/tw-input.css */
+
+  @layer components {
+    /* ... 기존 코드 ... */
+
+    /* === 자동완성 드롭다운 (Tailwind 디자인 개선) === */
+    .autocomplete-wrapper {
+      @apply relative w-full flex-1;
+    }
+
+    .autocomplete-list {
+      /* 카드 디자인: 위치 잡기 + 둥근 모서리 + 깊은 그림자 */
+      @apply absolute top-full left-0 w-full mt-2
+           bg-white border border-gray-100 rounded-2xl
+           shadow-[0_10px_40px_rgba(0,0,0,0.12)]
+           max-h-[260px] overflow-y-auto z-[100]
+           py-1.5 overflow-hidden; /* 내부 스크롤 및 코너 잘림 처리 */
+    }
+
+    /* 리스트 아이템 디자인 */
+    .autocomplete-list div {
+      @apply flex items-center px-4 py-3.5
+           text-[15px] text-gray-700 font-medium cursor-pointer
+           border-b border-gray-50 last:border-none
+           transition-colors duration-200;
+    }
+
+    /* 호버 효과 */
+    .autocomplete-list div:hover {
+      @apply bg-blue-50 text-blue-600;
+    }
+
+    /* (선택 사항) 스크롤바 디자인 숨김 or 커스텀 */
+    .autocomplete-list::-webkit-scrollbar {
+      @apply w-1.5;
+    }
+    .autocomplete-list::-webkit-scrollbar-thumb {
+      @apply bg-gray-300 rounded-full;
+    }
+  }
 }
