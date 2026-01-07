@@ -111,7 +111,7 @@
           </h3>
 
           <div
-            class="product-input-area flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-neutral-weak/70 p-3"
+            class="product-input-area sticky top-[10vh] z-30 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-white/90 backdrop-blur-md shadow-lg p-4 transition-all duration-300"
           >
             <input
               type="text"
@@ -119,7 +119,7 @@
               class="input w-full sm:w-64 md:w-72"
               placeholder="바코드 입력 (Enter)"
               inputmode="numeric"
-              pattern="\\d*"
+              pattern="\d*"
             />
             <div class="autocomplete-wrapper relative flex-1 min-w-[16rem]">
               <input
@@ -137,9 +137,10 @@
               type="number"
               id="quantity-input"
               class="input w-24"
-              placeholder="수량 (기본 1)"
+              placeholder="수량"
               min="1"
               max="30"
+              value="1"
             />
             <button id="add-product-btn" class="btn btn-basic">
               <i class="fas fa-plus-circle"></i> 추가
@@ -165,7 +166,8 @@
             >
               총 포인트: <span id="total-points">0</span> 포인트
               <span id="point-warning" class="hidden text-danger font-bold"
-                ><i class="fas fa-triangle-exclamation"></i> 30 포인트 초과</span
+                ><i class="fas fa-triangle-exclamation"></i> 30 포인트
+                초과</span
               >
             </div>
           </div>

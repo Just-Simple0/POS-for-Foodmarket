@@ -38,16 +38,32 @@ async function loadRecentProducts() {
     __skList = makeSectionSkeleton(listEl, 6);
     const snapshot = await getDocs(q);
     listEl.innerHTML = ""; // 기존 내용 초기화
+
+    if (snapshot.empty) {
+      listEl.innerHTML =
+        '<li class="text-slate-400 text-sm py-4 text-center">최근 내역이 없습니다.</li>';
+      return;
+    }
+
     snapshot.forEach((doc) => {
       const data = doc.data();
       const dataObj = data.lastestAt?.toDate?.();
       const formatted = `${dataObj.getFullYear()}.${String(
         dataObj.getMonth() + 1
       ).padStart(2, "0")}.${String(dataObj.getDate()).padStart(2, "0")}`;
+
       const li = document.createElement("li");
-      li.textContent = `${data.name} (${formatted})`;
+      // Tailwind 스타일 적용
+      li.className =
+        "flex items-center justify-between py-3 px-3.5 bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-100 rounded-xl transition-colors duration-200 group/item";
+      li.innerHTML = `
+        <span class="font-medium text-slate-700 group-hover/item:text-blue-700 truncate mr-2">${data.name}</span>
+        <span class="text-xs font-medium text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-100 whitespace-nowrap">${formatted}</span>
+      `;
       listEl.appendChild(li);
     });
+  } catch (e) {
+    console.error(e);
   } finally {
     __skList?.();
   }
@@ -244,20 +260,29 @@ function renderVisitSection(visitData) {
   if (visitChangeEl) {
     if (customerDiff > 0) {
       visitChangeEl.textContent = `▲ ${customerDiff}명 (${customerRate}%) 증가`;
-      visitChangeEl.className = "up";
+      // Tailwind Green
+      visitChangeEl.className =
+        "text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md ml-1";
     } else if (customerDiff < 0) {
       visitChangeEl.textContent = `▼ ${Math.abs(
         customerDiff
       )}명 (${customerRate}%) 감소`;
-      visitChangeEl.className = "down";
+      // Tailwind Red
+      visitChangeEl.className =
+        "text-sm font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md ml-1";
     } else {
       visitChangeEl.textContent = `변동 없음`;
-      visitChangeEl.className = "";
+      visitChangeEl.className =
+        "text-sm font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md ml-1";
     }
   }
 
   const ctx = document.getElementById("visit-chart");
   if (ctx) {
+    // 차트 인스턴스 중복 방지
+    const existingChart = Chart.getChart(ctx);
+    if (existingChart) existingChart.destroy();
+
     new Chart(ctx, {
       type: "line",
       data: {
@@ -266,22 +291,28 @@ function renderVisitSection(visitData) {
           {
             label: "이용 고객 수",
             data: counts,
-            borderColor: "#1976d2",
-            backgroundColor: "rgba(25, 118, 210, 0.2)",
+            borderColor: "#3b82f6", // blue-500
+            backgroundColor: "rgba(59, 130, 246, 0.1)",
             fill: true,
-            tension: 0.3,
+            tension: 0.4,
             pointRadius: 4,
+            pointBackgroundColor: "#fff",
+            pointBorderColor: "#3b82f6",
+            pointBorderWidth: 2,
           },
         ],
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false, // 컨테이너에 맞춤
         plugins: {
           legend: { display: false },
         },
         scales: {
-          y: { beginAtZero: true },
+          x: { display: false },
+          y: { display: false, beginAtZero: true },
         },
+        layout: { padding: 5 },
       },
     });
   }
@@ -299,15 +330,18 @@ function renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal) {
   if (itemChangeEl) {
     if (itemDiff > 0) {
       itemChangeEl.textContent = `▲ ${itemDiff}개 (${itemRate}%) 증가`;
-      itemChangeEl.className = "up";
+      itemChangeEl.className =
+        "text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md inline-block";
     } else if (itemDiff < 0) {
       itemChangeEl.textContent = `▼ ${Math.abs(
         itemDiff
       )}개 (${itemRate}%) 감소`;
-      itemChangeEl.className = "down";
+      itemChangeEl.className =
+        "text-sm font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md inline-block";
     } else {
       itemChangeEl.textContent = `변동 없음`;
-      itemChangeEl.className = "";
+      itemChangeEl.className =
+        "text-sm font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md inline-block";
     }
   }
 
@@ -322,12 +356,21 @@ function renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal) {
     const medals = ["🥇", "🥈", "🥉"];
     if (topThree.length === 0) {
       const li = document.createElement("li");
+      li.className = "text-sm text-slate-400 text-center py-2";
       li.textContent = "데이터 없음";
       topList.appendChild(li);
     } else {
       topThree.forEach((item, index) => {
         const li = document.createElement("li");
-        li.innerHTML = `<span class="medal">${medals[index]}</span> ${item.name} (${item.count}개)`;
+        li.className =
+          "flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100";
+        li.innerHTML = `
+            <div class="flex items-center gap-2">
+                <span class="text-xl">${medals[index]}</span>
+                <span class="text-sm font-bold text-slate-700">${item.name}</span>
+            </div>
+            <span class="text-sm font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">${item.count}개</span>
+        `;
         topList.appendChild(li);
       });
     }
