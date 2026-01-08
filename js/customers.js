@@ -1,4 +1,4 @@
-import { db, auth } from "./components/firebase-config.js";
+﻿import { db, auth } from "./components/firebase-config.js";
 import {
   collection,
   setDoc,
@@ -709,16 +709,13 @@ async function loadCustomers() {
 function renderTable(data) {
   const tbody = document.querySelector("#customer-table tbody");
   tbody.innerHTML = "";
-  // 현재 화면 데이터 보관(수정 버튼 등에서 사용)
-  customerData = data;
+  customerData = data; // 현재 데이터 보관
 
   let sorted = [...data];
-
   if (currentSort.field) {
     sorted.sort((a, b) => {
       const normalize = (val) =>
         (val || "").toString().trim().replace(/-/g, "").replace(/\s+/g, "");
-
       const valA = normalize(a[currentSort.field]);
       const valB = normalize(b[currentSort.field]);
       return currentSort.direction === "asc"
@@ -730,33 +727,67 @@ function renderTable(data) {
     });
   }
 
+  if (sorted.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="12" class="py-8 text-center text-slate-400">데이터가 없습니다.</td></tr>`;
+    updatePagerUI();
+    return;
+  }
+
   sorted.forEach((c) => {
     const tr = document.createElement("tr");
+    // Tailwind 클래스 적용: 호버 효과, 테두리
+    tr.className =
+      "border-b border-slate-50 hover:bg-slate-50/80 transition-colors group";
+
+    // 상태 뱃지 스타일
+    let statusClass = "bg-slate-100 text-slate-600";
+    if (c.status === "지원")
+      statusClass = "bg-emerald-100 text-emerald-700 border border-emerald-200";
+    else if (c.status === "중단" || c.status === "제외")
+      statusClass = "bg-rose-100 text-rose-700 border border-rose-200";
+    else if (c.status === "사망")
+      statusClass =
+        "bg-gray-100 text-gray-500 border border-gray-200 line-through";
+
     tr.innerHTML = `
-      <td>${c.name || ""}</td>
-      <td>${c.birth || ""}</td>
-      <td>${c.gender || ""}</td>
-      <td class="td-admin-only ${
-        c.status === "지원" ? "status-green" : "status-red"
-      }">${c.status || ""}</td>
-      <td>${c.region1 || ""}</td>
-      <td>${c.address || ""}</td>
-      <td>${c.phone || ""}</td>
-      <td class="td-admin-only">${c.type || ""}</td>
-      <td class="td-admin-only">${c.category || ""}</td>
-      <td>${c.lastVisit || ""}</td>
-      <td>${c.note || ""}</td>
-      <td class="actions-cell">
-        <button class="icon-btn" title="수정" data-edit="${
-          c.id
-        }"><i class="fas fa-edit"></i></button>
-        <button class="icon-btn" title="삭제" data-del="${
-          c.id
-        }"><i class="fas fa-trash-alt"></i></button>
+      <td class="px-4 py-3 font-medium text-slate-900">${c.name || ""}</td>
+      <td class="px-4 py-3">${c.birth || ""}</td>
+      <td class="px-4 py-3 sm:table-cell">${c.gender || ""}</td>
+      
+      <td class="px-4 py-3 hidden [.is-admin_&]:sm:table-cell">
+        <span class="px-2 py-0.5 rounded font-bold ${statusClass}">${
+      c.status || ""
+    }</span>
+      </td>
+      
+      <td class="px-4 py-3">${c.region1 || ""}</td>
+      <td class="px-4 py-3 text-left md:table-cell" title="${
+        c.address || ""
+      }">${c.address || ""}</td>
+      <td class="px-4 py-3 md:table-cell">${c.phone || ""}</td>
+      
+      <td class="px-4 py-3 hidden [.is-admin_&]:md:table-cell">${
+        c.type || ""
+      }</td>
+      <td class="px-4 py-3 hidden [.is-admin_&]:md:table-cell">${
+        c.category || ""
+      }</td>
+      
+      <td class="px-4 py-3 lg:table-cell">${c.lastVisit || "-"}</td>
+      <td class="px-4 py-3 text-left lg:table-cell">${c.note || ""}</td>
+      
+      <td class="px-4 py-3 text-center">
+        <div class="flex justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+          <button class="btn btn-primary" title="수정" data-edit="${c.id}">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="btn btn-danger" title="삭제" data-del="${c.id}">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
       </td>
     `;
     tr.addEventListener("dblclick", () => openEditModal(c));
-
     tbody.appendChild(tr);
   });
 
@@ -1082,8 +1113,8 @@ async function runServerSearch() {
           document.getElementById("global-search").value || ""
         ).trim();
         hint.innerHTML =
-          `지원 대상 캐시에서 0건입니다.` +
-          ` <span class="link" id="open-adv">전체 데이터에서 필드 검색하기</span>`;
+          `캐싱된 데이터에서 검색 결과가 없습니다. ` +
+          ` <span class="underline cursor-pointer" id="open-adv">고급 검색을 통해 검색하기</span>`;
         hint.querySelector("#open-adv")?.addEventListener("click", () => {
           const adv = document.getElementById("advanced-search");
           adv.classList.remove("hidden");
@@ -1979,3 +2010,20 @@ async function batchUpdateStatus(ids = [], nextStatus = "중단", email = "") {
     await batch.commit();
   }
 }
+
+// [추가 수정] 탭 전환 시 스타일 변경 로직 (bindToolbarAndCreateModal 내부)
+/*
+  modal.querySelectorAll(".tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      // 모든 탭 스타일 초기화 (기본 회색 텍스트, 투명 배경)
+      modal.querySelectorAll(".tab").forEach((t) => {
+        t.className = "tab px-4 py-1.5 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors";
+      });
+      // 활성 탭 스타일 적용 (흰 배경, 파란 텍스트, 그림자)
+      tab.className = "tab px-4 py-1.5 rounded-lg text-sm font-bold bg-white shadow-sm text-blue-600 transition-colors";
+      
+      modal.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
+      modal.querySelector("#tab-" + tab.dataset.tab).classList.remove("hidden");
+    });
+  });
+*/
