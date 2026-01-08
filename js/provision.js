@@ -872,12 +872,34 @@ function showDuplicateSelection(rows) {
       selectedCandidate = { id: data.id, ...data };
       const infoEl = document.getElementById("selected-info");
       infoEl.innerHTML = `
-        <div><strong>주소 :</strong> ${data.address || "없음"}</div>
-        <div><strong>성별 :</strong> ${data.gender || "없음"}</div>
-        <div><strong>최근 방문일자 :</strong> ${
-          lastVisitDisplay(data) || "-"
-        }</div>
-        <div><strong>비고 :</strong> ${data.note || "-"}</div>
+        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 mt-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-5">
+            <div class="flex flex-col sm:col-span-2 mb-2">
+              <span class="font-bold text-slate-500 mb-1">주소</span>
+              <span class="text-slate-900 break-keep">${
+                data.address || "-"
+              }</span>
+            </div>
+            <div class="flex flex-col mb-2">
+              <span class="font-bold text-slate-500 mb-1">성별</span>
+              <span class="text-slate-900">${
+                  data.gender || "-"
+              }</span>
+            </div>
+            <div class="flex flex-col mb-2">
+              <span class="font-bold text-slate-500 mb-1">최근 방문일자</span>
+              <span class="text-slate-900">${
+                  lastVisitDisplay(data) || "-"
+              }</span>
+            </div>
+            <div class="flex flex-col sm:col-span-2">
+              <span class="font-bold text-slate-500 mb-1">비고</span>
+              <span class="text-slate-700 bg-white px-2 py-1.5 rounded border border-slate-100 text-xs leading-relaxed">
+                ${data.note || "-"}
+              </span>
+            </div>
+          </div>
+        </div>
       `;
       infoEl.classList.remove("hidden");
       confirmBtn.disabled = false;

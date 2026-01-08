@@ -48,7 +48,7 @@
   >
     <div id="header-container" class="sticky top-0 z-50"></div>
 
-    <main class="flex-1 w-full max-w-[1320px] mx-auto px-4 sm:px-6 py-8">
+    <main class="flex-1 w-full max-w-[1920px] mx-auto px-4 sm:px-6 py-8">
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <div
           class="group relative flex flex-col justify-between bg-white/80 backdrop-blur-xl border border-white/60 rounded-[24px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_60px_rgba(15,23,42,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden"
@@ -65,7 +65,7 @@
             <h2 class="text-lg font-bold text-slate-800">이용 고객 수</h2>
           </div>
 
-          <div class="flex flex-col gap-1">
+          <div class="mb-6 gap-1">
             <span
               id="visit-count"
               class="text-4xl font-extrabold text-slate-900 tracking-tight"
@@ -77,7 +77,7 @@
             </div>
           </div>
 
-          <div class="mt-6 relative h-[120px] w-full">
+          <div class="mt-auto relative h-[180px] w-full">
             <canvas id="visit-chart"></canvas>
           </div>
         </div>
@@ -97,7 +97,7 @@
             <h2 class="text-lg font-bold text-slate-800">오늘 제공된 물품</h2>
           </div>
 
-          <div class="mb-6">
+          <div class="mb-6 gap-1">
             <span
               id="item-total"
               class="text-4xl font-extrabold text-slate-900 tracking-tight"
@@ -109,7 +109,7 @@
             </div>
           </div>
 
-          <div class="mt-auto">
+          <div class="mt-auto justify-center">
             <ul id="top-items-list" class="space-y-3"></ul>
           </div>
         </div>
@@ -242,7 +242,7 @@
                 <input
                   type="date"
                   id="expiry-base-date"
-                  class="w-full mb-0 pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                  class="w-full mb-0 font-sans pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none"
                 />
               </div>
               <button
@@ -320,8 +320,7 @@
                 <span
                   id="expiry-custom-result"
                   class="text-lg font-bold text-slate-800"
-                  ></span
-                >
+                ></span>
               </div>
             </div>
           </details>

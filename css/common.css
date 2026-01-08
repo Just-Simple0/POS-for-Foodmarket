@@ -589,7 +589,6 @@ body[data-loading="true"] {
 .modal-content select {
   display: block;
   width: 100%;
-  margin-bottom: 16px;
   padding: 12px;
   font-size: 15px;
   border-radius: 12px;

@@ -6,9 +6,3 @@
 .expiry-details summary::-webkit-details-marker {
   display: none;
 }
-
-#expiry-modal #expiry-base-date {
-  font-family: "Pretendard", system-ui, -apple-system, Segoe UI, Roboto,
-    "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Noto Sans KR",
-    "Malgun Gothic", sans-serif;
-}
