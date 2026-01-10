@@ -33,7 +33,7 @@ function scheduleAdminPendingNotify(user, role) {
 // ---------------- favicon ----------------
 function ensureFavicon() {
   const head = document.head || document.getElementsByTagName("head")[0];
-  const pngHref = window.FAVICON_HREF || "/favicon.png";
+  const pngHref = window.FAVICON_HREF || "favicon.png";
   const appleHref = window.APPLE_TOUCH_ICON_HREF || pngHref;
 
   let linkIcon = document.querySelector('link[rel="icon"]');
