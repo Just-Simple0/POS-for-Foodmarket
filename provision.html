@@ -111,8 +111,8 @@
                 <input
                   type="text"
                   id="prov-customer-search"
-                  class="input pl-10 w-full focus:ring-blue-500"
-                  placeholder="고객명 또는 전화번호 뒷자리"
+                  class="input pl-10 w-full"
+                  placeholder="이용자명"
                 />
               </div>
               <button
@@ -171,7 +171,7 @@
               <input
                 type="text"
                 id="barcode-input"
-                class="input pl-9 w-full bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800 transition-colors"
+                class="input pl-9 w-full"
                 placeholder="바코드"
                 inputmode="numeric"
                 pattern="\d*"
@@ -189,7 +189,7 @@
               <input
                 type="text"
                 id="name-input"
-                class="input pl-9 w-full bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800 transition-colors"
+                class="input pl-9 w-full"
                 placeholder="상품명"
               />
               <div
@@ -207,7 +207,7 @@
               <input
                 type="number"
                 id="quantity-input"
-                class="input pl-8 w-full text-center bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800"
+                class="input pl-8 w-full text-center"
                 placeholder="수량"
                 min="1"
                 max="30"
@@ -264,29 +264,7 @@
                 <tbody
                   class="divide-y divide-slate-100 dark:divide-slate-700/50 bg-white dark:bg-slate-800"
                 >
-                  <tr id="cart-empty-state">
-                    <td
-                      colspan="5"
-                      class="py-12 text-center select-none pointer-events-none"
-                    >
-                      <div
-                        class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600"
-                      >
-                        <div
-                          class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center mb-1"
-                        >
-                          <i
-                            class="fas fa-basket-shopping text-3xl text-slate-200 dark:text-slate-600"
-                          ></i>
-                        </div>
-                        <p
-                          class="text-slate-400 dark:text-slate-500 font-medium text-sm"
-                        >
-                          상품의 바코드를 스캔하거나<br />상품명을 검색해주세요.
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
+                  
                 </tbody>
               </table>
             </div>
@@ -429,7 +407,7 @@
               for="ex-customer-search"
               class="block text-sm font-bold text-slate-700 dark:text-slate-300"
             >
-              교환 대상 조회
+              이용자 조회
             </label>
             <div class="flex gap-2">
               <div class="relative flex-1">
@@ -441,8 +419,8 @@
                 <input
                   type="text"
                   id="ex-customer-search"
-                  class="input pl-10 w-full focus:ring-blue-500"
-                  placeholder="고객명 또는 전화번호 뒷자리"
+                  class="input pl-10 w-full"
+                  placeholder="이용자명"
                 />
               </div>
               <button
@@ -531,7 +509,7 @@
               <input
                 type="text"
                 id="ex-barcode-input"
-                class="input pl-9 w-full bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800"
+                class="input pl-9 w-full"
                 placeholder="바코드"
                 inputmode="numeric"
                 pattern="\d*"
@@ -547,7 +525,7 @@
               <input
                 type="text"
                 id="ex-name-input"
-                class="input pl-9 w-full bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800"
+                class="input pl-9 w-full"
                 placeholder="상품명"
               />
               <div
@@ -565,7 +543,7 @@
               <input
                 type="number"
                 id="ex-quantity-input"
-                class="input pl-8 w-full text-center bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800"
+                class="input pl-8 w-full text-center"
                 placeholder="수량"
                 min="1"
                 max="30"
@@ -803,7 +781,7 @@
               <input
                 type="text"
                 id="qc-barcode"
-                class="input pl-9 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 font-mono tracking-wide focus:ring-0 cursor-not-allowed"
+                class="input pl-9 tracking-wide focus:ring-0 cursor-not-allowed"
                 readonly
               />
             </div>
@@ -878,7 +856,7 @@
         >
           <button
             id="qc-close"
-            class="btn btn-outline border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
+            class="btn btn-dark-weak"
           >
             취소
           </button>

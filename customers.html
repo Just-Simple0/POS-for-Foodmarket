@@ -42,7 +42,7 @@
   </head>
 
   <body
-    class="bg-[#f2f4f6] text-slate-900 font-sans antialiased min-h-screen flex flex-col"
+    class="bg-[#f2f4f6] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans antialiased min-h-screen flex flex-col transition-colors duration-200"
   >
     <div id="header-container" class="sticky top-0 z-50"></div>
 
@@ -51,36 +51,43 @@
         class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6"
       >
         <div>
-          <h2 class="text-3xl font-bold text-slate-800 mb-2">이용자 관리</h2>
-          <p class="text-slate-500 text-sm">
+          <h2 class="text-3xl font-bold text-slate-800 dark:text-white mb-2">
+            이용자 관리
+          </h2>
+          <p class="text-slate-500 dark:text-slate-400 text-sm">
             등록된 이용자를 조회하고 관리합니다.
           </p>
         </div>
       </div>
 
       <div
-        class="bg-white/80 backdrop-blur-xl border border-white/60 rounded-[24px] p-6 shadow-sm mb-6 space-y-4"
+        class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/60 dark:border-slate-700 rounded-[24px] p-6 shadow-sm mb-6 space-y-4 transition-colors"
       >
-        <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
+        <h3
+          class="text-lg font-semibold text-slate-900 dark:text-white tracking-tight"
+        >
           이용자 조회
         </h3>
         <div class="flex flex-col md:flex-row gap-3">
           <div class="relative flex-1">
             <input
               id="global-search"
-              class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+              class="input w-full pl-11"
               placeholder="검색어를 입력하세요"
             />
             <i
               class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
             ></i>
           </div>
-          <button id="btn-run-search" class="btn btn-primary px-6 py-3">
+          <button
+            id="btn-run-search"
+            class="btn btn-primary px-6 py-3 shadow-lg shadow-blue-500/20"
+          >
             검색
           </button>
           <button
             id="toggle-advanced-search"
-            class="btn btn-dark-weak px-6 py-3"
+            class="btn btn-dark-weak px-6 py-3 shadow-md shadow-slate-500/10"
           >
             고급 검색
           </button>
@@ -88,12 +95,12 @@
 
         <div
           id="advanced-search"
-          class="hidden border-t border-slate-100 animate-[fadeIn_0.2s_ease-out]"
+          class="hidden border-t border-slate-100 dark:border-slate-700/50 pt-4 animate-[fadeIn_0.2s_ease-out]"
         >
           <div class="flex flex-1 gap-3 items-center">
             <select
               id="field-select"
-              class="px-4 py-2.5 w-fit bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500"
+              class="input px-4 py-2.5 w-fit  focus:border-blue-500 text-slate-700 dark:text-slate-200"
             >
               <option value="">목록 선택</option>
               <option value="name">이용자명</option>
@@ -109,7 +116,7 @@
             </select>
             <input
               id="field-search"
-              class="flex-1 w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-blue-500"
+              class="input flex-1 w-full px-4 py-2.5"
               placeholder="부분 검색어를 입력하세요"
             />
             <button id="btn-run-field-search" class="btn btn-dark px-5 py-2.5">
@@ -120,7 +127,7 @@
 
         <div
           id="search-hint"
-          class="hidden mt-4 p-3 bg-blue-50 text-blue-700 text-sm font-medium rounded-xl items-center gap-2"
+          class="hidden mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 text-sm font-medium rounded-xl items-center gap-2"
         >
           <i class="fas fa-info-circle"></i>
           <span>검색 결과가 없습니다.</span>
@@ -131,24 +138,27 @@
         <div class="flex gap-2">
           <button
             id="btn-customer-create"
-            class="btn btn-primary flex items-center gap-2"
+            class="btn btn-primary flex items-center gap-2 shadow-md shadow-blue-500/20"
           >
             <i class="fas fa-user-plus"></i> 등록하기
           </button>
           <button
             id="btn-export-xlsx"
-            class="btn bg-emerald-600 hover:bg-emerald-700 text-white"
+            class="btn bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20"
           >
             <i class="fas fa-file-excel"></i> 내보내기
           </button>
         </div>
         <div class="flex items-center gap-2 w-auto">
-          <label for="page-size" class="text-sm font-medium text-slate-500">
+          <label
+            for="page-size"
+            class="text-sm font-medium text-slate-500 dark:text-slate-400"
+          >
             표시 수</label
           >
           <select
             id="page-size"
-            class="px-3 py-1.5 w-fit bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:border-blue-500 outline-none"
+            class="input px-3 py-0 w-fit bg-white dark:bg-slate-800 text-sm"
           >
             <option value="10">10개</option>
             <option value="25" selected>25개</option>
@@ -159,146 +169,148 @@
       </div>
 
       <div
-        class="bg-white border border-slate-200 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.03)] overflow-x-auto"
+        class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.03)] overflow-x-auto transition-colors custom-scrollbar"
       >
-        <table id="customer-table" class="w-full text-sm text-left">
+        <table
+          id="customer-table"
+          class="w-full text-sm text-left border-collapse"
+        >
           <thead
-            class="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium whitespace-nowrap"
+            class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap"
             id="customers-thead"
           >
             <tr>
               <th
                 data-label="이용자명"
-                class="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors"
+                class="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               >
                 이용자명
               </th>
               <th
                 data-label="생년월일"
-                class="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors"
+                class="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               >
                 생년월일
               </th>
               <th
                 data-label="성별"
-                class="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors sm:table-cell"
+                class="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors sm:table-cell"
               >
                 성별
               </th>
               <th
                 data-label="상태"
-                class="th-admin-only px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors hidden [.is-admin_&]:sm:table-cell"
+                class="th-admin-only px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors hidden [.is-admin_&]:sm:table-cell"
               >
                 상태
               </th>
               <th
                 data-label="행정구역"
-                class="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors"
+                class="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               >
                 행정구역
               </th>
               <th
                 data-label="주소"
-                class="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors md:table-cell"
+                class="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors md:table-cell"
               >
                 주소
               </th>
               <th
                 data-label="전화번호"
-                class="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors md:table-cell"
+                class="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors md:table-cell"
               >
                 전화번호
               </th>
               <th
                 data-label="이용자구분"
-                class="th-admin-only px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors hidden [.is-admin_&]:md:table-cell"
+                class="th-admin-only px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors hidden [.is-admin_&]:md:table-cell"
               >
                 구분
               </th>
               <th
                 data-label="이용자분류"
-                class="th-admin-only px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors hidden [.is-admin_&]:md:table-cell"
+                class="th-admin-only px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors hidden [.is-admin_&]:md:table-cell"
               >
                 분류
               </th>
               <th
                 data-label="최근 방문일자"
-                class="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors lg:table-cell"
+                class="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors lg:table-cell"
               >
                 최근 방문
               </th>
               <th
                 data-label="비고"
-                class="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors lg:table-cell"
+                class="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors lg:table-cell"
               >
                 비고
               </th>
               <th data-label="작업" class="px-4 py-3 text-center">작업</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100 text-slate-700"></tbody>
+          <tbody
+            class="divide-y divide-slate-100 dark:divide-slate-700 text-slate-700 dark:text-slate-300"
+          ></tbody>
         </table>
       </div>
 
       <div
         id="pagination"
-        class="flex justify-center mt-8 gap-1 [&>button]:px-3.5 [&>button]:py-2 [&>button]:rounded-xl [&>button]:border [&>button]:border-slate-200 [&>button]:bg-white [&>button]:text-sm [&>button]:font-bold [&>button]:text-slate-500 [&>button]:transition-all [&>button:hover:not(:disabled)]:bg-slate-50 [&>button:hover:not(:disabled)]:text-blue-600 [&>button:hover:not(:disabled)]:border-blue-200 [&>button.active]:bg-blue-600 [&>button.active]:border-blue-600 [&>button.active]:text-white [&>button.active]:shadow-md [&>button.active]:shadow-blue-500/20 [&>button:disabled]:opacity-40 [&>button:disabled]:cursor-not-allowed"
+        class="flex justify-center mt-8 gap-1 [&>button]:px-3.5 [&>button]:py-2 [&>button]:rounded-xl [&>button]:border [&>button]:border-slate-200 dark:[&>button]:border-slate-700 [&>button]:bg-white dark:[&>button]:bg-slate-800 [&>button]:text-sm [&>button]:font-bold [&>button]:text-slate-500 dark:[&>button]:text-slate-400 [&>button]:transition-all [&>button:hover:not(:disabled)]:bg-slate-50 dark:[&>button:hover:not(:disabled)]:bg-slate-700 [&>button:hover:not(:disabled)]:text-blue-600 dark:[&>button:hover:not(:disabled)]:text-blue-400 [&>button:hover:not(:disabled)]:border-blue-200 dark:[&>button:hover:not(:disabled)]:border-blue-500/50 [&>button.active]:bg-blue-600 [&>button.active]:border-blue-600 [&>button.active]:text-white [&>button.active]:shadow-md [&>button.active]:shadow-blue-500/20 [&>button:disabled]:opacity-40 [&>button:disabled]:cursor-not-allowed"
       ></div>
     </main>
 
     <div
       id="customer-create-modal"
-      class="modal hidden fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+      class="modal-overlay hidden"
       aria-hidden="true"
     >
       <div
-        class="modal-panel w-full max-w-2xl flex flex-col max-h-[90vh] p-0 overflow-hidden animate-[modalPop_0.2s_ease-out]"
+        class="modal-panel w-full max-w-2xl flex flex-col max-h-[90vh] p-0 overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-modal-title"
       >
         <div
-          class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/50"
+          class="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-700"
         >
           <h2
             id="create-modal-title"
-            class="text-xl font-bold text-slate-800 flex items-center gap-2"
+            class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2"
           >
             <i class="fas fa-user-plus text-blue-500"></i> 이용자 등록
           </h2>
-          <button
-            type="button"
-            id="create-modal-close"
-            class="text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
-          >
-            <i class="fas fa-times text-xl"></i>
-          </button>
         </div>
 
         <div class="p-6 overflow-y-auto custom-scrollbar">
-          <div class="tabs flex gap-1 mb-6 p-1 bg-slate-100 rounded-xl w-fit">
-            <button
-              class="tab px-4 py-1.5 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-700 transition-all [&.active]:bg-white [&.active]:text-blue-600 [&.active]:shadow-sm active"
-              data-tab="direct"
-            >
-              직접 입력
-            </button>
-            <button
-              class="tab px-4 py-1.5 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-700 transition-all [&.active]:bg-white [&.active]:text-blue-600 [&.active]:shadow-sm"
-              data-tab="upload"
-            >
-              엑셀 업로드
-            </button>
+          <div class="flex justify-center mb-6">
+            <div class="tab-glass-track">
+              <button class="tab tab-glass-btn active" data-tab="direct">
+                <i class="fas fa-pen text-sm"></i>
+                <span>직접 입력</span>
+              </button>
+              <button class="tab tab-glass-btn" data-tab="upload">
+                <i class="fas fa-file-excel text-sm"></i>
+                <span>엑셀 업로드</span>
+              </button>
+            </div>
           </div>
 
           <div class="tab-panel space-y-6" id="tab-direct">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label class="flex flex-col gap-1">
-                <span class="text-sm font-bold text-slate-500">이름</span>
+                <span
+                  class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                  >이름</span
+                >
                 <input id="create-name" type="text" class="input" />
               </label>
               <label class="flex flex-col gap-1">
-                <span class="text-sm font-bold text-slate-500">생년월일</span>
+                <span
+                  class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                  >생년월일</span
+                >
                 <input
                   id="create-birth"
                   type="text"
@@ -306,9 +318,11 @@
                   placeholder="YYYY.MM.DD"
                 />
               </label>
-
               <label class="flex flex-col gap-1">
-                <span class="text-sm font-bold text-slate-500">성별</span>
+                <span
+                  class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                  >성별</span
+                >
                 <select id="create-gender" class="input">
                   <option value="">선택</option>
                   <option>남</option>
@@ -316,7 +330,10 @@
                 </select>
               </label>
               <label class="flex flex-col gap-1">
-                <span class="text-sm font-bold text-slate-500">상태</span>
+                <span
+                  class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                  >상태</span
+                >
                 <select id="create-status" class="input">
                   <option>지원</option>
                   <option>중단</option>
@@ -326,7 +343,10 @@
               </label>
 
               <label class="flex flex-col gap-1 sm:col-span-2">
-                <span class="text-sm font-bold text-slate-500">행정구역</span>
+                <span
+                  class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                  >행정구역</span
+                >
                 <input
                   id="create-region1"
                   type="text"
@@ -335,13 +355,19 @@
                 />
               </label>
               <label class="flex flex-col gap-1 sm:col-span-2">
-                <span class="text-sm font-bold text-slate-500">주소</span>
+                <span
+                  class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                  >주소</span
+                >
                 <input id="create-address" type="text" class="input" />
               </label>
 
               <div class="sm:col-span-2 flex flex-col gap-2">
                 <div class="flex justify-between items-center">
-                  <span class="text-sm font-bold text-slate-500">전화번호</span>
+                  <span
+                    class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                    >전화번호</span
+                  >
                   <button
                     type="button"
                     id="create-phone-add"
@@ -353,128 +379,159 @@
                 <div id="create-phone-wrap" class="flex flex-col gap-2"></div>
               </div>
 
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-bold text-slate-500">이용자구분</span>
+              <label class="flex flex-col gap-1 relative group">
+                <span
+                  class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                  >이용자구분</span
+                >
                 <input
                   id="create-type"
                   type="text"
                   class="input"
-                  list="type-options"
                   placeholder="선택 또는 직접 입력"
                 />
+                <div
+                  id="create-type-list"
+                  class="autocomplete-list hidden"
+                ></div>
               </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-bold text-slate-500">이용자분류</span>
+              <label class="flex flex-col gap-1 relative group">
+                <span
+                  class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                  >이용자분류</span
+                >
                 <input
                   id="create-category"
                   type="text"
                   class="input"
-                  list="category-options"
                   placeholder="선택 또는 직접 입력"
                 />
+                <div
+                  id="create-category-list"
+                  class="autocomplete-list hidden"
+                ></div>
               </label>
 
               <label class="flex flex-col gap-1 sm:col-span-2">
-                <span class="text-sm font-bold text-slate-500">비고</span>
+                <span
+                  class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                  >비고</span
+                >
                 <input id="create-note" type="text" class="input" />
               </label>
             </div>
 
-            <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
+            <div
+              class="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-700"
+            >
+              <button id="create-modal-close" class="btn btn-dark-weak">
+                닫기
+              </button>
               <button
                 type="button"
                 id="create-modal-save"
                 class="btn btn-primary"
               >
-                <i class="fas fa-save"></i> 저장
+                저장
               </button>
             </div>
           </div>
 
           <div class="tab-panel hidden space-y-5" id="tab-upload">
             <div
-              class="uploader border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-blue-400 transition-colors bg-slate-50/50"
+              class="uploader border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl p-8 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors bg-slate-50/50 dark:bg-slate-900/50"
             >
               <input
                 type="file"
                 id="upload-file"
                 accept=".xlsx,.xls"
-                class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                class="block w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/30 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50 cursor-pointer"
               />
             </div>
 
             <div
-              class="upload-options bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm space-y-3"
+              class="upload-options bg-slate-50 dark:bg-slate-800/50 p-5 rounded-xl text-sm space-y-4"
             >
               <label
-                class="flex items-center gap-2 font-medium cursor-pointer text-slate-700"
+                class="flex items-center gap-3 font-medium cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
               >
                 <input
                   type="checkbox"
                   id="opt-allow-missing-status"
-                  class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                  class="input-toss-checkbox"
                   checked
                 />
                 <span>상태 필드 없어도 업로드 허용</span>
               </label>
-              <fieldset class="space-y-2 border-t border-slate-200 pt-2">
-                <legend class="text-xs font-bold text-slate-400 mb-2">
+
+              <div class="h-px bg-slate-200/60 dark:bg-slate-700 my-1"></div>
+
+              <div class="space-y-3">
+                <span class="text-xs font-bold text-slate-400 block ml-1">
                   상태 변경 옵션
-                </legend>
+                </span>
+
                 <label
-                  class="flex items-center gap-2 cursor-pointer text-slate-700"
+                  class="flex items-center gap-3 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
                 >
                   <input
                     type="radio"
                     name="opt-status-mode"
                     value="none"
-                    class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    class="input-toss-radio"
                     checked
                   />
                   <span>변경 없음 (파일 내용 따름)</span>
                 </label>
+
                 <label
-                  class="flex items-center gap-2 cursor-pointer text-slate-700"
+                  class="flex items-center gap-3 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
                 >
                   <input
                     type="radio"
                     name="opt-status-mode"
                     value="all-support"
-                    class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    class="input-toss-radio"
                   />
                   <span>업로드 전원 ‘지원’으로 저장</span>
                 </label>
+
                 <label
-                  class="flex items-center gap-2 cursor-pointer text-slate-700"
+                  class="flex items-center gap-3 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
                   title="업로드 전원 ‘지원’으로 저장하고, 이번 업로드에 포함되지 않은 기존 ‘지원’ 인원은 모두 ‘중단’으로 변경"
                 >
                   <input
                     type="radio"
                     name="opt-status-mode"
                     value="all-support-stop-others"
-                    class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    class="input-toss-radio"
                   />
                   <span>
                     업로드 전원 ‘지원’ + 미포함 인원
-                    <b class="text-rose-600">‘중단’</b>
+                    <b class="text-rose-600 dark:text-rose-400">‘중단’</b>
                   </span>
                 </label>
-              </fieldset>
+              </div>
             </div>
 
             <div
               id="upload-preview"
-              class="p-4 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 min-h-[3rem] flex items-center justify-center font-medium"
+              class="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-600 dark:text-slate-300 min-h-[3rem] flex items-center justify-center font-medium"
             >
               파일을 선택하고 미리보기를 눌러주세요.
             </div>
 
-            <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
-              <button class="btn btn-light" id="btn-upload-dryrun">
-                <i class="fas fa-eye"></i> 미리보기
+            <div
+              class="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-700"
+            >
+              <button
+                class="btn btn-light dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 hover:dark:bg-slate-600"
+                id="btn-upload-dryrun"
+              >
+                미리보기
               </button>
               <button class="btn btn-primary" id="btn-upload-exec" disabled>
-                <i class="fas fa-cloud-upload-alt"></i> 실행
+                실행
               </button>
             </div>
           </div>
@@ -482,33 +539,23 @@
       </div>
     </div>
 
-    <div
-      id="edit-modal"
-      class="modal hidden fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
-    >
+    <div id="edit-modal" class="modal-overlay hidden">
       <form
         id="edit-form"
-        class="modal-panel w-full max-w-2xl flex flex-col max-h-[90vh] p-0 overflow-hidden animate-[modalPop_0.2s_ease-out]"
+        class="modal-panel w-full max-w-2xl flex flex-col max-h-[90vh] p-0 overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-title"
       >
         <div
-          class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/50"
+          class="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-700"
         >
           <h2
             id="edit-title"
-            class="text-xl font-bold text-slate-800 flex items-center gap-2"
+            class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2"
           >
             <i class="fas fa-edit text-blue-500"></i> 이용자 정보 수정
           </h2>
-          <button
-            type="button"
-            id="close-edit-modal"
-            class="text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
-          >
-            <i class="fas fa-times text-xl"></i>
-          </button>
         </div>
 
         <input type="hidden" id="edit-id" />
@@ -516,11 +563,15 @@
         <div class="p-6 overflow-y-auto custom-scrollbar">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-bold text-slate-500">이름</span>
+              <span class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                >이름</span
+              >
               <input id="edit-name" class="input" />
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-bold text-slate-500">생년월일</span>
+              <span class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                >생년월일</span
+              >
               <input
                 id="edit-birth"
                 type="text"
@@ -528,9 +579,10 @@
                 placeholder="YYYY.MM.DD"
               />
             </label>
-
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-bold text-slate-500">성별</span>
+              <span class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                >성별</span
+              >
               <select id="edit-gender" class="input">
                 <option value="">선택</option>
                 <option>남</option>
@@ -538,7 +590,9 @@
               </select>
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-bold text-slate-500">상태</span>
+              <span class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                >상태</span
+              >
               <select id="edit-status" class="input">
                 <option>지원</option>
                 <option>중단</option>
@@ -546,19 +600,25 @@
                 <option>사망</option>
               </select>
             </label>
-
             <label class="flex flex-col gap-1 sm:col-span-2">
-              <span class="text-sm font-bold text-slate-500">행정구역</span>
+              <span class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                >행정구역</span
+              >
               <input id="edit-region1" class="input" />
             </label>
             <label class="flex flex-col gap-1 sm:col-span-2">
-              <span class="text-sm font-bold text-slate-500">주소</span>
+              <span class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                >주소</span
+              >
               <input id="edit-address" class="input" />
             </label>
 
             <div class="sm:col-span-2 flex flex-col gap-2">
               <div class="flex justify-between items-center">
-                <span class="text-sm font-bold text-slate-500">전화번호</span>
+                <span
+                  class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                  >전화번호</span
+                >
                 <button
                   type="button"
                   id="edit-phone-add"
@@ -570,74 +630,80 @@
               <div id="edit-phone-wrap" class="flex flex-col gap-2"></div>
             </div>
 
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-bold text-slate-500">이용자구분</span>
+            <label class="flex flex-col gap-1 relative group">
+              <span class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                >이용자구분</span
+              >
               <input
                 id="edit-type"
                 type="text"
                 class="input"
-                list="type-options"
                 placeholder="선택 또는 직접 입력"
               />
+              <div id="edit-type-list" class="autocomplete-list hidden"></div>
             </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-bold text-slate-500">이용자분류</span>
+            <label class="flex flex-col gap-1 relative group">
+              <span class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                >이용자분류</span
+              >
               <input
                 id="edit-category"
                 type="text"
                 class="input"
-                list="category-options"
                 placeholder="선택 또는 직접 입력"
               />
+              <div
+                id="edit-category-list"
+                class="autocomplete-list hidden"
+              ></div>
             </label>
-
             <label class="flex flex-col gap-1 sm:col-span-2">
-              <span class="text-sm font-bold text-slate-500">비고</span>
+              <span class="text-sm font-bold text-slate-500 dark:text-slate-400"
+                >비고</span
+              >
               <input id="edit-note" class="input" />
             </label>
           </div>
 
           <div
-            class="flex justify-end gap-2 mt-6 pt-4 border-t border-slate-100"
+            class="flex justify-end gap-2 mt-6 pt-4 border-t border-slate-100 dark:border-slate-700"
           >
-            <button type="submit" class="btn btn-primary">
-              <i class="fas fa-save"></i> 저장
-            </button>
             <button
               type="button"
               id="close-edit-modal-btn"
               class="btn btn-light"
               onclick="document.getElementById('edit-modal').classList.add('hidden')"
             >
-              <i class="fas fa-times"></i> 취소
+              닫기
             </button>
+
+            <button type="submit" class="btn btn-primary">저장</button>
           </div>
         </div>
       </form>
     </div>
 
-    <div
-      id="dup-modal"
-      class="modal hidden fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
-      aria-hidden="true"
-    >
+    <div id="dup-modal" class="modal-overlay hidden" aria-hidden="true">
       <div
-        class="modal-panel w-full max-w-md p-6 animate-[modalPop_0.2s_ease-out]"
+        class="modal-panel w-full max-w-md p-6"
         role="dialog"
         aria-modal="true"
         aria-labelledby="dup-modal-title"
       >
-        <h2 id="dup-modal-title" class="text-xl font-bold text-slate-800 mb-4">
+        <h2
+          id="dup-modal-title"
+          class="text-xl font-bold text-slate-800 dark:text-white mb-4"
+        >
           동명이인 처리
         </h2>
 
         <p
           id="dup-info"
-          class="text-sm text-slate-600 mb-4 bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-100"
+          class="text-sm text-slate-600 dark:text-slate-300 mb-4 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400 p-4 rounded-xl border border-amber-100 dark:border-amber-800/50"
         ></p>
 
         <ol
-          class="list-decimal list-inside text-sm text-slate-600 mb-6 space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100"
+          class="list-decimal list-inside text-sm text-slate-600 dark:text-slate-300 mb-6 space-y-2 bg-slate-50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700"
         >
           <li><b>기존 정보 업데이트</b>: 기존 문서 값을 갱신</li>
           <li><b>동명이인 신규 등록</b>: 동일 이름/생년월일로 새 문서 생성</li>
@@ -647,21 +713,42 @@
           <button id="dup-update" class="btn btn-primary w-full justify-center">
             기존 정보 업데이트
           </button>
-          <button
-            id="dup-new"
-            class="btn btn-light w-full justify-center border border-slate-200"
-          >
+          <button id="dup-new" class="btn btn-light w-full justify-center">
             동명이인 신규로 등록
           </button>
-          <button
-            class="btn btn-ghost w-full justify-center text-slate-400"
-            data-close
-          >
+          <button class="btn btn-ghost w-full justify-center" data-close>
             취소
           </button>
         </div>
       </div>
     </div>
+
+    <!-- <datalist id="type-options">
+      <option value="긴급지원대상자"></option>
+      <option value="기초생활보장수급자"></option>
+      <option value="차상위계층"></option>
+      <option value="저소득층"></option>
+      <option value="기초생활보장수급탈락자"></option>
+    </datalist>
+
+    <datalist id="category-options">
+      <option value="결식아동"></option>
+      <option value="다문화가정"></option>
+      <option value="독거어르신"></option>
+      <option value="소년소녀가장"></option>
+      <option value="외국인노동자"></option>
+      <option value="재가장애인"></option>
+      <option value="저소득가정"></option>
+      <option value="조손가정"></option>
+      <option value="한부모가정"></option>
+      <option value="기타"></option>
+      <option value="청장년1인가구"></option>
+      <option value="미혼모부가구"></option>
+      <option value="부부중심가구"></option>
+      <option value="노인부부가구"></option>
+      <option value="새터민가구"></option>
+      <option value="공동체가구"></option>
+    </datalist> -->
 
     <div id="footer-container" class="mt-auto"></div>
 

@@ -711,6 +711,7 @@ function renderTable(data) {
   tbody.innerHTML = "";
   customerData = data; // 현재 데이터 보관
 
+  // 정렬 로직 (기존 유지)
   let sorted = [...data];
   if (currentSort.field) {
     sorted.sort((a, b) => {
@@ -727,61 +728,97 @@ function renderTable(data) {
     });
   }
 
+  // [수정] 빈 상태(Empty State) 여백 확대 (py-16 -> py-32)
   if (sorted.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="12" class="py-8 text-center text-slate-400">데이터가 없습니다.</td></tr>`;
+    tbody.innerHTML = `
+      <tr class="customer-empty-state">
+        <td colspan="12" class="py-12 text-center select-none pointer-events-none">
+          <div class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600">
+            <div class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center mb-1">
+              <i class="fas fa-users-slash text-3xl text-slate-200 dark:text-slate-600"></i>
+            </div>
+            <p class="text-slate-400 dark:text-slate-500 font-medium text-base">
+              조건에 맞는 이용자가 없습니다.
+            </p>
+          </div>
+        </td>
+      </tr>`;
     updatePagerUI();
     return;
   }
 
   sorted.forEach((c) => {
     const tr = document.createElement("tr");
-    // Tailwind 클래스 적용: 호버 효과, 테두리
-    tr.className =
-      "border-b border-slate-50 hover:bg-slate-50/80 transition-colors group";
 
-    // 상태 뱃지 스타일
-    let statusClass = "bg-slate-100 text-slate-600";
+    // [수정] 줄바꿈 방지: whitespace-nowrap 추가
+    tr.className =
+      "border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors group whitespace-nowrap";
+
+    // 상태 배지 스타일 (기존 유지)
+    let statusClass =
+      "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300";
+
     if (c.status === "지원")
-      statusClass = "bg-emerald-100 text-emerald-700 border border-emerald-200";
+      statusClass =
+        "bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-500/30";
     else if (c.status === "중단" || c.status === "제외")
-      statusClass = "bg-rose-100 text-rose-700 border border-rose-200";
+      statusClass =
+        "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-500/30";
     else if (c.status === "사망")
       statusClass =
-        "bg-gray-100 text-gray-500 border border-gray-200 line-through";
+        "bg-gray-100 text-gray-500 border border-gray-200 line-through dark:bg-slate-700 dark:text-slate-500 dark:border-slate-600";
 
     tr.innerHTML = `
-      <td class="px-4 py-3 font-medium text-slate-900">${c.name || ""}</td>
-      <td class="px-4 py-3">${c.birth || ""}</td>
-      <td class="px-4 py-3 sm:table-cell">${c.gender || ""}</td>
+      <td class="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">${
+        c.name || ""
+      }</td>
+      <td class="px-4 py-3 text-slate-600 dark:text-slate-400">${
+        c.birth || ""
+      }</td>
+      <td class="px-4 py-3 sm:table-cell text-slate-600 dark:text-slate-400">${
+        c.gender || ""
+      }</td>
       
       <td class="px-4 py-3 hidden [.is-admin_&]:sm:table-cell">
-        <span class="px-2 py-0.5 rounded font-bold ${statusClass}">${
+        <span class="px-2.5 py-0.5 rounded-md font-bold text-xs ${statusClass}">${
       c.status || ""
     }</span>
       </td>
       
-      <td class="px-4 py-3">${c.region1 || ""}</td>
-      <td class="px-4 py-3 text-left md:table-cell" title="${
+      <td class="px-4 py-3 text-slate-600 dark:text-slate-400">${
+        c.region1 || ""
+      }</td>
+      <td class="px-4 py-3 text-left md:table-cell text-slate-600 dark:text-slate-400" title="${
         c.address || ""
       }">${c.address || ""}</td>
-      <td class="px-4 py-3 md:table-cell">${c.phone || ""}</td>
+      <td class="px-4 py-3 md:table-cell text-slate-600 dark:text-slate-400 tracking-tight">${
+        c.phone || ""
+      }</td>
       
-      <td class="px-4 py-3 hidden [.is-admin_&]:md:table-cell">${
+      <td class="px-4 py-3 hidden [.is-admin_&]:md:table-cell text-slate-600 dark:text-slate-400">${
         c.type || ""
       }</td>
-      <td class="px-4 py-3 hidden [.is-admin_&]:md:table-cell">${
+      <td class="px-4 py-3 hidden [.is-admin_&]:md:table-cell text-slate-600 dark:text-slate-400">${
         c.category || ""
       }</td>
       
-      <td class="px-4 py-3 lg:table-cell">${c.lastVisit || "-"}</td>
-      <td class="px-4 py-3 text-left lg:table-cell">${c.note || ""}</td>
+      <td class="px-4 py-3 lg:table-cell text-slate-500 dark:text-slate-500 text-xs">${
+        c.lastVisit || "-"
+      }</td>
+      <td class="px-4 py-3 text-left lg:table-cell text-slate-500 dark:text-slate-500 text-xs" title="${
+        c.note || ""
+      }">${c.note || ""}</td>
       
       <td class="px-4 py-3 text-center">
-        <div class="flex justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-          <button class="btn btn-primary" title="수정" data-edit="${c.id}">
+        <div class="flex justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+          <button class="btn btn-primary-weak h-8 w-8 rounded-lg flex items-center justify-center p-0" title="수정" data-edit="${
+            c.id
+          }">
             <i class="fas fa-edit"></i>
           </button>
-          <button class="btn btn-danger" title="삭제" data-del="${c.id}">
+          <button class="btn btn-danger-weak h-8 w-8 rounded-lg flex items-center justify-center p-0 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30" title="삭제" data-del="${
+            c.id
+          }">
             <i class="fas fa-trash-alt"></i>
           </button>
         </div>
@@ -828,39 +865,39 @@ document.querySelectorAll("#customers-thead th").forEach((th, index) => {
   }
 });
 
-function initCustomSelect(id, inputId = null) {
-  const select = document.getElementById(id);
-  const selected = select.querySelector(".selected");
-  const options = select.querySelector(".options");
-  const input = inputId ? document.getElementById(inputId) : null;
+// function initCustomSelect(id, inputId = null) {
+//   const select = document.getElementById(id);
+//   const selected = select.querySelector(".selected");
+//   const options = select.querySelector(".options");
+//   const input = inputId ? document.getElementById(inputId) : null;
 
-  if (selected) {
-    selected.addEventListener("click", () => {
-      options.classList.toggle("hidden");
-    });
+//   if (selected) {
+//     selected.addEventListener("click", () => {
+//       options.classList.toggle("hidden");
+//     });
 
-    options.querySelectorAll("div").forEach((opt) => {
-      opt.addEventListener("click", () => {
-        selected.textContent = opt.textContent;
-        selected.dataset.value = opt.dataset.value;
-        options.classList.add("hidden");
-      });
-    });
-  }
+//     options.querySelectorAll("div").forEach((opt) => {
+//       opt.addEventListener("click", () => {
+//         selected.textContent = opt.textContent;
+//         selected.dataset.value = opt.dataset.value;
+//         options.classList.add("hidden");
+//       });
+//     });
+//   }
 
-  if (input) {
-    options.querySelectorAll("div").forEach((opt) => {
-      opt.addEventListener("click", () => {
-        input.value = opt.dataset.value;
-        options.classList.add("hidden");
-      });
-    });
-    input.addEventListener("focus", () => options.classList.remove("hidden"));
-    input.addEventListener("blur", () =>
-      setTimeout(() => options.classList.add("hidden"), 150)
-    );
-  }
-}
+//   if (input) {
+//     options.querySelectorAll("div").forEach((opt) => {
+//       opt.addEventListener("click", () => {
+//         input.value = opt.dataset.value;
+//         options.classList.add("hidden");
+//       });
+//     });
+//     input.addEventListener("focus", () => options.classList.remove("hidden"));
+//     input.addEventListener("blur", () =>
+//       setTimeout(() => options.classList.add("hidden"), 150)
+//     );
+//   }
+// }
 
 // 모달 열기 시 데이터 설정
 function openEditModal(customer) {
@@ -1017,7 +1054,7 @@ document.getElementById("close-edit-modal")?.addEventListener("click", () => {
 
 function updateSortIcons() {
   const ths = document.querySelectorAll("#customers-thead th");
-  const arrows = { asc: "▲", desc: "▼" };
+  // 정렬 가능한 필드 매핑
   const fieldMap = [
     "name",
     "birth",
@@ -1034,15 +1071,31 @@ function updateSortIcons() {
 
   ths.forEach((th, index) => {
     const field = fieldMap[index];
-    th.classList.remove("sort-asc", "sort-desc");
-    if (field === currentSort.field)
-      th.classList.add(
-        currentSort.direction === "asc" ? "sort-asc" : "sort-desc"
-      );
-    th.textContent = th.dataset.label;
+    if (!field) return; // 작업 열 등 정렬 불가능한 열은 패스
+
+    // 1. 현재 정렬 상태 확인
+    const isSorted = currentSort.field === field;
+    const dir = currentSort.direction;
+
+    // 2. 아이콘 결정
+    let iconClass = "fa-sort"; // 기본: 양방향 (흐릿함)
+    let colorClass = "text-slate-300 dark:text-slate-600"; // 기본 색상
+
+    if (isSorted) {
+      iconClass = dir === "asc" ? "fa-sort-up" : "fa-sort-down";
+      colorClass = "text-blue-600 dark:text-blue-400"; // 활성 색상
+    }
+
+    // 3. HTML 다시 그리기 (Flexbox로 정렬)
+    // 기존 텍스트(label)를 유지하면서 아이콘을 옆에 붙임
+    th.innerHTML = `
+      <div class="flex items-center gap-1.5 cursor-pointer select-none">
+        <span>${th.dataset.label}</span>
+        <i class="fas ${iconClass} ${colorClass} transition-colors text-xs"></i>
+      </div>
+    `;
   });
 }
-
 function normalize(str) {
   return (
     str
@@ -1955,12 +2008,20 @@ function initPhoneList(wrapSel, addBtnSel, initial = []) {
   const addBtn = document.querySelector(addBtnSel);
   if (!wrap) return;
   wrap.innerHTML = "";
+
   const addRow = (val = "") => {
     const row = document.createElement("div");
-    row.className = "phone-row";
-    row.innerHTML = `<input type="text" class="phone-item" placeholder="예) 01012345678" value="${
+    // [수정] 레이아웃 클래스
+    row.className = "phone-row relative";
+
+    // [수정] 다크 모드 입력창 스타일 주입
+    // (html 파일의 정적 input들과 동일한 클래스 적용)
+    const inputClass = "phone-item input";
+
+    row.innerHTML = `<input type="text" class="${inputClass}" placeholder="예) 01012345678" value="${
       val ? formatPhoneDigits(String(val).replace(/\D/g, "")) : ""
     }">`;
+
     wrap.appendChild(row);
     const input = row.querySelector("input");
     input.addEventListener(
@@ -1972,18 +2033,31 @@ function initPhoneList(wrapSel, addBtnSel, initial = []) {
       () => (input.value = formatPhoneDigits(input.value.replace(/\D/g, "")))
     );
   };
+
   if (initial.length) {
     initial.forEach((v) => addRow(v));
   } else {
     addRow();
   }
-  addBtn?.addEventListener("click", () => addRow());
+
+  // 기존 리스너 중복 방지 (replaceWith cloneNode 기법 대신 간단히 처리)
+  if (addBtn) {
+    // 기존 리스너 제거가 어려우므로, 새로 고침 로직상 이 함수가 자주 호출된다면
+    // addBtn.onclick = ... 방식을 쓰거나, 외부에서 호출 제어가 필요함.
+    // 현재 구조에서는 DOMContentLoaded에서 한 번 호출되므로 addEventListener도 무방.
+    // 안전을 위해 cloneNode로 리스너 초기화 후 재할당
+    const newBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newBtn, addBtn);
+    newBtn.addEventListener("click", () => addRow());
+  }
 }
+
 function getPhonesFromList(wrapSel) {
   return [...document.querySelectorAll(`${wrapSel} .phone-item`)]
     .map((i) => i.value.trim())
     .filter(Boolean);
 }
+
 function splitPhonesToArray(s) {
   if (!s) return [];
   return String(s)
@@ -2011,19 +2085,129 @@ async function batchUpdateStatus(ids = [], nextStatus = "중단", email = "") {
   }
 }
 
-// [추가 수정] 탭 전환 시 스타일 변경 로직 (bindToolbarAndCreateModal 내부)
-/*
-  modal.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      // 모든 탭 스타일 초기화 (기본 회색 텍스트, 투명 배경)
-      modal.querySelectorAll(".tab").forEach((t) => {
-        t.className = "tab px-4 py-1.5 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors";
+// ==========================================
+// ✨ 커스텀 자동완성 (이용자 구분/분류)
+// ==========================================
+
+const TYPE_OPTIONS = [
+  "긴급지원대상자",
+  "기초생활보장수급자",
+  "차상위계층",
+  "저소득층",
+  "기초생활보장수급탈락자",
+];
+const CATEGORY_OPTIONS = [
+  "결식아동",
+  "다문화가정",
+  "독거어르신",
+  "소년소녀가장",
+  "외국인노동자",
+  "재가장애인",
+  "저소득가정",
+  "조손가정",
+  "한부모가정",
+  "기타",
+  "청장년1인가구",
+  "미혼모부가구",
+  "부부중심가구",
+  "노인부부가구",
+  "새터민가구",
+  "공통체가구",
+];
+
+function setupAutocomplete(inputId, listId, options) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(listId);
+  if (!input || !list) return;
+
+  // [유지] 목록을 body로 이동 (모달 밖으로 탈출)
+  document.body.appendChild(list);
+  list.style.position = "fixed";
+  list.style.zIndex = "9999";
+  list.style.width = "";
+
+  const updatePosition = () => {
+    const rect = input.getBoundingClientRect();
+    list.style.top = `${rect.bottom + 4}px`;
+    list.style.left = `${rect.left}px`;
+    list.style.width = `${rect.width}px`;
+  };
+
+  const renderList = (filterText = "") => {
+    // 빈 값일 때 전체 목록 보여주기 (선택 사항 - 필요 없으면 아래 조건문 사용)
+    // const filtered = filterText ? options.filter(opt => opt.includes(filterText)) : options;
+
+    // 현재: 검색어 포함 필터링
+    const filtered = options.filter((opt) => opt.includes(filterText));
+
+    if (filtered.length === 0) {
+      list.classList.add("hidden");
+      return;
+    }
+
+    list.innerHTML = "";
+    filtered.forEach((opt) => {
+      const div = document.createElement("div");
+      // 스타일은 tw-input.css 따름
+      div.className =
+        "px-4 py-3 text-sm text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors";
+      div.textContent = opt;
+
+      div.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        input.value = opt;
+        list.classList.add("hidden");
       });
-      // 활성 탭 스타일 적용 (흰 배경, 파란 텍스트, 그림자)
-      tab.className = "tab px-4 py-1.5 rounded-lg text-sm font-bold bg-white shadow-sm text-blue-600 transition-colors";
-      
-      modal.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
-      modal.querySelector("#tab-" + tab.dataset.tab).classList.remove("hidden");
+
+      list.appendChild(div);
     });
+
+    updatePosition();
+    list.classList.remove("hidden");
+  };
+
+  // 이벤트 리스너
+  input.addEventListener("focus", () => {
+    updatePosition();
+    renderList(input.value);
   });
-*/
+  input.addEventListener("input", () => {
+    updatePosition();
+    renderList(input.value);
+  });
+
+  // [수정] 스크롤 이벤트 개선
+  // "목록 자체"를 스크롤할 때는 닫지 않고, "화면/모달"을 스크롤할 때만 닫음
+  window.addEventListener(
+    "scroll",
+    (e) => {
+      // 스크롤된 요소(e.target)가 리스트 자신이거나 리스트 안에 있는 요소면 무시
+      if (e.target === list || list.contains(e.target)) {
+        return;
+      }
+      // 그 외(배경, 모달 등) 스크롤이면 리스트 닫기 (위치 틀어짐 방지)
+      list.classList.add("hidden");
+    },
+    true
+  ); // true: 캡처링 모드 사용
+
+  window.addEventListener("resize", () => list.classList.add("hidden"));
+
+  // 포커스 잃으면 숨김
+  input.addEventListener("blur", () => {
+    setTimeout(() => list.classList.add("hidden"), 150);
+  });
+}
+
+// 초기화 실행 (DOM 로드 후)
+document.addEventListener("DOMContentLoaded", () => {
+  setupAutocomplete("create-type", "create-type-list", TYPE_OPTIONS);
+  setupAutocomplete(
+    "create-category",
+    "create-category-list",
+    CATEGORY_OPTIONS
+  );
+
+  setupAutocomplete("edit-type", "edit-type-list", TYPE_OPTIONS);
+  setupAutocomplete("edit-category", "edit-category-list", CATEGORY_OPTIONS);
+});

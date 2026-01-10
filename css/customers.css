@@ -8,13 +8,3 @@
 .is-admin #customer-table td.td-admin-only {
   display: table-cell;
 }
-
-#customers-thead th.sort-asc::after {
-  content: " ^";
-  color: #334155;
-}
-
-#customers-thead th.sort-desc::after {
-  content: " v";
-  color: #334155;
-}
