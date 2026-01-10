@@ -7,7 +7,6 @@ import {
 import {
   doc,
   getDoc,
-  onSnapshot,
   collection,
   getDocs,
   query,
@@ -15,7 +14,6 @@ import {
   limit,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// 백엔드 베이스 URL (관리자 API 호출용)
 const API_BASE =
   location.hostname === "localhost" || location.hostname === "127.0.0.1"
     ? "http://localhost:3000"
@@ -32,12 +30,12 @@ function scheduleAdminPendingNotify(user, role) {
   }, 50);
 }
 
-// ---------------- favicon (모든 페이지 공통 주입) ----------------
+// ---------------- favicon ----------------
 function ensureFavicon() {
   const head = document.head || document.getElementsByTagName("head")[0];
-  const pngHref = window.FAVICON_HREF || "/favicon.png"; // 권장: 호스팅 루트에 favicon.png 배치
+  const pngHref = window.FAVICON_HREF || "/favicon.png";
   const appleHref = window.APPLE_TOUCH_ICON_HREF || pngHref;
-  // rel="icon"
+
   let linkIcon = document.querySelector('link[rel="icon"]');
   if (!linkIcon) {
     linkIcon = document.createElement("link");
@@ -47,10 +45,9 @@ function ensureFavicon() {
     linkIcon.href = pngHref;
     head.appendChild(linkIcon);
   } else {
-    linkIcon.type = "image/png";
     linkIcon.href = pngHref;
   }
-  // rel="apple-touch-icon"
+
   let linkApple = document.querySelector('link[rel="apple-touch-icon"]');
   if (!linkApple) {
     linkApple = document.createElement("link");
@@ -62,7 +59,7 @@ function ensureFavicon() {
   }
 }
 
-// ---------------- Turnstile: 스크립트 자동 로드 + 준비 보장 ----------------
+// ---------------- Turnstile Script ----------------
 let turnstileReadyPromise = null;
 async function ensureTurnstileScript() {
   if (typeof window === "undefined") return false;
@@ -84,97 +81,145 @@ async function ensureTurnstileScript() {
       if (window.turnstile) resolve(true);
       else existing.addEventListener("load", finalize, { once: true });
     }
-    // 5초 타임아웃(네트워크 문제 대비)
     setTimeout(finalize, 5000);
   });
   return turnstileReadyPromise;
 }
 
+// ---------------- Header (Dark Mode Supported) ----------------
 export function loadHeader(containerID = null) {
   ensureFavicon();
   ensureTurnstileScript();
-  // 초기 테마 적용(FOUC 최소화는 각 HTML <head>의 인라인 스니펫이 보조)
+
+  // 테마 초기화
+  let isDark = false;
   try {
     const saved = localStorage.getItem("theme");
     const prefers =
       window.matchMedia &&
       window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const dark = saved ? saved === "dark" : prefers;
-    document.documentElement.classList.toggle("dark", !!dark);
+    isDark = saved ? saved === "dark" : prefers;
+    document.documentElement.classList.toggle("dark", isDark);
   } catch {}
 
+  const initialIconClass = isDark ? "fa-sun" : "fa-moon";
+
+  // [수정] 다크모드 배경색 및 텍스트 색상 적용
   const headerHTML = `
-    <header>
-      <div class="header-top">
-        <h1 id="page-title">POS System</h1>
-        <div class="user-info">
-          <span id="user-name-header">
-          <i class="fas fa-circle-user"></i> 직원</span>
-          <span id="admin-badge-header" class="admin-badge-header" style="display: none;">
-            <i class="fas fa-crown"></i>
-          </span>
-          <div class="user-actions">
-            <a href="mypage.html" class="small-btn" id="mypage-btn">
-              <i class="fas fa-user-cog"></i> 마이페이지
+    <header class="sticky top-0 z-[900] w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-all duration-200 supports-[backdrop-filter]:bg-white/60">
+      <div class="max-w-[1920px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
+        
+        <div class="flex items-center gap-8 h-full">
+          <a href="dashboard.html" class="flex items-center gap-1 group no-underline whitespace-nowrap">
+            <span class="text-2xl font-extrabold text-[#3182f6] dark:text-blue-500 tracking-tighter group-hover:opacity-80 transition-opacity">POS</span>
+            <span class="text-lg font-bold text-slate-700 dark:text-slate-200 tracking-tight group-hover:text-slate-900 dark:group-hover:text-white transition-colors mt-0.5">System</span>
+          </a>
+
+          <nav class="hidden md:flex items-center gap-1 h-full">
+            <a href="dashboard.html" class="nav-link px-3.5 py-2 rounded-[10px] text-[15px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap overflow-hidden">대시보드</a>
+            <a href="provision.html" class="nav-link px-3.5 py-2 rounded-[10px] text-[15px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap overflow-hidden">제공등록</a>
+            <a href="customers.html" class="nav-link px-3.5 py-2 rounded-[10px] text-[15px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap overflow-hidden">이용자 관리</a>
+            <a href="products.html" class="nav-link px-3.5 py-2 rounded-[10px] text-[15px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap overflow-hidden">상품 관리</a>
+            <a href="statistics.html" class="nav-link px-3.5 py-2 rounded-[10px] text-[15px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap overflow-hidden">통계</a>
+            <a href="admin.html" id="nav-admin" class="hidden nav-link px-3.5 py-2 rounded-[10px] text-[15px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap overflow-hidden">관리자</a>
+          </nav>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="hidden lg:flex flex-col items-end leading-none mr-1">
+            <span id="user-name-header" class="text-[14px] font-bold text-slate-800 dark:text-slate-200 mb-0.5 whitespace-nowrap overflow-hidden">사용자</span>
+            <span id="admin-badge-header" class="hidden text-[10px] font-bold text-[#3182f6] dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded uppercase tracking-wide">ADMIN</span>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <a href="mypage.html" class="w-9 h-9 flex items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all" title="마이페이지">
+              <i class="fas fa-user-cog text-lg"></i>
             </a>
-            <button id="theme-toggle" class="small-btn" title="라이트/다크 전환">
-              <i class="fas fa-moon"></i> 테마
+            <button id="theme-toggle" class="w-9 h-9 flex items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all border-none bg-transparent cursor-pointer" title="테마 변경">
+              <i class="fas ${initialIconClass} text-lg"></i>
             </button>
-            <button id="logout-btn-header" class="small-btn">
-              <i class="fas fa-sign-out-alt"></i> 로그아웃
+            <div class="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+            <button id="logout-btn-header" class="btn btn-dark-weak text-sm font-bold whitespace-nowrap overflow-hidden">
+              로그아웃
             </button>
           </div>
         </div>
-      </div>
 
-      <div class="header-bottom">
-        <nav class="main-nav">
-          <a href="dashboard.html">대시보드</a>
-          <a href="provision.html">제공등록</a>
-          <a href="customers.html">이용자 관리</a>
-          <a href="products.html">상품 관리</a>
-          <a href="statistics.html">통계</a>
-          <a href="admin.html" id="nav-admin" style="display: none">관리자</a>
+      </div>
+      
+      <div class="md:hidden border-t border-slate-100 dark:border-slate-800 overflow-x-auto no-scrollbar">
+        <nav class="flex px-4 py-2 gap-2 min-w-max">
+          <a href="dashboard.html" class="mobile-nav-link px-3 py-1.5 rounded-lg text-sm font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap no-underline">대시보드</a>
+          <a href="provision.html" class="mobile-nav-link px-3 py-1.5 rounded-lg text-sm font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap no-underline">제공등록</a>
+          <a href="customers.html" class="mobile-nav-link px-3 py-1.5 rounded-lg text-sm font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap no-underline">이용자 관리</a>
+          <a href="products.html" class="mobile-nav-link px-3 py-1.5 rounded-lg text-sm font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap no-underline">상품 관리</a>
+          <a href="statistics.html" class="mobile-nav-link px-3 py-1.5 rounded-lg text-sm font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap no-underline">통계</a>
+          <a href="admin.html" id="mobile-nav-admin" class="hidden mobile-nav-link px-3 py-1.5 rounded-lg text-sm font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap no-underline">관리자</a>
         </nav>
       </div>
     </header>
   `;
+
   const container = containerID
     ? document.getElementById(containerID)
     : document.body;
-  container.insertAdjacentHTML("afterbegin", headerHTML);
+  if (containerID && container) {
+    container.outerHTML = headerHTML;
+  } else {
+    document.body.insertAdjacentHTML("afterbegin", headerHTML);
+  }
 
-  // 다크모드 토글
+  // Active Link
+  const path = window.location.pathname.split("/").pop();
+  const setActive = (selector) => {
+    document.querySelectorAll(selector).forEach((link) => {
+      if (link.getAttribute("href") === path) {
+        // [수정] Active 스타일 다크모드 대응
+        link.classList.add(
+          "text-[#3182f6]",
+          "dark:text-blue-400",
+          "bg-blue-50",
+          "dark:bg-blue-900/20"
+        );
+        link.classList.remove(
+          "text-slate-500",
+          "dark:text-slate-400",
+          "hover:bg-slate-100",
+          "dark:hover:bg-slate-800"
+        );
+      }
+    });
+  };
+  setActive(".nav-link");
+  setActive(".mobile-nav-link");
+
   const themeBtn = document.getElementById("theme-toggle");
   themeBtn?.addEventListener("click", () => {
     const root = document.documentElement;
-    const nextDark = !root.classList.contains("dark");
+    const isDarkMode = root.classList.contains("dark");
+    const nextDark = !isDarkMode;
     root.classList.toggle("dark", nextDark);
     try {
       localStorage.setItem("theme", nextDark ? "dark" : "light");
     } catch {}
+
+    const icon = themeBtn.querySelector("i");
+    if (icon) {
+      icon.className = nextDark ? "fas fa-sun text-lg" : "fas fa-moon text-lg";
+    }
   });
 
-  // 사용자 상태 확인 및 로그아웃 처리
   onAuthStateChanged(auth, async (user) => {
-    // === 관리자 요약 모달 세션 플래그 관리 ===
-    // 로그아웃→재로그인 시에도 모달이 다시 뜨도록 플래그를 정리한다.
     const MODAL_UID_KEY = "admin:newAcct:uid";
     const prevUid = sessionStorage.getItem(MODAL_UID_KEY);
     if (!user) {
-      // 로그아웃: 이전 사용자 플래그 제거
-      if (prevUid) {
+      if (prevUid)
         sessionStorage.removeItem(`admin:newAcct:checked:${prevUid}`);
-      }
       sessionStorage.removeItem(MODAL_UID_KEY);
     } else {
-      // 같은 탭에서 페이지 이동/새로고침이면 prevUid === user.uid 이므로 플래그 보존
-      // '진짜' 새 로그인(이전 페이지에서 로그아웃 후 다시 로그인) 또는 계정 전환 시에만 초기화
       if (prevUid !== user.uid) {
-        if (prevUid) {
+        if (prevUid)
           sessionStorage.removeItem(`admin:newAcct:checked:${prevUid}`);
-        }
-        // 현재 UID의 checked 플래그는 지우지 않는다(페이지 이동시 재노출 방지)
         sessionStorage.setItem(MODAL_UID_KEY, user.uid);
       }
     }
@@ -183,103 +228,66 @@ export function loadHeader(containerID = null) {
     if (user) {
       if (nameEl) {
         const name = user.displayName || "사용자";
-        const email = user.email || user.uid;
-        nameEl.innerHTML = `${name} (${email})`;
+        nameEl.textContent = name;
+        nameEl.title = user.email;
       }
-
-      const badgeEl = document.getElementById("admin-badge-header");
-      const navAdmin = document.getElementById("nav-admin");
-
-      let role = "user";
-      try {
-        const token = await user.getIdTokenResult(true);
-        if (token?.claims?.role) {
-          role = String(token.claims.role).toLowerCase();
-        } else {
-          // fallback: Firestore 문서(users/{uid}.role)
-          const uref = doc(db, "users", user.uid);
-          const usnap = await getDoc(uref);
-          if (usnap.exists() && usnap.data()?.role) {
-            role = String(usnap.data().role).toLowerCase();
-          }
-        }
-      } catch (e) {
-        console.warn("[header] role load failed:", e);
-      }
-
-      const isAdmin = role === "admin";
-      if (badgeEl) badgeEl.style.display = isAdmin ? "inline-block" : "none";
-      if (navAdmin) navAdmin.style.display = isAdmin ? "inline-block" : "none";
-      // 페이지 가드: admin.html에 접근했는데 admin이 아니면 대시보드로
-      try {
-        const path = (
-          window.location.pathname.split("/").pop() || ""
-        ).toLowerCase();
-        if (path === "admin.html" && !isAdmin) {
-          showToast("관리자만 접근할 수 있습니다.", true);
-          window.location.href = "dashboard.html";
-        }
-      } catch {}
-
-      // ✅ 실시간 역할 변경 반영: users/{uid}.role subscribe
-      try {
-        onSnapshot(doc(db, "users", user.uid), async (snap) => {
-          if (!snap.exists()) return;
-          const r = String(snap.data()?.role || "user").toLowerCase();
-          const isAdmin2 = r === "admin";
-          if (badgeEl)
-            badgeEl.style.display = isAdmin2 ? "inline-block" : "none";
-          if (navAdmin)
-            navAdmin.style.display = isAdmin2 ? "inline-block" : "none";
-          // claims 최신화
-          try {
-            await user.getIdToken(true);
-          } catch {}
-          // 🔁 이제 admin으로 관측되면, 세션 1회 알림 재시도
-          if (isAdmin2) {
-            try {
-              scheduleAdminPendingNotify(user, "admin");
-            } catch {}
-          }
-        });
-      } catch (e) {
-        console.warn("[header] role watch failed:", e);
-      }
-
-      // 초기 진입에서도 1회 시도(디바운스 + in-flight 가드로 중복 방지)
-      if (user) scheduleAdminPendingNotify(user, role);
-
-      const logoutBtn = document.getElementById("logout-btn-header");
-      if (logoutBtn) {
-        logoutBtn.addEventListener("click", async () => {
+      checkAdminRole(user);
+      document
+        .getElementById("logout-btn-header")
+        ?.addEventListener("click", async () => {
           await signOut(auth);
           window.location.href = "index.html";
         });
-      }
     } else {
-      // nameEl.innerHTML = `
-      //     <i class="fas fa-circle-user"></i> 로그인이 되지 않았습니다.`;
-      // 로그인 안된 경우
-      showToast("로그인이 필요합니다. 로그인 화면으로 돌아갑니다.");
+      showToast("로그인이 필요합니다.");
       window.location.href = "index.html";
-    }
-  });
-
-  const path = window.location.pathname.split("/").pop();
-  const navLinks = document.querySelectorAll("nav a");
-  navLinks.forEach((link) => {
-    if (link.getAttribute("href") == path) {
-      link.classList.add("active");
     }
   });
 }
 
+async function checkAdminRole(user) {
+  let role = "user";
+  try {
+    const token = await user.getIdTokenResult(true);
+    role = token?.claims?.role || "user";
+    if (role === "user") {
+      const usnap = await getDoc(doc(db, "users", user.uid));
+      if (usnap.exists()) role = usnap.data()?.role || "user";
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+
+  const isAdmin = String(role).toLowerCase() === "admin";
+  const badge = document.getElementById("admin-badge-header");
+  const nav = document.getElementById("nav-admin");
+  const mobileNav = document.getElementById("mobile-nav-admin");
+
+  if (badge) badge.classList.toggle("hidden", !isAdmin);
+  if (nav) nav.classList.toggle("hidden", !isAdmin);
+  if (mobileNav) mobileNav.classList.toggle("hidden", !isAdmin);
+
+  const path = window.location.pathname.split("/").pop();
+  if (path === "admin.html" && !isAdmin) {
+    showToast("관리자만 접근할 수 있습니다.", true);
+    window.location.href = "dashboard.html";
+  }
+
+  if (isAdmin) scheduleAdminPendingNotify(user, "admin");
+}
+
+// ---------------- Footer (Dark Mode Supported) ----------------
 export function loadFooter(containerID = null) {
+  if (document.getElementById("app-footer")) return;
+
+  // [수정] 다크모드 색상 적용
   const footerHTML = `
-    <footer>
-      <div class="footer-left">&copy; 2025 POS System by JustSimple. All rights reserved.</div>
-      <div class="footer-right">
-        문의 : <a href="mailto:ktw021030@gmail.com">ktw021030@gmail.com</a>
+    <footer id="app-footer" class="mt-auto py-6 px-8 bg-slate-800 dark:bg-slate-950 border-t border-slate-700 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-xs">
+      <div class="max-w-[1920px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
+        <div>&copy; 2025 POS System by JustSimple. All rights reserved.</div>
+        <div class="flex items-center gap-1">
+          문의 : <a href="mailto:ktw021030@gmail.com" class="text-slate-300 dark:text-slate-400 hover:text-white dark:hover:text-slate-200 underline transition-colors">ktw021030@gmail.com</a>
+        </div>
       </div>
     </footer>
   `;
@@ -289,25 +297,26 @@ export function loadFooter(containerID = null) {
   container.insertAdjacentHTML("beforeend", footerHTML);
 }
 
-/* ===================== Global Loading Utilities ===================== */
+// ---------------- Global Loading (Refactored) ----------------
 let __loadingHost = null;
 function ensureLoadingHost() {
   if (__loadingHost) return __loadingHost;
   const host = document.createElement("div");
   host.id = "app-loading";
   host.setAttribute("aria-hidden", "true");
+  host.className = "loading-overlay !z-[2500]"; // tw-input.css 사용
+
   host.innerHTML = `
-    <div class="al-backdrop"></div>
-    <div class="al-dialog" role="status" aria-live="polite">
-      <div class="al-spinner" aria-hidden="true"></div>
-      <div class="al-text">데이터 불러오는 중…</div>
+    <div class="loading-box">
+      <i class="fas fa-circle-notch fa-spin text-3xl text-blue-600 dark:text-blue-500"></i>
+      <div class="al-text font-bold text-slate-800 dark:text-white text-base">데이터 불러오는 중…</div>
     </div>
   `;
   document.body.appendChild(host);
   __loadingHost = host;
   return host;
 }
-/** 전역 로딩 오버레이 표시 */
+
 export function showLoading(text = "데이터 불러오는 중…") {
   const host = ensureLoadingHost();
   const txt = host.querySelector(".al-text");
@@ -315,13 +324,13 @@ export function showLoading(text = "데이터 불러오는 중…") {
   host.classList.add("is-active");
   document.body.setAttribute("data-loading", "true");
 }
-/** 전역 로딩 오버레이 숨기기 */
+
 export function hideLoading() {
   const host = ensureLoadingHost();
   host.classList.remove("is-active");
   document.body.removeAttribute("data-loading");
 }
-/** try/finally 로딩 보장 래퍼 */
+
 export async function withLoading(task, text) {
   showLoading(text);
   try {
@@ -330,92 +339,110 @@ export async function withLoading(task, text) {
     hideLoading();
   }
 }
-/** 버튼/링크 등 특정 컨트롤 busy 상태 토글 */
+
 export function setBusy(el, busy = true) {
   if (!el) return;
-  el.classList.toggle("is-busy", !!busy);
-  el.toggleAttribute?.("disabled", !!busy);
-  el.setAttribute("aria-busy", busy ? "true" : "false");
+  if (busy) {
+    el.classList.add("opacity-70", "cursor-wait", "pointer-events-none");
+    if (!el.dataset.orgText) el.dataset.orgText = el.innerHTML;
+    if (!el.querySelector(".fa-spin")) {
+      el.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-2"></i>${el.innerHTML}`;
+    }
+  } else {
+    el.classList.remove("opacity-70", "cursor-wait", "pointer-events-none");
+    if (el.dataset.orgText) {
+      el.innerHTML = el.dataset.orgText;
+      delete el.dataset.orgText;
+    }
+  }
 }
 
-/* ===================== Section Skeleton Utilities ===================== */
-/**
- * 표/섹션 컨테이너에 스켈레톤 행을 그리고, 정리 함수를 반환.
- * @param {HTMLElement} container  섹션(body나 wrapper)
- * @param {number} rows            표시할 스켈레톤 행 개수(기본 8)
- * @returns {() => void}           정리 함수
- */
-export function makeSectionSkeleton(container, rows = 8) {
+// ---------------- Skeleton (Dark Mode) ----------------
+export function makeSectionSkeleton(container, rows = 5) {
   if (!container) return () => {};
+
   const wrap = document.createElement("div");
-  wrap.className = "skeleton";
-  wrap.style.width = "100%";
+  // [수정] 다크모드 대응
+  wrap.className =
+    "absolute inset-0 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-[1px] flex flex-col overflow-hidden rounded-lg";
+
+  let html = `<div class="w-full h-full flex flex-col">`;
   for (let i = 0; i < rows; i++) {
-    const r = document.createElement("div");
-    r.className = "skeleton-row";
-    wrap.appendChild(r);
+    html += `
+      <div class="flex-1 flex items-center gap-4 px-4 border-b border-slate-50 dark:border-slate-800 last:border-0">
+        <div class="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse w-[10%]"></div>
+        <div class="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse flex-1"></div>
+        <div class="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse w-[15%]"></div>
+        <div class="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse w-[10%]"></div>
+        <div class="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse w-[10%]"></div>
+      </div>
+    `;
   }
-  // 기존 내용은 유지하고 위에 잠시 덮어 보여줌
-  container.style.position = "relative";
-  wrap.style.position = "absolute";
-  wrap.style.inset = "0";
+  html += `</div>`;
+  wrap.innerHTML = html;
+
+  const originalPos = container.style.position;
+  if (getComputedStyle(container).position === "static")
+    container.style.position = "relative";
   container.appendChild(wrap);
+
   return () => {
     wrap.remove();
+    container.style.position = originalPos;
   };
 }
 
-/**
- * A안 커서 기반 페이지네이터 렌더러
- * - totalCount 없이 현재까지 ‘발견된’ 페이지 범위만 숫자 버튼을 노출
- * - params:
- *   container: HTMLElement (#...pagination)
- *   state: { current:number, pagesKnown:number, hasPrev:boolean, hasNext:boolean }
- *   handlers: { goFirst:fn, goPrev:fn, goPage:(n)=>void, goNext:fn }
- *   options?: { window:number }  // 숫자버튼 표시 개수(기본 5)
- */
+// ---------------- Cursor Pager (Refactored) ----------------
 export function renderCursorPager(container, state, handlers, options = {}) {
   if (!container) return;
   const windowSize = options.window ?? 5;
   const { current, pagesKnown, hasPrev, hasNext } = state;
   const { goFirst, goPrev, goPage, goNext, goLast } = handlers;
 
-  // 현재 창 계산
   let start = Math.max(1, current - Math.floor(windowSize / 2));
   let end = Math.min(pagesKnown, start + windowSize - 1);
   if (end - start + 1 < windowSize) start = Math.max(1, end - windowSize + 1);
 
-  const btn = (label, disabled, dataAct, aria) =>
-    `<button class="pager-btn" ${disabled ? "disabled" : ""} data-act="${
-      dataAct || ""
-    }" aria-label="${aria || label}">${label}</button>`;
+  const mkBtn = (icon, disabled, act, aria) =>
+    `<button class="btn btn-light min-w-[36px] px-2" ${
+      disabled ? "disabled" : ""
+    } data-act="${act}" aria-label="${aria}">${icon}</button>`;
 
-  let html = "";
-  html += btn("<<", !hasPrev, "first", "first page");
-  html += btn("<", !hasPrev, "prev", "previous page");
-  html += `<span class="pager-pages">`;
+  let html = `<div class="pager-wrap flex items-center justify-center gap-1.5 flex-wrap mt-6">`;
+  html += mkBtn(
+    '<i class="fas fa-angle-double-left"></i>',
+    !hasPrev,
+    "first",
+    "처음"
+  );
+  html += mkBtn('<i class="fas fa-angle-left"></i>', !hasPrev, "prev", "이전");
+  html += `<div class="flex gap-1 px-1">`;
   for (let n = start; n <= end; n++) {
-    html += `<button class="pager-num ${
-      n === current ? "active" : ""
-    }" data-page="${n}">${n}</button>`;
+    const cls =
+      n === current
+        ? "btn btn-primary min-w-[36px]"
+        : "btn btn-dark-weak min-w-[36px]";
+    html += `<button class="${cls}" data-page="${n}">${n}</button>`;
   }
-  html += `</span>`;
-  html += btn(">", !hasNext, "next", "next page");
-  // 총 페이지 수를 아는 경우에만 '끝' 버튼을 활성화
-  if (typeof goLast === "function") {
-    html += btn(">>", !hasNext, "last", "last page");
-  }
-  // (총페이지 불명 → ‘끝’ 버튼은 생략 혹은 disable 운영을 권장)
+  html += `</div>`;
+  html += mkBtn('<i class="fas fa-angle-right"></i>', !hasNext, "next", "다음");
+  if (typeof goLast === "function")
+    html += mkBtn(
+      '<i class="fas fa-angle-double-right"></i>',
+      !hasNext,
+      "last",
+      "마지막"
+    );
+  html += `</div>`;
 
   container.innerHTML = html;
-  // 이벤트 바인딩
   container
     .querySelector('[data-act="first"]')
     ?.addEventListener("click", () => goFirst?.());
   container
     .querySelector('[data-act="prev"]')
     ?.addEventListener("click", () => goPrev?.());
-  container.querySelectorAll(".pager-num")?.forEach((el) => {
+  container.querySelectorAll("[data-page]")?.forEach((el) => {
     el.addEventListener("click", () => {
       const n = Number(el.getAttribute("data-page"));
       if (!Number.isNaN(n)) goPage?.(n);
@@ -429,7 +456,6 @@ export function renderCursorPager(container, state, handlers, options = {}) {
     ?.addEventListener("click", () => goLast?.());
 }
 
-/** 페이지 사이즈 셀렉트 공통 초기화 */
 export function initPageSizeSelect(selectEl, onChange) {
   if (!selectEl) return;
   selectEl.addEventListener("change", () => {
@@ -438,11 +464,33 @@ export function initPageSizeSelect(selectEl, onChange) {
   });
 }
 
-/**
- * Turnstile 모달을 띄워 토큰을 받는다(보이는 위젯).
- * @param {{action?: string, title?: string, subtitle?: string}} opts
- * @returns {Promise<string|null>}
- */
+// ---------------- Turnstile / Captcha ----------------
+export async function getTurnstileToken(action = "secure_action") {
+  try {
+    const ready = await ensureTurnstileScript();
+    if (!ready || !window.turnstile) return null;
+    const sitekey = window.CF_TURNSTILE_SITEKEY;
+    if (!sitekey || sitekey === "auto") return null;
+    let host = document.getElementById("cf-turnstile-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "cf-turnstile-host";
+      host.className = "fixed top-[-9999px] left-[-9999px]";
+      document.body.appendChild(host);
+    }
+    return await new Promise((resolve) => {
+      window.turnstile.render(host, {
+        sitekey,
+        action,
+        callback: (token) => resolve(token),
+        "error-callback": () => resolve(null),
+      });
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function openCaptchaModal(opts = {}) {
   const {
     action = "secure_action",
@@ -454,281 +502,90 @@ export async function openCaptchaModal(opts = {}) {
   const sitekey = window.CF_TURNSTILE_SITEKEY;
   if (!sitekey || sitekey === "auto") return null;
 
-  const theme = opts.theme || window.CF_TURNSTILE_THEME || "light"; // "light" | "dark" | "auto"
-  const size = opts.size || window.CF_TURNSTILE_SIZE || "normal"; // "normal" | "compact"
-  const appearance =
-    opts.appearance || window.CF_TURNSTILE_APPEARANCE || "always"; // "always" | "interaction-only"
-
   const overlay = document.createElement("div");
-  overlay.id = "cf-turnstile-modal";
-  overlay.className = "modal modal--admin-summary";
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("tabindex", "-1");
-
-  const content = document.createElement("div");
-  content.className = "modal-content captcha-modal";
-  content.innerHTML = `
-    <h2>${title}</h2>
-    <p class="hint">${subtitle}</p>
-    <div id="cf-turnstile-slot" style="display:flex;justify-content:center;margin:12px 0;"></div>
-    <div class="modal-buttons" style="justify-content:flex-end">
-      <button type="button" id="cf-cancel" class="btn btn-ghost" aria-label="취소">취소</button>
+  overlay.className = "modal-overlay z-[2000]";
+  overlay.innerHTML = `
+    <div class="modal-panel max-w-sm text-center">
+      <h3 class="text-lg font-bold text-slate-800 dark:text-white">${title}</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">${subtitle}</p>
+      <div id="cf-turnstile-slot" class="flex justify-center my-4 min-h-[65px]"></div>
+      <div class="flex justify-end mt-4">
+        <button type="button" id="cf-cancel" class="btn btn-dark-weak">취소</button>
+      </div>
     </div>
   `;
-  overlay.appendChild(content);
   document.body.appendChild(overlay);
-
-  const lastFocus = document.activeElement;
-  content.focus();
-  const escHandler = (e) => {
-    if (e.key === "Escape") cleanup(null);
-  };
-  document.addEventListener("keydown", escHandler);
 
   return await new Promise((resolve) => {
     let widgetId = null;
-    const slot = content.querySelector("#cf-turnstile-slot");
-    const cancelBtn = content.querySelector("#cf-cancel");
-    cancelBtn.addEventListener("click", () => cleanup(null));
+    const cleanup = (val) => {
+      if (widgetId)
+        try {
+          window.turnstile.remove(widgetId);
+        } catch {}
+      overlay.remove();
+      resolve(val);
+    };
+    overlay
+      .querySelector("#cf-cancel")
+      .addEventListener("click", () => cleanup(null));
     overlay.addEventListener("mousedown", (e) => {
       if (e.target === overlay) cleanup(null);
     });
-    function cleanup(val) {
-      try {
-        if (widgetId != null) window.turnstile.remove(widgetId);
-      } catch {}
-      document.removeEventListener("keydown", escHandler);
-      overlay.remove();
-      if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
-      resolve(val);
-    }
-
     try {
-      widgetId = window.turnstile.render(slot, {
-        sitekey,
-        action,
-        theme,
-        size,
-        appearance,
-        callback: (token) => cleanup(token),
-        "error-callback": () => cleanup(null),
-      });
+      widgetId = window.turnstile.render(
+        overlay.querySelector("#cf-turnstile-slot"),
+        {
+          sitekey,
+          action,
+          callback: (token) => cleanup(token),
+          "error-callback": () => cleanup(null),
+        }
+      );
     } catch {
       cleanup(null);
     }
   });
 }
 
-// --- 로그인 직후 1회만: 관리자 대기 요약 모달 ---
-async function notifyNewAccountsOnceOnLogin(user, role) {
-  try {
-    if (!user) return;
-    // 초기에 role 인자가 admin이 아닐 수도 있으므로, 한 번 더 claims로 보조 확인
-    let isAdmin = role === "admin";
-    if (!isAdmin) {
-      try {
-        const t = await user.getIdTokenResult();
-        isAdmin = (t?.claims?.role || "").toLowerCase() === "admin";
-      } catch {}
-    }
-    if (!isAdmin) return;
-    const flagKey = `admin:newAcct:checked:${user.uid}`;
-    if (sessionStorage.getItem(flagKey) === "1") return; // 세션 내 1회만
-    if (__adminPendingModalInFlight) return;
-    __adminPendingModalInFlight = true;
-    const idToken = await user.getIdToken(true);
-    // 서버 먼저 시도 → 없거나 실패하면 Firestore 폴백
-    let pendingUsers = 0,
-      productPending = 0,
-      userPending = 0;
-    try {
-      const controller = new AbortController();
-      const to = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(`${API_BASE}/api/admin/pending-summary`, {
-        headers: { Authorization: "Bearer " + idToken },
-        signal: controller.signal,
-      });
-      clearTimeout(to);
-      if (!res.ok) throw new Error(String(res.status));
-      const j = await res.json();
-      pendingUsers = Number(j?.pendingUsers || 0);
-      productPending = Number(j?.productPending || 0);
-      userPending = Number(j?.userPending || 0);
-    } catch {
-      const fb = await fallbackPendingSummaryFromFirestore();
-      pendingUsers = fb.pendingUsers;
-      productPending = fb.productPending;
-      userPending = fb.userPending;
-    }
-    const total = pendingUsers + productPending + userPending;
-    if (total > 0) {
-      openAdminPendingSummaryModal({
-        pendingUsers,
-        productPending,
-        userPending,
-      });
-      sessionStorage.setItem(flagKey, "1");
-    }
-  } finally {
-    __adminPendingModalInFlight = false;
-  }
-}
-
-// 관리자 대기 요약 모달
-function openAdminPendingSummaryModal({
-  pendingUsers = 0,
-  productPending = 0,
-  userPending = 0,
-}) {
-  const overlay = document.createElement("div");
-  overlay.className = "modal modal--admin-summary";
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("aria-labelledby", "admin-pending-title");
-  overlay.tabIndex = -1;
-
-  const content = document.createElement("div");
-  content.className = "modal-content modal--admin-summary__content";
-
-  const hotUsers = Number(pendingUsers) > 0;
-  const hotProd = Number(productPending) > 0;
-  const hotCust = Number(userPending) > 0;
-
-  content.innerHTML = `
-    <h2 id="admin-pending-title">관리자 확인 필요 항목</h2>
-    <div class="mas-divider"></div>
-      <ul class="mas-list">
-      <li class="mas-item ${hotUsers ? "is-hot" : ""}">
-        ${
-          hotUsers
-            ? `<a class="mas-count-link" href="admin.html#pending-users" aria-label="사용자 권한 설정 대기 ${pendingUsers}건 보기">사용자 권한 설정 대기 건 - ${pendingUsers}개</a>`
-            : `<span class="mas-count">${pendingUsers}개</span>`
-        }
-      </li>
-      <li class="mas-item ${hotProd ? "is-hot" : ""}">
-        ${
-          hotProd
-            ? `<a class="mas-count-link" href="admin.html#pending-products" aria-label="물품 등록 / 변경 / 삭제 승인 대기 ${productPending}건 보기">물품 등록 / 변경 / 삭제 대기 건 - ${productPending}개</a>`
-            : `<span class="mas-text">물품 등록 / 변경 / 삭제 승인 대기 건 - </span> <span class="mas-count">${productPending}개</span>`
-        }
-      </li>
-      <li class="mas-item ${hotCust ? "is-hot" : ""}">
-        ${
-          hotCust
-            ? `<a class="mas-count-link" href="admin.html#pending-customers" aria-label="이용자 승인 대기 ${userPending}건 보기">이용자 승인 대기 건 - ${userPending}개</a>`
-            : `<span class="mas-text">이용자 등록 / 변경 / 삭제 승인 대기 건 - </span><span class="mas-count">${userPending}개</span>`
-        }
-      </li>
-    </ul>
-    <div class="mas-buttons">
-      <button type="button" class="mas-btn mas-btn-ghost" id="admin-pending-close">닫기</button>
-    </div>
-  `;
-  overlay.appendChild(content);
-  document.body.appendChild(overlay);
-
-  const last = document.activeElement;
-  content.focus();
-  const cleanup = () => {
-    overlay.remove();
-    if (last && typeof last.focus === "function") last.focus();
-  };
-  overlay.addEventListener("mousedown", (e) => {
-    if (e.target === overlay) cleanup();
-  });
-  overlay
-    .querySelector("#admin-pending-close")
-    ?.addEventListener("click", cleanup);
-  content.querySelectorAll(".mas-count-link").forEach((a) => {
-    a.addEventListener("click", () => setTimeout(cleanup, 0));
-  });
-  document.addEventListener("keydown", function onEsc(e) {
-    if (e.key === "Escape") {
-      cleanup();
-      document.removeEventListener("keydown", onEsc);
-    }
-  });
-}
-
-/**
- * ⑩ Turnstile 토큰 받기 (옵션)
- * - 전역 window.turnstile 이 로드된 경우에만 토큰을 발급받아 반환
- * - 비활성/미로드 시 null 반환 → 서버에서 off 허용 가능
- */
-export async function getTurnstileToken(action = "secure_action") {
-  try {
-    // 스크립트 준비 보장
-    const ready = await ensureTurnstileScript();
-    if (!ready || !window.turnstile) return null;
-    // ⚠️ sitekey는 반드시 head 등에서 주입되어 있어야 함
-    const sitekey = window.CF_TURNSTILE_SITEKEY;
-    if (!sitekey || sitekey === "auto") {
-      console.warn(
-        "[Turnstile] window.CF_TURNSTILE_SITEKEY is missing/invalid"
-      );
-      return null;
-    } // 숨김 호스트 보장
-    let host = document.getElementById("cf-turnstile-host");
-    if (!host) {
-      host = document.createElement("div");
-      host.id = "cf-turnstile-host";
-      host.style.position = "fixed";
-      host.style.left = "-9999px";
-      host.style.top = "-9999px";
-      document.body.appendChild(host);
-    }
-    return await new Promise((resolve) => {
-      window.turnstile.render(host, {
-        sitekey,
-        callback: (token) => resolve(token),
-        "error-callback": () => resolve(null),
-        action,
-      });
-    });
-  } catch {
-    return null;
-  }
-}
-
-// 🔔 공통 토스트 메시지 함수
-let toastTimeout;
-
+// ---------------- Toast (Stacked) ----------------
 export function showToast(message, isError = false) {
-  let toast = document.getElementById("toast");
-  if (!toast) {
-    toast = document.createElement("div");
-    toast.id = "toast";
-    toast.setAttribute("role", "status");
-    toast.setAttribute("aria-live", "polite");
-    document.body.appendChild(toast);
+  let container = document.getElementById("toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toast-container";
+    container.className =
+      "fixed top-[80px] left-1/2 -translate-x-1/2 z-[3000] flex flex-col gap-2 items-center w-full max-w-sm pointer-events-none";
+    document.body.appendChild(container);
   }
-
-  toast.innerHTML = message;
-  toast.classList.add("show");
-
-  if (isError) {
-    toast.classList.add("error");
-  } else {
-    toast.classList.remove("error");
+  const toast = document.createElement("div");
+  const themeClass = isError ? "toast-error" : "toast-success";
+  toast.className = `toast-panel ${themeClass} !relative !right-auto !bottom-auto !inset-auto !transform-none w-auto min-w-[300px] pointer-events-auto opacity-0 -translate-y-4 transition-all duration-300`;
+  const icon = isError
+    ? '<i class="fas fa-circle-exclamation text-white/90"></i>'
+    : '<i class="fas fa-check-circle text-emerald-400"></i>';
+  toast.innerHTML = `${icon}<span>${message}</span>`;
+  container.prepend(toast);
+  while (container.children.length > 5) {
+    container.removeChild(container.lastElementChild);
   }
-
-  // 기존 타이머 제거 (중복 제거 핵심!)
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => {
-    toast.classList.remove("show");
-  }, 2000);
+  requestAnimationFrame(() => {
+    toast.classList.remove("opacity-0", "-translate-y-4");
+    toast.classList.add("opacity-100", "translate-y-0");
+  });
+  setTimeout(() => {
+    toast.classList.remove("opacity-100", "translate-y-0");
+    toast.classList.add("opacity-0", "-translate-y-4");
+    setTimeout(() => {
+      toast.remove();
+      if (container.children.length === 0) container.remove();
+    }, 300);
+  }, 3000);
 }
 
-// ---------------- Confirm / Alert Modals (Reusable) ----------------
-const CM_ICONS = {
-  info: "fa-circle-info",
-  warn: "fa-triangle-exclamation",
-  danger: "fa-circle-exclamation",
-};
+// ---------------- Confirm/Alert (Modal) ----------------
 const CM_FOCUSABLE =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
 function cm_trapFocus(modalEl, e) {
   if (e.key !== "Tab") return;
   const els = modalEl.querySelectorAll(CM_FOCUSABLE);
@@ -746,106 +603,36 @@ function cm_trapFocus(modalEl, e) {
   }
 }
 
-function cm_buildDialog({
-  title = "알림",
-  message = "",
-  variant = "info", // 'info' | 'warn' | 'danger'
-  confirmText = "확인",
-  cancelText = "취소",
-  showCancel = true,
-}) {
+function createModalBase(title, contentHTML, footerHTML, variant = "info") {
   const overlay = document.createElement("div");
-  overlay.className = `modal modal--confirm cm-variant-${variant}`;
+  overlay.className = "modal-overlay";
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("aria-labelledby", "cm-title");
-  overlay.setAttribute("aria-describedby", "cm-desc");
   overlay.tabIndex = -1;
 
-  const dlg = document.createElement("div");
-  dlg.className = "cm-dialog";
-  dlg.innerHTML = `
-    <div class="cm-header">
-      <i class="fa-solid ${
-        CM_ICONS[variant] || CM_ICONS.info
-      }" aria-hidden="true"></i>
-      <h3 id="cm-title" class="cm-title">${title}</h3>
-    </div>
-    <div id="cm-desc" class="cm-body">${message}</div>
-    <div class="cm-footer">
-      ${
-        showCancel
-          ? `<button type="button" class="cm-btn cm-btn-ghost" data-act="cancel"> ${cancelText}</button>`
-          : ""
-      }
-      <button type="button" class="cm-btn ${
-        variant === "danger" ? "cm-btn-danger" : "cm-btn-primary"
-      }" data-act="confirm">${confirmText}</button>
+  const icons = {
+    info: '<i class="fas fa-circle-info text-blue-500 text-xl"></i>',
+    warn: '<i class="fas fa-triangle-exclamation text-amber-500 text-xl"></i>',
+    danger: '<i class="fas fa-circle-exclamation text-rose-500 text-xl"></i>',
+  };
+
+  overlay.innerHTML = `
+    <div class="modal-panel max-w-sm">
+      <div class="flex items-start gap-3 mb-3">
+        <div class="mt-0.5 shrink-0">${icons[variant] || icons.info}</div>
+        <div>
+          <h3 class="text-lg font-bold text-slate-900 dark:text-white leading-tight">${title}</h3>
+          <div class="mt-2 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed break-keep">${contentHTML}</div>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end gap-2">
+        ${footerHTML}
+      </div>
     </div>
   `;
-  overlay.appendChild(dlg);
-  return { overlay, dlg };
+  return overlay;
 }
 
-/** 열려 있는 순서 유지/포커스 복귀 */
-function cm_openBase({
-  title,
-  message,
-  variant,
-  confirmText,
-  cancelText,
-  showCancel,
-  allowOutsideClose = false,
-  allowEscapeClose = true,
-  defaultFocus = "confirm", // 'confirm' | 'cancel'
-}) {
-  const { overlay, dlg } = cm_buildDialog({
-    title,
-    message,
-    variant,
-    confirmText,
-    cancelText,
-    showCancel,
-  });
-  document.body.appendChild(overlay);
-
-  const last = document.activeElement;
-  // 포커스 진입
-  requestAnimationFrame(() => {
-    const target =
-      defaultFocus === "cancel"
-        ? dlg.querySelector('[data-act="cancel"]')
-        : dlg.querySelector('[data-act="confirm"]');
-    (target || dlg).focus();
-  });
-
-  return new Promise((resolve) => {
-    const cleanup = (val) => {
-      overlay.removeEventListener("keydown", onKey);
-      overlay.removeEventListener("mousedown", onDown);
-      overlay.remove();
-      if (last && typeof last.focus === "function") last.focus();
-      resolve(val);
-    };
-    const onKey = (e) => {
-      if (e.key === "Escape" && allowEscapeClose) return cleanup(false);
-      if (e.key === "Tab") cm_trapFocus(overlay, e);
-    };
-    const onDown = (e) => {
-      if (!allowOutsideClose) return;
-      if (e.target === overlay) cleanup(false);
-    };
-    overlay.addEventListener("keydown", onKey);
-    overlay.addEventListener("mousedown", onDown);
-    overlay.addEventListener("click", (e) => {
-      const act = e.target?.dataset?.act;
-      if (act === "confirm") cleanup(true);
-      if (act === "cancel") cleanup(false);
-    });
-  });
-}
-
-/** 확인 모달: confirm/취소 → boolean */
 export function openConfirm(opts = {}) {
   const {
     title = "확인",
@@ -853,59 +640,172 @@ export function openConfirm(opts = {}) {
     variant = "info",
     confirmText = "확인",
     cancelText = "취소",
-    allowOutsideClose = false,
-    allowEscapeClose = true,
-    defaultFocus = variant === "danger" ? "cancel" : "confirm",
+    defaultFocus = "confirm",
   } = opts;
-  return cm_openBase({
-    title,
-    message,
-    variant,
-    confirmText,
-    cancelText,
-    showCancel: true,
-    allowOutsideClose,
-    allowEscapeClose,
-    defaultFocus,
+  const confirmBtnClass =
+    variant === "danger" ? "btn btn-danger" : "btn btn-primary";
+  const footer = `
+    <button type="button" class="btn btn-dark-weak" data-act="cancel">${cancelText}</button>
+    <button type="button" class="${confirmBtnClass}" data-act="confirm">${confirmText}</button>
+  `;
+  const overlay = createModalBase(title, message, footer, variant);
+  document.body.appendChild(overlay);
+  const lastFocus = document.activeElement;
+  const confirmBtn = overlay.querySelector('[data-act="confirm"]');
+  const cancelBtn = overlay.querySelector('[data-act="cancel"]');
+  (defaultFocus === "cancel" ? cancelBtn : confirmBtn)?.focus();
+
+  return new Promise((resolve) => {
+    const cleanup = (val) => {
+      document.removeEventListener("keydown", onKey);
+      overlay.remove();
+      if (lastFocus?.focus) lastFocus.focus();
+      resolve(val);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") cleanup(false);
+      if (e.key === "Tab") cm_trapFocus(overlay, e);
+    };
+    document.addEventListener("keydown", onKey);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) cleanup(false);
+      const act = e.target.closest("button")?.dataset.act;
+      if (act === "confirm") cleanup(true);
+      if (act === "cancel") cleanup(false);
+    });
   });
 }
 
-/** 알림 모달: 확인만 → void */
 export function openAlert(opts = {}) {
   const {
     title = "알림",
     message = "",
     variant = "info",
     confirmText = "확인",
-    allowOutsideClose = true,
-    allowEscapeClose = true,
-    defaultFocus = "confirm",
   } = opts;
-  return cm_openBase({
-    title,
-    message,
-    variant,
-    confirmText,
-    cancelText: "",
-    showCancel: false,
-    allowOutsideClose,
-    allowEscapeClose,
-    defaultFocus,
-  }).then(() => {});
+  const footer = `
+    <button type="button" class="btn btn-primary" data-act="confirm">${confirmText}</button>
+  `;
+  const overlay = createModalBase(title, message, footer, variant);
+  document.body.appendChild(overlay);
+  const confirmBtn = overlay.querySelector('[data-act="confirm"]');
+  confirmBtn?.focus();
+
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      overlay.remove();
+      resolve();
+    };
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") cleanup();
+    });
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay || e.target.closest('[data-act="confirm"]'))
+        cleanup();
+    });
+  });
 }
 
-// ------ Firestore 폴백 집계 ------
+// ---------------- Admin Summary Modal ----------------
+export function openAdminPendingSummaryModal({
+  pendingUsers = 0,
+  productPending = 0,
+  userPending = 0,
+}) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  const content = document.createElement("div");
+  content.className = "modal-panel max-w-md";
+
+  const itemClass =
+    "flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-700 last:border-0";
+  const hotClass = "text-rose-600 dark:text-rose-400 font-bold";
+  const hotUsers = Number(pendingUsers) > 0;
+  const hotProd = Number(productPending) > 0;
+  const hotCust = Number(userPending) > 0;
+
+  content.innerHTML = `
+    <h2 class="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+      <i class="fas fa-clipboard-list text-blue-500"></i> 관리자 확인 필요
+    </h2>
+    <div class="flex flex-col mb-6">
+      <div class="${itemClass}">
+        <span class="text-slate-600 dark:text-slate-300">사용자 권한 대기</span>
+        ${
+          hotUsers
+            ? `<a href="admin.html#pending-users" class="${hotClass} hover:underline">${pendingUsers}건</a>`
+            : `<span class="text-slate-400 dark:text-slate-500">0건</span>`
+        }
+      </div>
+      <div class="${itemClass}">
+        <span class="text-slate-600 dark:text-slate-300">물품 승인 대기</span>
+        ${
+          hotProd
+            ? `<a href="admin.html#pending-products" class="${hotClass} hover:underline">${productPending}건</a>`
+            : `<span class="text-slate-400 dark:text-slate-500">0건</span>`
+        }
+      </div>
+      <div class="${itemClass}">
+        <span class="text-slate-600 dark:text-slate-300">이용자 승인 대기</span>
+        ${
+          hotCust
+            ? `<a href="admin.html#pending-customers" class="${hotClass} hover:underline">${userPending}건</a>`
+            : `<span class="text-slate-400 dark:text-slate-500">0건</span>`
+        }
+      </div>
+    </div>
+    <div class="flex justify-end">
+      <button id="admin-pending-close" class="btn btn-dark-weak">닫기</button>
+    </div>
+  `;
+
+  overlay.appendChild(content);
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay
+    .querySelector("#admin-pending-close")
+    .addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+}
+
+async function notifyNewAccountsOnceOnLogin(user, role) {
+  try {
+    if (!user) return;
+    let isAdmin = role === "admin";
+    if (!isAdmin) {
+      try {
+        const t = await user.getIdTokenResult();
+        isAdmin = (t?.claims?.role || "").toLowerCase() === "admin";
+      } catch {}
+    }
+    if (!isAdmin) return;
+    const flagKey = `admin:newAcct:checked:${user.uid}`;
+    if (sessionStorage.getItem(flagKey) === "1") return;
+    if (__adminPendingModalInFlight) return;
+    __adminPendingModalInFlight = true;
+
+    const fb = await fallbackPendingSummaryFromFirestore();
+    const total = fb.pendingUsers + fb.productPending + fb.userPending;
+
+    if (total > 0) {
+      openAdminPendingSummaryModal(fb);
+      sessionStorage.setItem(flagKey, "1");
+    }
+  } finally {
+    __adminPendingModalInFlight = false;
+  }
+}
+
 async function fallbackPendingSummaryFromFirestore() {
   try {
-    // 1) pending 사용자 수
     const usersQ = query(
       collection(db, "users"),
       where("role", "==", "pending")
     );
     const usersSnap = await getDocs(usersQ);
     const pendingUsers = usersSnap.size;
-
-    // 2) approvals 미승인 항목 카운트(최대 500건)
     const apprQ = query(
       collection(db, "approvals"),
       where("approved", "==", false),

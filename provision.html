@@ -17,8 +17,6 @@
       })();
     </script>
 
-    <link rel="stylesheet" href="css/common.css" />
-
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
@@ -34,364 +32,746 @@
       window.CF_TURNSTILE_SITEKEY = "0x4AAAAAABtE3GFMWF3_Fd4E";
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
     <script type="module" src="js/components/firebase-config.js"></script>
 
-    <link rel="stylesheet" href="css/provision.css" />
-    <script type="module" src="js/provision.js" defer></script>
     <link rel="stylesheet" href="css/tw.css" />
+    <link rel="stylesheet" href="css/tw-input.css" />
+
+    <script type="module" src="js/provision.js" defer></script>
   </head>
 
-  <body>
+  <body class="bg-[#f2f4f6] dark:bg-slate-900">
     <div id="header-container"></div>
 
-    <main class="container mx-auto px-4 py-6 space-y-6">
-      <div class="flex flex-wrap items-center gap-2">
-        <button
-          class="tab-btn btn btn-light rounded-full text-sm font-semibold shadow-soft border border-slate-200 text-slate-800 hover:bg-primary-weak hover:border-primary/50 hover:text-primary [&.active]:bg-primary [&.active]:text-white [&.active]:border-primary active"
-          data-tab="provision"
-        >
-          <i class="fas fa-cash-register"></i> 물품 제공
-        </button>
-        <button
-          class="tab-btn btn btn-light rounded-full text-sm font-semibold shadow-soft border border-slate-200 text-slate-800 hover:bg-primary-weak hover:border-primary/50 hover:text-primary [&.active]:bg-primary [&.active]:text-white [&.active]:border-primary"
-          data-tab="exchange"
-        >
-          <i class="fas fa-right-left"></i> 물품 교환
-        </button>
+    <main class="w-full max-w-[1920px] mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div class="tab-glass-center">
+        <div class="tab-glass-track" role="tablist" aria-label="기능 선택">
+          <button
+            id="tab-provision"
+            class="tab-btn tab-glass-btn active"
+            data-tab="provision"
+            role="tab"
+            aria-selected="true"
+            aria-controls="provision-panel"
+          >
+            <i class="fas fa-cash-register text-lg"></i>
+            <span class="tracking-wide">물품 제공</span>
+          </button>
+
+          <button
+            id="tab-exchange"
+            class="tab-btn tab-glass-btn"
+            data-tab="exchange"
+            role="tab"
+            aria-selected="false"
+            aria-controls="exchange-section"
+          >
+            <i class="fas fa-right-left text-lg"></i>
+            <span class="tracking-wide">물품 교환</span>
+          </button>
+        </div>
       </div>
 
       <section
         id="provision-panel"
         data-tab-panel="provision"
-        class="space-y-6"
+        role="tabpanel"
+        aria-labelledby="tab-provision"
+        class="space-y-6 animate-fade-in"
       >
         <div>
-          <h2 class="text-3xl font-bold text-slate-900 tracking-tight mb-2">
+          <h2
+            class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight"
+          >
             물품 제공
           </h2>
-          <p class="text-slate-500 text-sm">
+          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">
             이용자에게 물품을 제공합니다.
           </p>
         </div>
 
-        <section id="prov-customer-lookup" class="card space-y-4">
-          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
-            이용자 조회
-          </h3>
-          <div class="flex flex-wrap items-center gap-3 justify-between">
-            <input
-              type="text"
-              id="prov-customer-search"
-              class="input w-full md:w-96 flex-1 min-w-[220px]"
-              placeholder="고객명 검색"
-            />
-            <button id="prov-lookup-btn" type="button" class="btn btn-basic">
-              <i class="fas fa-search"></i> 조회
-            </button>
+        <section
+          id="prov-customer-lookup"
+          class="card flex flex-col sm:flex-row gap-4 items-end sm:items-center justify-between"
+        >
+          <div class="w-full sm:flex-1 space-y-2">
+            <label
+              for="prov-customer-search"
+              class="block text-sm font-bold text-slate-700 dark:text-slate-300"
+            >
+              이용자 조회
+            </label>
+            <div class="flex gap-2">
+              <div class="relative flex-1">
+                <div
+                  class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+                >
+                  <i class="fas fa-search text-slate-400"></i>
+                </div>
+                <input
+                  type="text"
+                  id="prov-customer-search"
+                  class="input pl-10 w-full focus:ring-blue-500"
+                  placeholder="고객명 또는 전화번호 뒷자리"
+                />
+              </div>
+              <button
+                id="prov-lookup-btn"
+                type="button"
+                class="btn btn-primary whitespace-nowrap px-6"
+              >
+                조회
+              </button>
+            </div>
           </div>
         </section>
 
-        <section id="visitor-list-section" class="hidden card space-y-4">
-          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
-            방문자 리스트
-          </h3>
+        <section
+          id="visitor-list-section"
+          class="hidden card space-y-3 animate-fade-in"
+        >
+          <div
+            class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2 mb-2"
+          >
+            <h3
+              class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"
+            >
+              <i class="fas fa-users text-blue-500"></i> 방문자 리스트
+            </h3>
+            <span class="text-xs font-medium text-slate-400"
+              >선택하여 상품 입력</span
+            >
+          </div>
           <ul
             id="visitor-list"
-            class="visitor-list grid grid-cols-1 md:grid-cols-2 gap-2 list-none p-0 m-0"
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[280px] overflow-y-auto p-1 custom-scrollbar"
           ></ul>
         </section>
 
         <section id="customer-if">
           <div
             id="provision-customer-info"
-            class="hidden card space-y-2 text-slate-800"
-          >
-            <!-- 제공 대상 고객 정보 -->
-          </div>
+            class="hidden animate-fade-in"
+          ></div>
         </section>
 
-        <section id="product-selection" class="hidden card space-y-4">
-          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
-            상품 추가
-          </h3>
-
+        <section
+          id="product-selection"
+          class="hidden space-y-4 animate-fade-in"
+        >
           <div
-            class="product-input-area sticky top-[10vh] z-30 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-white/90 backdrop-blur-md shadow-lg p-4 transition-all duration-300"
+            class="product-input-area sticky top-[70px] z-30 flex flex-wrap items-center gap-2 bg-white/60 dark:bg-slate-800/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] rounded-2xl p-4 transition-all hover:shadow-[0_15px_35px_rgb(0,0,0,0.08)]"
           >
-            <input
-              type="text"
-              id="barcode-input"
-              class="input w-full sm:w-64 md:w-72"
-              placeholder="바코드 입력 (Enter)"
-              inputmode="numeric"
-              pattern="\d*"
-            />
-            <div class="autocomplete-wrapper relative flex-1 min-w-[16rem]">
+            <div class="relative w-full sm:w-48 group">
+              <div
+                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors"
+              >
+                <i class="fas fa-barcode"></i>
+              </div>
+              <input
+                type="text"
+                id="barcode-input"
+                class="input pl-9 w-full bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800 transition-colors"
+                placeholder="바코드"
+                inputmode="numeric"
+                pattern="\d*"
+              />
+            </div>
+
+            <div
+              class="autocomplete-wrapper relative flex-1 min-w-[200px] group"
+            >
+              <div
+                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors"
+              >
+                <i class="fas fa-tag"></i>
+              </div>
               <input
                 type="text"
                 id="name-input"
-                class="input w-full"
-                placeholder="상품명 입력 (Enter 후 수량)"
+                class="input pl-9 w-full bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800 transition-colors"
+                placeholder="상품명"
               />
               <div
                 id="autocomplete-list"
-                class="autocomplete-list hidden absolute left-0 top-full z-50 mt-1 w-full max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-input"
+                class="autocomplete-list hidden animate-fade-in"
               ></div>
             </div>
-            <input
-              type="number"
-              id="quantity-input"
-              class="input w-24"
-              placeholder="수량"
-              min="1"
-              max="30"
-              value="1"
-            />
-            <button id="add-product-btn" class="btn btn-basic">
-              <i class="fas fa-plus-circle"></i> 추가
+
+            <div class="relative w-24 group">
+              <div
+                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors"
+              >
+                <i class="fas fa-hashtag text-xs"></i>
+              </div>
+              <input
+                type="number"
+                id="quantity-input"
+                class="input pl-8 w-full text-center bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800"
+                placeholder="수량"
+                min="1"
+                max="30"
+              />
+            </div>
+
+            <button
+              id="add-product-btn"
+              class="btn btn-primary w-full sm:w-auto shadow-lg shadow-blue-500/20"
+            >
+              <i class="fas fa-plus"></i>
+              <span class="hidden sm:inline ml-1">추가</span>
             </button>
           </div>
 
-          <div class="selected-products table-wrapper">
-            <table id="selected-table" class="table min-w-[720px]">
-              <thead>
-                <tr>
-                  <th class="text-center">상품명</th>
-                  <th class="text-center">수량</th>
-                  <th class="text-center">가격</th>
-                  <th class="text-center">총합계</th>
-                  <th class="text-center">관리</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
+          <div
+            class="card p-0 overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm"
+          >
             <div
-              id="total-summary"
-              class="mt-4 flex flex-wrap items-center gap-3 text-lg font-bold text-slate-900"
+              class="table-wrapper overflow-x-auto custom-scrollbar relative bg-slate-50/30 dark:bg-slate-900/30 min-h-[200px]"
             >
-              총 포인트: <span id="total-points">0</span> 포인트
-              <span id="point-warning" class="hidden text-danger font-bold"
-                ><i class="fas fa-triangle-exclamation"></i> 30 포인트
-                초과</span
+              <table id="selected-table" class="table w-full border-collapse">
+                <thead
+                  class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm"
+                >
+                  <tr>
+                    <th
+                      class="py-3 px-4 text-left font-semibold text-slate-600 dark:text-slate-300"
+                    >
+                      상품명
+                    </th>
+                    <th
+                      class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300 w-40"
+                    >
+                      수량
+                    </th>
+                    <th
+                      class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300 w-24"
+                    >
+                      가격
+                    </th>
+                    <th
+                      class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300 w-24"
+                    >
+                      소계
+                    </th>
+                    <th
+                      class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300 w-20"
+                    >
+                      삭제
+                    </th>
+                  </tr>
+                </thead>
+                <tbody
+                  class="divide-y divide-slate-100 dark:divide-slate-700/50 bg-white dark:bg-slate-800"
+                >
+                  <tr id="cart-empty-state">
+                    <td
+                      colspan="5"
+                      class="py-12 text-center select-none pointer-events-none"
+                    >
+                      <div
+                        class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600"
+                      >
+                        <div
+                          class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center mb-1"
+                        >
+                          <i
+                            class="fas fa-basket-shopping text-3xl text-slate-200 dark:text-slate-600"
+                          ></i>
+                        </div>
+                        <p
+                          class="text-slate-400 dark:text-slate-500 font-medium text-sm"
+                        >
+                          상품의 바코드를 스캔하거나<br />상품명을 검색해주세요.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div
+              class="bg-white dark:bg-slate-800 p-4 border-t border-slate-100 dark:border-slate-700 flex flex-wrap justify-between items-center gap-4 relative z-20"
+            >
+              <div class="flex items-center gap-2">
+                <span
+                  id="point-warning"
+                  class="hidden flex items-center gap-1 text-rose-600 font-bold text-sm bg-rose-50 dark:bg-rose-900/30 px-2 py-1 rounded animate-pulse"
+                >
+                  <i class="fas fa-circle-exclamation"></i> 30 포인트 초과
+                </span>
+              </div>
+              <div
+                class="text-lg text-slate-600 dark:text-slate-400 font-medium"
               >
+                총 포인트:
+                <span
+                  id="total-points"
+                  class="text-3xl font-extrabold text-blue-600 dark:text-blue-400 ml-2 tracking-tight"
+                  >0</span
+                >
+                <span class="text-sm font-bold text-blue-600 dark:text-blue-400"
+                  >p</span
+                >
+              </div>
             </div>
           </div>
+
           <section
             id="submit-section"
-            class="flex items-center mt-4 gap-3"
-            hidden
+            class="flex flex-col sm:flex-row items-center justify-end gap-4 mt-6 hidden animate-fade-in"
           >
-            <button id="submit-btn" class="btn btn-basic">
-              <i class="fas fa-check-circle"></i> 제공 등록 완료
-            </button>
             <label
               for="lifelove-checkbox"
-              class="flex items-center gap-2 text-slate-800"
+              class="flex items-center gap-3 cursor-pointer select-none bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-blue-200 dark:hover:border-blue-500 transition-all shadow-sm group"
             >
-              <input type="checkbox" id="lifelove-checkbox" class="h-4 w-4" />
-              생명사랑 제공
+              <input
+                type="checkbox"
+                id="lifelove-checkbox"
+                class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300 dark:border-slate-600 group-hover:border-blue-400"
+              />
+              <span
+                class="font-bold text-slate-700 dark:text-slate-200 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors"
+                >생명사랑 제공</span
+              >
             </label>
+            <button
+              id="submit-btn"
+              class="btn btn-primary px-8 py-3 text-base shadow-xl shadow-blue-500/30 hover:scale-[1.02] active:scale-95 transition-transform"
+            >
+              <i class="fas fa-check-circle mr-2"></i> 제공 등록 완료
+            </button>
           </section>
         </section>
 
         <div
           id="product-action-buttons"
-          class="mt-4 flex flex-wrap items-center gap-3 card"
+          class="flex flex-wrap items-center justify-between gap-4 pt-6 mt-2 border-t border-slate-200/60 dark:border-slate-700/60 animate-fade-in"
         >
-          <button
-            id="undo-btn"
-            class="btn btn-dark-weak !px-3 !py-2 text-sm"
-            aria-label="되돌리기"
+          <div
+            class="flex items-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 p-1 rounded-lg gap-0.5"
           >
-            <i class="fas fa-rotate-left"></i>
-          </button>
-          <button
-            id="redo-btn"
-            class="btn btn-dark-weak !px-3 !py-2 text-sm"
-            aria-label="다시 실행"
-          >
-            <i class="fas fa-rotate-right"></i>
-          </button>
-          <button id="clear-products-btn" class="btn btn-dark-weak text-sm">
-            <i class="fas fa-broom"></i> 물품 초기화
-          </button>
-          <button id="clear-all-btn" class="btn btn-danger text-sm">
-            <i class="fas fa-trash-alt"></i> 전체 초기화
-          </button>
-          <button
-            id="hold-save-btn"
-            class="btn btn-dark-weak text-sm"
-            title="현재 선택 방문자의 장바구니를 임시 저장"
-          >
-            <i class="fas fa-pause-circle"></i> 보류 저장
-          </button>
-          <button
-            id="hold-load-btn"
-            class="btn btn-dark-weak text-sm"
-            title="임시 저장된 장바구니 불러오기"
-          >
-            <i class="fas fa-play-circle"></i> 보류 불러오기
-          </button>
+            <button
+              id="undo-btn"
+              class="btn btn-ghost w-9 h-9 !p-0 rounded"
+              title="되돌리기 (Ctrl+Z)"
+            >
+              <i class="fas fa-rotate-left"></i>
+            </button>
+            <div
+              class="w-px h-4 bg-slate-300/50 dark:bg-slate-600/50 hover:bg-slate-50 dark:hover:bg-slate-700 mx-0.5"
+            ></div>
+            <button
+              id="redo-btn"
+              class="btn btn-ghost w-9 h-9 !p-0 rounded"
+              title="다시 실행 (Ctrl+Shift+Z)"
+            >
+              <i class="fas fa-rotate-right"></i>
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              id="clear-products-btn"
+              class="btn btn-light-weak text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:text-slate-200 dark:hover:bg-slate-700 text-xs font-bold px-3 py-2 h-9"
+            >
+              <i class="fas fa-eraser mr-1.5"></i> 물품 초기화
+            </button>
+            <button
+              id="clear-all-btn"
+              class="btn btn-light-weak text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 text-xs font-bold px-3 py-2 h-9"
+            >
+              <i class="fas fa-trash-can mr-1.5"></i> 전체 초기화
+            </button>
+          </div>
+          <div class="flex-1"></div>
+          <div class="flex items-center gap-2">
+            <button
+              id="hold-save-btn"
+              class="btn btn-light-weak text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:text-slate-200 dark:hover:bg-slate-700 text-xs font-bold px-3 py-2 h-9"
+            >
+              <i class="fas fa-pause mr-1.5"></i> 보류
+            </button>
+            <button
+              id="hold-load-btn"
+              class="btn btn-light-weak text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:text-slate-200 dark:hover:bg-slate-700 text-xs font-bold px-3 py-2 h-9"
+            >
+              <i class="fas fa-play mr-1.5"></i> 불러오기
+            </button>
+          </div>
         </div>
       </section>
 
       <section
         id="exchange-section"
         data-tab-panel="exchange"
-        class="hidden space-y-6"
+        role="tabpanel"
+        aria-labelledby="tab-exchange"
+        class="hidden space-y-6 animate-fade-in"
       >
         <div>
-          <h2 class="text-3xl font-bold text-slate-900 tracking-tight mb-2">
+          <h2
+            class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight"
+          >
             물품 교환
           </h2>
-          <p class="text-slate-500 text-sm">
+          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">
             이용자에게 제공한 물품을 교환합니다.
           </p>
         </div>
-        <section id="ex-customer-lookup" class="card space-y-4">
-          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
-            이용자 조회
-          </h3>
-          <div class="flex flex-wrap items-center gap-3 justify-between">
-            <input
-              type="text"
-              id="ex-customer-search"
-              class="input w-full md:w-96 flex-1 min-w-[220px]"
-              placeholder="고객명 검색"
-            />
-            <button id="ex-lookup-btn" class="btn btn-basic" type="button">
-              <i class="fas fa-search"></i> 조회
-            </button>
+
+        <section
+          id="ex-customer-lookup"
+          class="card flex flex-col sm:flex-row gap-4 items-end sm:items-center justify-between"
+        >
+          <div class="w-full sm:flex-1 space-y-2">
+            <label
+              for="ex-customer-search"
+              class="block text-sm font-bold text-slate-700 dark:text-slate-300"
+            >
+              교환 대상 조회
+            </label>
+            <div class="flex gap-2">
+              <div class="relative flex-1">
+                <div
+                  class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+                >
+                  <i class="fas fa-search text-slate-400"></i>
+                </div>
+                <input
+                  type="text"
+                  id="ex-customer-search"
+                  class="input pl-10 w-full focus:ring-blue-500"
+                  placeholder="고객명 또는 전화번호 뒷자리"
+                />
+              </div>
+              <button
+                id="ex-lookup-btn"
+                class="btn btn-primary whitespace-nowrap px-6"
+              >
+                조회
+              </button>
+            </div>
           </div>
         </section>
 
         <section id="exchange-customer-if">
-          <div
-            id="exchange-customer-info"
-            class="hidden card space-y-2 text-slate-800"
-          ></div>
+          <div id="exchange-customer-info" class="hidden animate-fade-in"></div>
         </section>
 
-        <section id="exchange-history-section" class="hidden card space-y-4">
-          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
-            최근 50일 이내 제공 내역
-          </h3>
-          <div class="table-wrapper overflow-x-auto">
-            <table id="exchange-history-table" class="table min-w-[720px]">
-              <thead>
+        <section
+          id="exchange-history-section"
+          class="hidden card space-y-4 animate-fade-in"
+        >
+          <div
+            class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2 mb-2"
+          >
+            <h3
+              class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"
+            >
+              <i class="fas fa-clock-rotate-left text-blue-500"></i> 제공 내역
+            </h3>
+            <span class="text-xs font-medium text-slate-400"
+              >최근 50일 이내</span
+            >
+          </div>
+
+          <div
+            class="table-wrapper overflow-x-auto custom-scrollbar max-h-[250px] overflow-y-auto"
+          >
+            <table id="exchange-history-table" class="table w-full">
+              <thead
+                class="bg-slate-50 dark:bg-slate-700/50 sticky top-0 z-10 shadow-sm"
+              >
                 <tr>
-                  <th class="text-center">일시</th>
-                  <th class="text-center">개수</th>
-                  <th class="text-center">합계</th>
-                  <th class="text-center">비고</th>
-                  <th class="text-center">선택</th>
+                  <th
+                    class="py-3 px-4 text-left font-semibold text-slate-600 dark:text-slate-300"
+                  >
+                    일시
+                  </th>
+                  <th
+                    class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300"
+                  >
+                    개수
+                  </th>
+                  <th
+                    class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300"
+                  >
+                    합계
+                  </th>
+                  <th
+                    class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300"
+                  >
+                    비고
+                  </th>
+                  <th
+                    class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300"
+                  >
+                    선택
+                  </th>
                 </tr>
               </thead>
-              <tbody></tbody>
+              <tbody
+                class="divide-y divide-slate-100 dark:divide-slate-700/50 bg-white dark:bg-slate-800"
+              ></tbody>
             </table>
           </div>
         </section>
 
-        <div id="exchange-builder" class="hidden card space-y-4">
-          <h3 class="text-lg font-semibold text-slate-900 tracking-tight">
-            교환 편집
-          </h3>
+        <div id="exchange-builder" class="hidden space-y-4 animate-fade-in">
           <div
-            class="product-input-area flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-neutral-weak/70 p-3"
+            class="product-input-area sticky top-[70px] z-30 flex flex-wrap items-center gap-2 bg-white/60 dark:bg-slate-800/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] rounded-2xl p-4 transition-all hover:shadow-[0_15px_35px_rgb(0,0,0,0.08)]"
           >
-            <input
-              type="text"
-              id="ex-barcode-input"
-              class="input w-full sm:w-64 md:w-72"
-              placeholder="바코드 입력 (Enter)"
-              inputmode="numeric"
-              pattern="\\d*"
-            />
-            <div class="autocomplete-wrapper relative flex-1 min-w-[16rem]">
+            <div class="relative w-full sm:w-48 group">
+              <div
+                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors"
+              >
+                <i class="fas fa-barcode"></i>
+              </div>
+              <input
+                type="text"
+                id="ex-barcode-input"
+                class="input pl-9 w-full bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800"
+                placeholder="바코드"
+                inputmode="numeric"
+                pattern="\d*"
+              />
+            </div>
+
+            <div class="relative flex-1 min-w-[200px] group">
+              <div
+                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors"
+              >
+                <i class="fas fa-tag"></i>
+              </div>
               <input
                 type="text"
                 id="ex-name-input"
-                class="input w-full"
-                placeholder="상품명 입력"
+                class="input pl-9 w-full bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800"
+                placeholder="상품명"
               />
-              <div id="ex-autocomplete" class="autocomplete-list hidden"></div>
+              <div
+                id="ex-autocomplete-list"
+                class="autocomplete-list hidden animate-fade-in"
+              ></div>
             </div>
-            <input
-              type="number"
-              id="ex-quantity-input"
-              class="input w-24"
-              placeholder="수량 (기본 1)"
-              min="1"
-              max="30"
-            />
-            <button id="ex-add-product-btn" class="btn btn-basic">
-              <i class="fas fa-plus-circle"></i> 추가
-            </button>
-          </div>
 
-          <div class="selected-products table-wrapper">
-            <table id="exchange-table" class="table min-w-[720px]">
-              <thead>
-                <tr>
-                  <th class="text-center">상품명</th>
-                  <th class="text-center">수량</th>
-                  <th class="text-center">가격</th>
-                  <th class="text-center">총합계</th>
-                  <th class="text-center">관리</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-            <div
-              id="total-summary"
-              class="mt-4 flex flex-wrap items-center gap-3 text-lg font-bold text-slate-900"
-            >
-              기존 합계: <b id="ex-original-total">0</b> | 교환 합계:
-              <b id="ex-new-total">0</b>
-              <span id="ex-warning" class="hidden text-danger font-bold"
-                >교환 합계는 기존 합계 이내며, 최대 30 포인트입니다.</span
+            <div class="relative w-24 group">
+              <div
+                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors"
               >
+                <i class="fas fa-hashtag text-xs"></i>
+              </div>
+              <input
+                type="number"
+                id="ex-quantity-input"
+                class="input pl-8 w-full text-center bg-white/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800"
+                placeholder="수량"
+                min="1"
+                max="30"
+              />
             </div>
-          </div>
 
-          <div class="mt-2">
-            <button id="exchange-submit-btn" class="btn btn-basic">
-              <i class="fas fa-right-left"></i> 교환 확정
+            <button
+              id="ex-add-product-btn"
+              class="btn btn-primary w-full sm:w-auto shadow-lg shadow-blue-500/20"
+            >
+              <i class="fas fa-plus"></i>
+              <span class="hidden sm:inline ml-1">추가</span>
             </button>
           </div>
+
+          <div
+            class="card p-0 overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm"
+          >
+            <div
+              class="table-wrapper overflow-x-auto custom-scrollbar relative bg-slate-50/30 dark:bg-slate-900/30 min-h-[200px]"
+            >
+              <table id="exchange-table" class="table w-full border-collapse">
+                <thead
+                  class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm"
+                >
+                  <tr>
+                    <th
+                      class="py-3 px-4 text-left font-semibold text-slate-600 dark:text-slate-300"
+                    >
+                      상품명
+                    </th>
+                    <th
+                      class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300 w-32"
+                    >
+                      수량
+                    </th>
+                    <th
+                      class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300 w-24"
+                    >
+                      가격
+                    </th>
+                    <th
+                      class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300 w-24"
+                    >
+                      소계
+                    </th>
+                    <th
+                      class="py-3 px-4 text-center font-semibold text-slate-600 dark:text-slate-300 w-20"
+                    >
+                      삭제
+                    </th>
+                  </tr>
+                </thead>
+                <tbody
+                  class="divide-y divide-slate-100 dark:divide-slate-700/50 bg-white dark:bg-slate-800"
+                >
+                  <tr id="exchange-empty-state">
+                    <td
+                      colspan="5"
+                      class="py-12 text-center select-none pointer-events-none"
+                    >
+                      <div
+                        class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600"
+                      >
+                        <div
+                          class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center mb-1"
+                        >
+                          <i
+                            class="fas fa-right-left text-3xl text-slate-200 dark:text-slate-600"
+                          ></i>
+                        </div>
+                        <p
+                          class="text-slate-400 dark:text-slate-500 font-medium text-sm"
+                        >
+                          위 내역에서 선택 후,<br />교환할 새 상품을 추가하세요.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div
+              class="bg-white dark:bg-slate-800 p-4 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4 relative z-20"
+            >
+              <div class="flex items-center gap-6 text-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-1">
+                  <span class="text-slate-500 dark:text-slate-400 font-medium"
+                    >기존 합계</span
+                  >
+                  <span
+                    id="ex-original-total"
+                    class="text-xl font-bold text-slate-800 dark:text-white"
+                    >0</span
+                  >
+                </div>
+                <div
+                  class="hidden sm:block w-px h-8 bg-slate-200 dark:bg-slate-700"
+                ></div>
+                <div class="flex flex-col sm:flex-row sm:items-center gap-1">
+                  <span class="text-slate-500 dark:text-slate-400 font-medium"
+                    >교환 합계</span
+                  >
+                  <span
+                    id="ex-new-total"
+                    class="text-xl font-bold text-blue-600 dark:text-blue-400"
+                    >0</span
+                  >
+                </div>
+                <span
+                  id="ex-warning"
+                  class="hidden flex items-center gap-1 text-rose-600 font-bold text-xs bg-rose-50 dark:bg-rose-900/30 px-2 py-1 rounded animate-pulse"
+                >
+                  <i class="fas fa-circle-exclamation"></i> 환불 불가 / 30p 초과
+                </span>
+              </div>
+
+              <button
+                id="exchange-submit-btn"
+                class="btn btn-primary px-6 py-2.5 shadow-lg shadow-blue-500/30 w-full sm:w-auto hover:scale-[1.02] active:scale-95 transition-transform"
+              >
+                <i class="fas fa-right-left mr-2"></i> 교환 확정
+              </button>
+            </div>
+          </div>
+        </div>
+        <div
+          id="exchange-action-buttons"
+          class="flex flex-wrap items-center justify-between gap-4 pt-6 mt-2 border-t border-slate-200/60 dark:border-slate-700/60 animate-fade-in"
+        >
+          <div
+            class="flex items-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 p-1 rounded-lg gap-0.5"
+          >
+            <button
+              id="ex-undo-btn"
+              class="btn btn-ghost w-9 h-9 !p-0 rounded"
+              title="되돌리기 (Ctrl+Z)"
+            >
+              <i class="fas fa-rotate-left"></i>
+            </button>
+            <div
+              class="w-px h-4 bg-slate-300/50 dark:bg-slate-600/50 hover:bg-slate-50 dark:hover:bg-slate-700 mx-0.5"
+            ></div>
+            <button
+              id="ex-redo-btn"
+              class="btn btn-ghost w-9 h-9 !p-0 rounded"
+              title="다시 실행 (Ctrl+Shift+Z)"
+            >
+              <i class="fas fa-rotate-right"></i>
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              id="ex-reset-initial-btn"
+              class="btn btn-light-weak text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:text-slate-200 dark:hover:bg-slate-700 text-xs font-bold px-3 py-2 h-9"
+            >
+              <i class="fas fa-history mr-1.5"></i> 원래대로
+            </button>
+            <button
+              id="ex-clear-all-btn"
+              class="btn btn-light-weak text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 text-xs font-bold px-3 py-2 h-9"
+            >
+              <i class="fas fa-trash-can mr-1.5"></i> 전체 비우기
+            </button>
+          </div>
+          <div class="flex-1"></div>
         </div>
       </section>
     </main>
 
     <div id="footer-container"></div>
 
-    <div id="duplicate-modal" class="modal hidden">
-      <div class="modal-content">
-        <h2>이용자 선택</h2>
-        <ul id="duplicate-list" class="grid gap-3">
-          <!-- 동적으로 후보 리스트 삽입 -->
-        </ul>
-        <div
-          id="selected-info"
-          class="hidden mt-4 text-sm text-slate-700"
-        ></div>
-
-        <div class="modal-buttons">
-          <button
-            id="confirm-duplicate"
-            class="btn"
-            type="button"
-            title="방문자 리스트에 추가"
+    <div id="duplicate-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal-panel max-w-lg flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center mb-4 shrink-0">
+          <h2
+            class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2"
           >
-            <i class="fas fa-check"></i> 선택
-          </button>
+            <i class="fas fa-user-check text-blue-500"></i> 이용자 선택
+          </h2>
           <button
             id="close-duplicate-modal"
-            class="btn btn-light"
-            type="button"
+            class="btn btn-ghost !p-2 rounded-full w-10 h-10 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
           >
-            <i class="fas fa-times"></i> 닫기
+            <i
+              class="fas fa-times text-lg text-slate-500 dark:text-slate-400"
+            ></i>
+          </button>
+        </div>
+        <ul
+          id="duplicate-list"
+          class="flex-1 overflow-y-auto p-1 space-y-2 custom-scrollbar max-h-[400px]"
+        ></ul>
+        <div
+          id="selected-info"
+          class="hidden mt-4 shrink-0 animate-fade-in"
+        ></div>
+        <div
+          class="mt-6 flex justify-end gap-2 shrink-0 pt-4 border-t border-slate-100 dark:border-slate-700"
+        >
+          <button
+            id="confirm-duplicate"
+            class="btn btn-primary w-full sm:w-auto shadow-lg shadow-blue-500/30"
+          >
+            <i class="fas fa-check mr-2"></i> 선택 완료
           </button>
         </div>
       </div>
@@ -399,57 +779,114 @@
 
     <div
       id="quick-create-modal"
-      class="modal hidden modal--quick"
+      class="modal-overlay hidden"
       aria-hidden="true"
     >
-      <div
-        class="modal-content"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="qc-title"
-      >
-        <h2 id="qc-title"><i class="fas fa-bolt"></i> 상품 빠른 등록</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-          <label class="flex flex-col gap-1">
-            <span>상품명</span>
-            <input type="text" id="qc-name" class="input" />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span>분류</span>
-            <input
-              type="text"
-              id="qc-category"
-              class="input"
-              placeholder="예: 음료, 과자"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span>가격</span>
-            <input
-              type="number"
-              id="qc-price"
-              class="input"
-              min="0"
-              step="0.5"
-              placeholder="예: 0 또는 0.5 단위"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span>바코드(EAN-13)</span>
-            <input
-              type="text"
-              id="qc-barcode"
-              class="input"
-              inputmode="numeric"
-            />
-          </label>
+      <div class="modal-panel max-w-md">
+        <h2
+          class="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2"
+        >
+          <i class="fas fa-bolt text-amber-400"></i> 상품 빠른 등록
+        </h2>
+        <div class="space-y-5">
+          <div>
+            <label
+              class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 ml-1"
+              >바코드 (EAN-13)</label
+            >
+            <div class="relative group">
+              <div
+                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"
+              >
+                <i class="fas fa-lock"></i>
+              </div>
+              <input
+                type="text"
+                id="qc-barcode"
+                class="input pl-9 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 font-mono tracking-wide focus:ring-0 cursor-not-allowed"
+                readonly
+              />
+            </div>
+          </div>
+          <div>
+            <label
+              class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 ml-1"
+              >상품명</label
+            >
+            <div class="relative group">
+              <div
+                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors"
+              >
+                <i class="fas fa-tag"></i>
+              </div>
+              <input
+                type="text"
+                id="qc-name"
+                class="input pl-9"
+                placeholder="상품명 입력"
+              />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label
+                class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 ml-1"
+                >분류</label
+              >
+              <div class="relative group">
+                <div
+                  class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors"
+                >
+                  <i class="fas fa-layer-group"></i>
+                </div>
+                <input
+                  type="text"
+                  id="qc-category"
+                  class="input pl-9"
+                  placeholder="예: 스낵"
+                />
+              </div>
+            </div>
+            <div>
+              <label
+                class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 ml-1"
+                >가격
+                <span class="text-blue-500 font-normal ml-1"
+                  >(0.5 단위)</span
+                ></label
+              >
+              <div class="relative group">
+                <div
+                  class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors"
+                >
+                  <i class="fas fa-won-sign text-sm"></i>
+                </div>
+                <input
+                  type="number"
+                  id="qc-price"
+                  class="input pl-9"
+                  min="0"
+                  step="0.5"
+                  placeholder="0.0"
+                />
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="modal-buttons">
-          <button type="button" id="qc-save" class="btn btn-basic">
-            <i class="fas fa-save"></i> 저장
+        <div
+          class="mt-8 flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700"
+        >
+          <button
+            id="qc-close"
+            class="btn btn-outline border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
+          >
+            취소
           </button>
-          <button type="button" id="qc-close" class="btn btn-light">
-            <i class="fas fa-times"></i> 닫기
+          <button
+            id="qc-save"
+            class="btn btn-primary shadow-md shadow-blue-500/20"
+          >
+            저장
           </button>
         </div>
       </div>

@@ -40,8 +40,9 @@ async function loadRecentProducts() {
     listEl.innerHTML = ""; // 기존 내용 초기화
 
     if (snapshot.empty) {
+      // [수정] 다크모드 텍스트 색상 적용
       listEl.innerHTML =
-        '<li class="text-slate-400 text-sm py-4 text-center">최근 내역이 없습니다.</li>';
+        '<li class="text-slate-400 dark:text-slate-500 text-sm py-4 text-center">최근 내역이 없습니다.</li>';
       return;
     }
 
@@ -53,12 +54,14 @@ async function loadRecentProducts() {
       ).padStart(2, "0")}.${String(dataObj.getDate()).padStart(2, "0")}`;
 
       const li = document.createElement("li");
-      // Tailwind 스타일 적용
+      // [수정] 다크모드 배경, 보더, 호버 색상 적용
       li.className =
-        "flex items-center justify-between py-3 px-3.5 bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-100 rounded-xl transition-colors duration-200 group/item";
+        "flex items-center justify-between py-3 px-3.5 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-100 dark:border-slate-700 hover:border-blue-100 dark:hover:border-blue-800 rounded-xl transition-colors duration-200 group/item";
+
+      // [수정] 텍스트 및 배지 다크모드 적용
       li.innerHTML = `
-        <span class="font-medium text-slate-700 group-hover/item:text-blue-700 truncate mr-2">${data.name}</span>
-        <span class="text-xs font-medium text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-100 whitespace-nowrap">${formatted}</span>
+        <span class="font-medium text-slate-700 dark:text-slate-200 group-hover/item:text-blue-700 dark:group-hover/item:text-blue-400 truncate mr-2">${data.name}</span>
+        <span class="text-xs font-medium text-slate-400 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-md border border-slate-100 dark:border-slate-600 whitespace-nowrap">${formatted}</span>
       `;
       listEl.appendChild(li);
     });
@@ -100,13 +103,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     setExpiryInfo();
   }, "대시보드 데이터 불러오는 중…");
 
-  // 통계로 이동: 이용 고객 수 / 제공된 물품 수
+  // 통계로 이동
   const visitCard = document.getElementById("visit-card");
   const itemCard = document.getElementById("item-card");
   if (visitCard) onCardActivate(visitCard, () => navigateTo("statistics.html"));
   if (itemCard) onCardActivate(itemCard, () => navigateTo("statistics.html"));
 
-  // 상품 페이지로 이동 (등록순 필터 의도 전달: sort=latest 파라미터)
+  // 상품 페이지로 이동
   const recentProductCard = document.getElementById("recent-product-card");
   if (recentProductCard)
     onCardActivate(recentProductCard, () =>
@@ -119,7 +122,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadDashboardData() {
-  // 방문/품목 카드에 국소 스켈레톤 표시
   let __skVisit, __skItems;
   try {
     __skVisit = makeSectionSkeleton(document.getElementById("visit-card"), 6);
@@ -148,13 +150,12 @@ async function fetchProvisionStats() {
   endDate.setHours(23, 59, 59, 999);
 
   const todayStr = dateKeyLocal(today);
-  const countsByDate = {}; // 'YYYY-MM-DD' → uniqueVisitors (stats_daily)
-  const todayItemsMap = {}; // 오늘 품목 합계 (provisions에서 오늘만)
-  let prevItemsTotal = 0; // 어제 품목 합계 (provisions에서 어제만)
-  let todayItemsTotal = 0; // 오늘 품목 합계
+  const countsByDate = {};
+  const todayItemsMap = {};
+  let prevItemsTotal = 0;
+  let todayItemsTotal = 0;
 
   try {
-    // 1) 방문 인원수(최근 10일): stats_daily에서 10건만 조회
     const dayIds = [];
     for (
       let d = new Date(startDate);
@@ -163,12 +164,11 @@ async function fetchProvisionStats() {
     ) {
       dayIds.push(dateKey8Local(d));
     }
-    // documentId() 'in'은 최대 10개 → 최근 10일과 정확히 일치
     const dailySnap = await getDocs(
       query(collection(db, "stats_daily"), where(documentId(), "in", dayIds))
     );
     dailySnap.forEach((docSnap) => {
-      const id8 = docSnap.id; // 'YYYYMMDD'
+      const id8 = docSnap.id;
       const y = id8.slice(0, 4),
         m = id8.slice(4, 6),
         d = id8.slice(6, 8);
@@ -177,7 +177,6 @@ async function fetchProvisionStats() {
       countsByDate[ds] = v;
     });
 
-    // 2) 오늘 품목 합계: provisions에서 '오늘 하루'만 조회
     const todayStart = new Date(today);
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(today);
@@ -198,7 +197,6 @@ async function fetchProvisionStats() {
       });
     });
 
-    // 3) 어제 품목 합계(전일 비교용): provisions에서 '어제 하루'만 조회
     const yst = new Date(today);
     yst.setDate(yst.getDate() - 1);
     yst.setHours(0, 0, 0, 0);
@@ -260,26 +258,26 @@ function renderVisitSection(visitData) {
   if (visitChangeEl) {
     if (customerDiff > 0) {
       visitChangeEl.textContent = `▲ ${customerDiff}명 (${customerRate}%) 증가`;
-      // Tailwind Green
+      // [수정] 다크모드 대응 (bg-emerald-900/30, text-emerald-400)
       visitChangeEl.className =
-        "text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md ml-1";
+        "text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-md ml-1";
     } else if (customerDiff < 0) {
       visitChangeEl.textContent = `▼ ${Math.abs(
         customerDiff
       )}명 (${customerRate}%) 감소`;
-      // Tailwind Red
+      // [수정] 다크모드 대응 (bg-rose-900/30, text-rose-400)
       visitChangeEl.className =
-        "text-sm font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md ml-1";
+        "text-sm font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 rounded-md ml-1";
     } else {
       visitChangeEl.textContent = `변동 없음`;
+      // [수정] 다크모드 대응
       visitChangeEl.className =
-        "text-sm font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md ml-1";
+        "text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md ml-1";
     }
   }
 
   const ctx = document.getElementById("visit-chart");
   if (ctx) {
-    // 차트 인스턴스 중복 방지
     const existingChart = Chart.getChart(ctx);
     if (existingChart) existingChart.destroy();
 
@@ -304,7 +302,7 @@ function renderVisitSection(visitData) {
       },
       options: {
         responsive: true,
-        maintainAspectRatio: false, // 컨테이너에 맞춤
+        maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
         },
@@ -330,18 +328,21 @@ function renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal) {
   if (itemChangeEl) {
     if (itemDiff > 0) {
       itemChangeEl.textContent = `▲ ${itemDiff}개 (${itemRate}%) 증가`;
+      // [수정] 다크모드 대응
       itemChangeEl.className =
-        "text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md inline-block";
+        "text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-md inline-block";
     } else if (itemDiff < 0) {
       itemChangeEl.textContent = `▼ ${Math.abs(
         itemDiff
       )}개 (${itemRate}%) 감소`;
+      // [수정] 다크모드 대응
       itemChangeEl.className =
-        "text-sm font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md inline-block";
+        "text-sm font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 rounded-md inline-block";
     } else {
       itemChangeEl.textContent = `변동 없음`;
+      // [수정] 다크모드 대응
       itemChangeEl.className =
-        "text-sm font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md inline-block";
+        "text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md inline-block";
     }
   }
 
@@ -355,21 +356,24 @@ function renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal) {
     const topThree = entries.sort((a, b) => b.count - a.count).slice(0, 3);
     const medals = ["🥇", "🥈", "🥉"];
     if (topThree.length === 0) {
+      // [수정] 다크모드 대응
       const li = document.createElement("li");
-      li.className = "text-sm text-slate-400 text-center py-2";
+      li.className =
+        "text-sm text-slate-400 dark:text-slate-500 text-center py-2";
       li.textContent = "데이터 없음";
       topList.appendChild(li);
     } else {
       topThree.forEach((item, index) => {
         const li = document.createElement("li");
+        // [수정] 리스트 아이템 다크모드 대응
         li.className =
-          "flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100";
+          "flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700";
         li.innerHTML = `
             <div class="flex items-center gap-2">
                 <span class="text-xl">${medals[index]}</span>
-                <span class="text-sm font-bold text-slate-700">${item.name}</span>
+                <span class="text-sm font-bold text-slate-700 dark:text-slate-200">${item.name}</span>
             </div>
-            <span class="text-sm font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">${item.count}개</span>
+            <span class="text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-md">${item.count}개</span>
         `;
         topList.appendChild(li);
       });
@@ -413,23 +417,30 @@ function openExpiryModal() {
   const customDays = document.getElementById("expiry-custom-days");
   const customBtn = document.getElementById("expiry-calc-btn");
   const customOut = document.getElementById("expiry-custom-result");
-  // 초기값: 오늘
+
+  if (!baseEl._flatpickr) {
+    flatpickr(baseEl, {
+      locale: "ko",
+      dateFormat: "Y-m-d",
+      defaultDate: "today",
+      disableMobile: true,
+      animate: true,
+      onChange: function (selectedDates, dateStr, instance) {
+        renderBaseResults();
+      },
+    });
+  }
+
   const today = new Date();
-  baseEl.value = formatDateInput(today);
+  baseEl._flatpickr.setDate(today);
   renderBaseResults();
 
-  // 기준일 변경 시 즉시 20/30 갱신
-  baseEl.addEventListener("change", renderBaseResults);
-  baseEl.addEventListener("input", renderBaseResults);
-
-  // 오늘 버튼
-  todayBtn.addEventListener("click", () => {
-    baseEl.value = formatDateInput(new Date());
+  todayBtn.onclick = () => {
+    baseEl._flatpickr.setDate(new Date());
     renderBaseResults();
-  });
+  };
 
-  // 사용자 지정 계산
-  customBtn.addEventListener("click", () => {
+  customBtn.onclick = () => {
     const base = parseDateInput(baseEl.value);
     const n = Number(customDays.value);
     if (!base) {
@@ -441,22 +452,22 @@ function openExpiryModal() {
       return;
     }
     customOut.textContent = formatDateOut(addDaysToDate(base, n));
-  });
+  };
 
   modal.classList.remove("hidden");
   modal.setAttribute("aria-hidden", "false");
+
   const close = () => {
     modal.classList.add("hidden");
     modal.setAttribute("aria-hidden", "true");
   };
-  closeBtn.addEventListener("click", close, { once: true });
-  modal.addEventListener(
-    "click",
-    (e) => {
-      if (e.target === modal) close();
-    },
-    { once: true }
-  );
+
+  closeBtn.onclick = close;
+
+  modal.onclick = (e) => {
+    if (e.target === modal) close();
+  };
+
   window.addEventListener("keydown", function escHandler(e) {
     if (e.key === "Escape") {
       close();
@@ -476,16 +487,13 @@ function openExpiryModal() {
   }
 }
 
-// === (3) 날짜 유틸 ===
 function formatDateInput(d) {
-  // YYYY-MM-DD
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
 function formatDateOut(d) {
-  // YYYY.MM.DD
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");

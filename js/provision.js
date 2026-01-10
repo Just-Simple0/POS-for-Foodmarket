@@ -320,6 +320,66 @@ function clearProvisionDraft() {
   } catch {}
 }
 
+async function loadExchangeAutoSave() {
+  try {
+    const raw = localStorage.getItem(getExAutoSaveKey());
+    if (!raw) return;
+    const data = JSON.parse(raw);
+
+    // 유효성 검사 (오늘 날짜 데이터인지 등) - 키에 날짜가 포함되어 있으므로 생략 가능하나 안전장치
+    if (!data.customer) return;
+
+    // 1단계 복구: 고객
+    exchangeSelectedCustomer = data.customer;
+    // UI 표시를 위해 교환 탭으로 전환된 것처럼 처리할 수도 있으나,
+    // 여기서는 데이터만 로드하고 탭 전환 시 렌더링되도록 함.
+    renderExchangeCustomerInfo();
+
+    // 고객이 있으면 히스토리 로드
+    if (exchangeSelectedCustomer.id) {
+      await loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
+      exchangeHistorySection?.classList.remove("hidden");
+    }
+
+    // 2단계 복구: 영수증
+    if (data.provision) {
+      exchangeProvision = data.provision;
+      exchangeOriginalItems = data.originalItems || [];
+      exchangeOriginalTotal = data.originalTotal || 0;
+      exchangeBuilder.classList.remove("hidden");
+    }
+
+    // 3단계 복구: 장바구니 및 스택
+    if (data.currentItems) {
+      exchangeItems = data.currentItems;
+      exUndoStack = data.undo || [];
+      exRedoStack = data.redo || [];
+      renderExchangeList(); // 여기서 자동저장이 다시 트리거되지만 데이터는 동일함
+    }
+
+    // 교환 탭 UI 활성화 (만약 현재 탭이 교환이라면)
+    const isEx =
+      document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
+    if (isEx) {
+      exchangeSection.classList.remove("hidden");
+    }
+
+    console.log(`교환 작업 자동 복구 완료 (Step ${data.step})`);
+    if (data.step >= 2) showToast("작업 중이던 교환 내역을 복구했습니다.");
+  } catch (e) {
+    console.warn("Auto-load failed:", e);
+    localStorage.removeItem(getExAutoSaveKey());
+  }
+}
+
+// 스냅샷 찍기 (변경 직전 호출)
+function saveExUndoState() {
+  exUndoStack.push(JSON.parse(JSON.stringify(exchangeItems)));
+  exRedoStack = []; // 새로운 분기 시작 시 Redo 날림
+  // 스택 변경도 자동저장 대상
+  saveExchangeAutoSave();
+}
+
 let selectedCustomer = null;
 let selectedItems = [];
 let selectedCandidate = null;
@@ -356,7 +416,7 @@ let dupActiveIndex = -1;
 let __restoredVisitors = false;
 let __restoredProvision = false;
 
-function tryRestoreDrafts() {
+async function tryRestoreDrafts() {
   // 방문자
   const visitors = loadVisitorDraft();
   if (visitors.length && !__restoredVisitors) {
@@ -387,6 +447,7 @@ function tryRestoreDrafts() {
     if (typeof showToast === "function")
       showToast("임시 장바구니가 복구되었습니다.");
   }
+  await loadExchangeAutoSave();
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -449,96 +510,83 @@ window.addEventListener("storage", (e) => {
   }
 });
 
-// ===== 탭 전환: 제공/교환 =====
+// ============================================================
+// 1. 탭 전환 및 화면 제어 로직 (Refactored)
+// ============================================================
 const tabBtns = document.querySelectorAll(".tab-btn");
-const exchangePanel = document.querySelector('[data-tab-panel="exchange"]');
 const provisionPanel = document.getElementById("provision-panel");
-const provisionHideOnExchange = [
-  document.getElementById("product-selection"), // 상품 추가
-  document.getElementById("submit-section"), // 제공 등록 완료 버튼
-  document.getElementById("product-action-buttons"), // 테이블 하단 기능버튼
-  document.getElementById("visitor-list-section"), // ✅ 방문자 리스트
-  document.getElementById("provision-customer-info"), // ✅ 제공 고객정보 카드
-];
-// 교환 탭 선택 고객(제공 탭과 분리)
+const exchangeSection = document.getElementById("exchange-section");
+
+// [추가됨] 교환 탭 선택 고객 변수 선언
 let exchangeSelectedCustomer = null;
+
+// 탭 전환 함수
 function showTab(name) {
-  tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
-  if (name === "exchange") {
-    exchangePanel?.classList.remove("hidden");
-    // ✅ 제공 패널 전체 숨김(제공 검색창 포함)
-    provisionPanel?.classList.add("hidden");
-    provisionHideOnExchange.forEach((el) => el?.classList.add("hidden"));
-    // ✅ 교환 탭에서는 섹션(검색창 포함)은 항상 보이게
-    exchangeSection?.classList.remove("hidden");
+  const isExchange = name === "exchange";
+
+  // 1. 탭 버튼 상태 업데이트 (ARIA 접근성 포함)
+  tabBtns.forEach((btn) => {
+    const isActive = btn.dataset.tab === name;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-selected", isActive);
+  });
+
+  // 2. 패널 토글 및 애니메이션 재실행
+  if (isExchange) {
+    provisionPanel.classList.add("hidden");
+    exchangeSection.classList.remove("hidden");
+
+    // 교환 탭 포커스 이동
     if (exchangeSelectedCustomer) {
-      // 선택 고객이 있으면 정보/히스토리 로드
-      loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
-      exchangeCustomerInfoDiv?.classList.remove("hidden");
-      exHistoryTable?.classList.remove("hidden");
-      exchangeHistorySection?.classList.remove("hidden");
-    } else {
-      // 선택 고객이 없으면 정보/히스토리/빌더만 숨김
-      exchangeCustomerInfoDiv?.classList.add("hidden");
-      exchangeBuilder?.classList.add("hidden");
-      if (exHistoryTable) {
-        const tb = exHistoryTable.querySelector("tbody");
-        if (tb) tb.innerHTML = "";
-        exHistoryTable.classList.add("hidden");
+      if (document.getElementById("ex-barcode-input")) {
+        document.getElementById("ex-barcode-input").focus();
       }
-      exchangeHistorySection.classList.add("hidden");
+    } else {
+      exLookupInput?.focus();
     }
-    // 교환 탭에서는 항상 숨김
-    productActionButtons?.classList.add("hidden");
   } else {
-    exchangePanel?.classList.add("hidden");
-    // ✅ 제공 패널 복구
-    provisionPanel?.classList.remove("hidden");
-    // ✅ 제공 등록 탭: 상태에 따라 개별적으로 표시/숨김
-    // 방문자 리스트는 항목이 있을 때만 표시
+    exchangeSection.classList.add("hidden");
+    provisionPanel.classList.remove("hidden");
+
+    // 제공 탭 상태 복구 (방문자 리스트 등)
     if (visitorList && visitorList.length > 0) {
       visitorListSection?.classList.remove("hidden");
     } else {
       visitorListSection?.classList.add("hidden");
     }
-    // 선택된 고객이 있어야 상품추가/제공등록 영역 표시
+
+    // 선택된 고객이 있으면 상품 입력창 표시
     if (selectedCustomer) {
       productSection?.classList.remove("hidden");
       submitSection?.classList.remove("hidden");
+      setTimeout(() => document.getElementById("barcode-input")?.focus(), 50);
     } else {
       productSection?.classList.add("hidden");
       submitSection?.classList.add("hidden");
+      provLookupInput?.focus();
     }
-    productActionButtons?.classList.remove("hidden");
-    // 제공 탭으로 나가면 교환 섹션은 숨김 유지
-    if (exchangeSection) exchangeSection.classList.add("hidden");
-    // 교환 히스토리 섹션도 숨김
-    exchangeHistorySection?.classList.add("hidden");
-    // 제공 탭 전환 시 교환 고객정보는 숨김
-    exchangeCustomerInfoDiv?.classList.add("hidden");
-    // 제공 탭 검색창에 포커스
-    provLookupInput?.focus();
   }
+
+  // 3. 전역 조회 컨텍스트 변경
+  window.__lookupContext = name;
 }
-tabBtns.forEach((b) =>
-  b.addEventListener("click", () => showTab(b.dataset.tab))
+
+// 탭 버튼 클릭 이벤트 바인딩
+tabBtns.forEach((btn) =>
+  btn.addEventListener("click", () => showTab(btn.dataset.tab))
 );
 
-provLookupInput.addEventListener("keydown", (e) => {
-  if (!duplicateModal.classList.contains("hidden") && e.key === "Enter") {
-    e.preventDefault();
-    return;
-  }
+// 엔터키 입력 시 검색 버튼 트리거
+provLookupInput?.addEventListener("keydown", (e) => {
+  if (!duplicateModal.classList.contains("hidden")) return;
   if (e.key === "Enter") {
-    e.preventDefault(); // 폼 submit 방지
+    e.preventDefault();
     provLookupBtn.click();
   }
 });
+
 exLookupInput?.addEventListener("keydown", (e) => {
-  if (!duplicateModal.classList.contains("hidden") && e.key === "Enter") {
-    e.preventDefault();
-    return;
-  }
+  if (!duplicateModal.classList.contains("hidden")) return;
   if (e.key === "Enter") {
     e.preventDefault();
     exLookupBtn.click();
@@ -644,63 +692,65 @@ function renderProvisionCustomerInfo() {
     return;
   }
 
-  // ✅ 배지 키우기: text-xs -> text-sm, 패딩(px-3 py-1) 증가, font-bold 추가
+  // [수정] 배지 스타일: 다크 모드 대응 (투명도 조절)
   const lifeBadge = selectedCustomer._lifeloveThisQuarter
-    ? '<span class="badge badge-life ring-1 ring-green-200 bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold">이번 분기 제공됨</span>'
-    : '<span class="badge bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg text-sm font-bold">미제공</span>';
+    ? '<span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 ring-1 ring-inset ring-emerald-600/20 dark:ring-emerald-500/30">이번 분기 제공됨</span>'
+    : '<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 ring-1 ring-inset ring-slate-500/10 dark:ring-slate-600">미제공</span>';
 
+  // [수정] 카드 및 텍스트 다크 모드 적용
   provisionCustomerInfoDiv.innerHTML = `
-    <div class="bg-white rounded-2xl border border-gray-200 p-4">
-      
-      <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-4">
-        <div class="flex items-center gap-3">
-          <span class="text-lg font-extrabold text-gray-900">${
-            selectedCustomer.name ?? "이름 없음"
-          }</span>
-          <span class="text-base text-gray-500 font-medium">(${
-            selectedCustomer.gender ?? "-"
-          })</span>
+    <div class="card p-5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-colors duration-200">
+      <div class="flex justify-between items-start mb-4 border-b border-slate-100 dark:border-slate-700/50 pb-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xl font-extrabold text-slate-900 dark:text-white">${
+              selectedCustomer.name ?? "이름 없음"
+            }</span>
+            <span class="text-sm text-slate-500 dark:text-slate-400 font-medium">(${
+              selectedCustomer.gender ?? "-"
+            })</span>
+          </div>
         </div>
         <div>${lifeBadge}</div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-5 gap-x-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">생년월일</span>
-          <span class="text-base text-gray-900 font-medium">${
+          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">생년월일</span>
+          <span class="text-base text-slate-800 dark:text-slate-200 font-semibold">${
             selectedCustomer.birth ?? "-"
           }</span>
         </div>
         <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">전화번호</span>
-          <span class="text-base text-gray-900 font-medium">${
+          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">전화번호</span>
+          <span class="text-base text-slate-800 dark:text-slate-200 font-semibold">${
             selectedCustomer.phone ?? "-"
           }</span>
         </div>
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">주소</span>
-          <span class="text-base text-gray-900 font-medium">${
+        <div class="sm:col-span-2">
+          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">주소</span>
+          <span class="text-base text-slate-800 dark:text-slate-200 font-semibold break-keep">${
             selectedCustomer.address ?? "-"
-          }</span>
-        </div>
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">최근 방문일자</span>
-          <span class="text-base text-gray-900 font-medium">${
-            lastVisitDisplay(selectedCustomer) || "-"
           }</span>
         </div>
       </div>
 
-      
-        <div class="mt-4 border-t border-gray-100">
-          <span class="block text-sm font-bold text-gray-500 mb-2">비고</span>
-          <div class="text-base text-gray-800 bg-gray-50 p-4 rounded-xl leading-relaxed">
-            ${selectedCustomer.note ? selectedCustomer.note : "-"}
-          </div>
+      <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">최근 방문</span>
+          <span class="text-base text-blue-600 dark:text-blue-400 font-bold">${
+            lastVisitDisplay(selectedCustomer) || "-"
+          }</span>
         </div>
+        <div>
+          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">비고</span>
+          <p class="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/30 px-3 py-2 rounded-lg leading-relaxed border border-slate-100 dark:border-slate-700/50">
+            ${selectedCustomer.note || "-"}
+          </p>
+        </div>
+      </div>
     </div>
   `;
-
   provisionCustomerInfoDiv.classList.remove("hidden");
 }
 
@@ -710,62 +760,64 @@ function renderExchangeCustomerInfo() {
     exchangeCustomerInfoDiv.classList.add("hidden");
     return;
   }
+
+  // [수정] 배지 스타일: 다크 모드 대응
   const lifeBadge = exchangeSelectedCustomer._lifeloveThisQuarter
-    ? '<span class="badge badge-life ring-1 ring-green-200 bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold">이번 분기 제공됨</span>'
-    : '<span class="badge bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg text-sm font-bold">미제공</span>';
+    ? '<span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 ring-1 ring-inset ring-emerald-600/20 dark:ring-emerald-500/30">이번 분기 제공됨</span>'
+    : '<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 ring-1 ring-inset ring-slate-500/10 dark:ring-slate-600">미제공</span>';
+
+  // [수정] 카드 및 텍스트 다크 모드 적용
   exchangeCustomerInfoDiv.innerHTML = `
-    <div class="bg-white rounded-2xl border border-gray-200 p-4">
-      
-      <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-4">
-        <div class="flex items-center gap-3">
-          <span class="text-lg font-extrabold text-gray-900">${
-            exchangeSelectedCustomer.name ?? "이름 없음"
-          }</span>
-          <span class="text-base text-gray-500 font-medium">(${
-            exchangeSelectedCustomer.gender ?? "-"
-          })</span>
+    <div class="card p-5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-colors duration-200">
+      <div class="flex justify-between items-start mb-4 border-b border-slate-100 dark:border-slate-700/50 pb-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xl font-extrabold text-slate-900 dark:text-white">${
+              exchangeSelectedCustomer.name ?? "이름 없음"
+            }</span>
+            <span class="text-sm text-slate-500 dark:text-slate-400 font-medium">(${
+              exchangeSelectedCustomer.gender ?? "-"
+            })</span>
+          </div>
         </div>
         <div>${lifeBadge}</div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-5 gap-x-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">생년월일</span>
-          <span class="text-base text-gray-900 font-medium">${
+          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">생년월일</span>
+          <span class="text-base text-slate-800 dark:text-slate-200 font-semibold">${
             exchangeSelectedCustomer.birth ?? "-"
           }</span>
         </div>
         <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">전화번호</span>
-          <span class="text-base text-gray-900 font-medium">${
+          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">전화번호</span>
+          <span class="text-base text-slate-800 dark:text-slate-200 font-semibold">${
             exchangeSelectedCustomer.phone ?? "-"
           }</span>
         </div>
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">주소</span>
-          <span class="text-base text-gray-900 font-medium">${
+        <div class="sm:col-span-2">
+          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">주소</span>
+          <span class="text-base text-slate-800 dark:text-slate-200 font-semibold break-keep">${
             exchangeSelectedCustomer.address ?? "-"
-          }</span>
-        </div>
-        <div>
-          <span class="block text-sm font-bold text-gray-500 mb-1">최근 방문일자</span>
-          <span class="text-base text-gray-900 font-medium">${
-            lastVisitDisplay(exchangeSelectedCustomer) || "-"
           }</span>
         </div>
       </div>
 
-      
-        <div class="mt-4 border-t border-gray-100">
-          <span class="block text-sm font-bold text-gray-500 mb-2">비고</span>
-          <div class="text-base text-gray-800 bg-gray-50 p-4 rounded-xl leading-relaxed">
-            ${
-              exchangeSelectedCustomer.note
-                ? exchangeSelectedCustomer.note
-                : "-"
-            }
-          </div>
+      <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">최근 방문</span>
+          <span class="text-base text-blue-600 dark:text-blue-400 font-bold">${
+            lastVisitDisplay(exchangeSelectedCustomer) || "-"
+          }</span>
         </div>
+        <div>
+          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">비고</span>
+          <p class="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/30 px-3 py-2 rounded-lg leading-relaxed border border-slate-100 dark:border-slate-700/50">
+            ${exchangeSelectedCustomer.note || "-"}
+          </p>
+        </div>
+      </div>
     </div>
   `;
   exchangeCustomerInfoDiv.classList.remove("hidden");
@@ -844,57 +896,66 @@ function showDuplicateSelection(rows) {
 
   const items = [];
   rows.forEach((row, i) => {
-    const data = row; // {id,name,birth,phone,...});
+    const data = row;
     const li = document.createElement("li");
+
+    // [수정] 리스트 아이템 내부 텍스트 다크모드 적용
     li.innerHTML = `
-      <div class="dup-name"><strong>${data.name}</strong></div>
-      <div class="dup-sub">
+      <div class="dup-name text-slate-900 dark:text-slate-100"><strong>${
+        data.name
+      }</strong></div>
+      <div class="dup-sub text-slate-500 dark:text-slate-400">
         ${data.birth || "생년월일 없음"} | ${data.phone || "전화번호 없음"}
       </div>
     `;
 
     li.classList.add("duplicate-item");
-    li.tabIndex = -1; // 키보드 포커싱 가능
-    // 공통 선택 로직
+    li.tabIndex = -1;
+
     const selectThis = () => {
       document
         .querySelectorAll(".duplicate-item")
         .forEach((el) => el.classList.remove("selected"));
       li.classList.add("selected");
+
       document
         .querySelectorAll(".duplicate-item i")
         .forEach((icon) => icon.remove());
+
       const icon = document.createElement("i");
-      icon.className = "fas fa-square-check";
-      icon.style.color = "#1976d2";
-      icon.style.marginRight = "8px";
+      // [수정] 체크 아이콘 색상 다크모드 대응
+      icon.className =
+        "fas fa-square-check text-blue-600 dark:text-blue-400 mr-2";
       li.prepend(icon);
+
       selectedCandidate = { id: data.id, ...data };
       const infoEl = document.getElementById("selected-info");
+
+      // [수정] 상세 정보 카드 디자인: 다크모드 배경, 보더, 텍스트 전면 수정
       infoEl.innerHTML = `
-        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 mt-2">
+        <div class="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 mt-2 shadow-sm">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-5">
             <div class="flex flex-col sm:col-span-2 mb-2">
-              <span class="font-bold text-slate-500 mb-1">주소</span>
-              <span class="text-slate-900 break-keep">${
+              <span class="font-bold text-slate-500 dark:text-slate-400 mb-1">주소</span>
+              <span class="text-slate-900 dark:text-slate-200 break-keep">${
                 data.address || "-"
               }</span>
             </div>
             <div class="flex flex-col mb-2">
-              <span class="font-bold text-slate-500 mb-1">성별</span>
-              <span class="text-slate-900">${
-                  data.gender || "-"
+              <span class="font-bold text-slate-500 dark:text-slate-400 mb-1">성별</span>
+              <span class="text-slate-900 dark:text-slate-200">${
+                data.gender || "-"
               }</span>
             </div>
             <div class="flex flex-col mb-2">
-              <span class="font-bold text-slate-500 mb-1">최근 방문일자</span>
-              <span class="text-slate-900">${
-                  lastVisitDisplay(data) || "-"
+              <span class="font-bold text-slate-500 dark:text-slate-400 mb-1">최근 방문일자</span>
+              <span class="text-slate-900 dark:text-slate-200">${
+                lastVisitDisplay(data) || "-"
               }</span>
             </div>
             <div class="flex flex-col sm:col-span-2">
-              <span class="font-bold text-slate-500 mb-1">비고</span>
-              <span class="text-slate-700 bg-white px-2 py-1.5 rounded border border-slate-100 text-xs leading-relaxed">
+              <span class="font-bold text-slate-500 dark:text-slate-400 mb-1">비고</span>
+              <span class="text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700/50 px-2 py-1.5 rounded border border-slate-100 dark:border-slate-600/50 text-xs leading-relaxed">
                 ${data.note || "-"}
               </span>
             </div>
@@ -907,22 +968,20 @@ function showDuplicateSelection(rows) {
       li.focus();
     };
 
-    li.addEventListener("click", () => {
-      selectThis();
+    li.addEventListener("click", selectThis);
+    li.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") selectThis();
     });
     duplicateList.appendChild(li);
     items.push(li);
   });
-  // ✅ 단일/다중 모두: 첫 항목을 자동 "선택"(자동 삽입은 하지 않음)
+
   if (items.length > 0) {
-    items[0].click(); // selectThis() 호출 → selectedCandidate 세팅 + confirm 활성화
-    items[0].focus(); // 키보드 내비 시작 지점
+    items[0].click();
     dupActiveIndex = 0;
   }
-
   duplicateModal.classList.remove("hidden");
 
-  // ✅ 방향키/Enter/Escape 지원
   if (dupKeyHandler) {
     document.removeEventListener("keydown", dupKeyHandler, true);
   }
@@ -994,6 +1053,7 @@ document
         renderExchangeCustomerInfo();
         loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
         document.dispatchEvent(new Event("exchange_customer_switched"));
+        saveExchangeAutoSave();
         showToast("교환 대상자가 선택되었습니다.");
         // 이용자 선택이 끝났으므로 교환 섹션 표시
         if (exchangeSection) exchangeSection.classList.remove("hidden");
@@ -1178,9 +1238,9 @@ function renderVisitorList() {
     try {
       clearVisitorDraft();
     } catch {}
-    const isExchangeActive =
+    const isEx =
       document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
-    if (!isExchangeActive) {
+    if (!isEx) {
       selectedCustomer = null;
       productSection.classList.add("hidden");
       submitSection.classList.add("hidden");
@@ -1201,36 +1261,61 @@ function renderVisitorList() {
     const hasHold = localStorage.getItem(HOLD_PREFIX + v.id);
     const isActive = selectedCustomer?.id === v.id;
     const li = document.createElement("li");
-    const baseClasses =
-      "flex items-center justify-between gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white transition";
-    li.className = `${baseClasses}`;
-    if (isActive) li.classList.add("active");
+
+    // [수정] 카드 스타일 & 활성/비활성 다크 모드 대응
+    const baseClass =
+      "relative flex flex-col p-4 rounded-xl border transition-all duration-200 cursor-pointer group";
+
+    // Active: 어두운 파란 배경 / Inactive: 흰색(또는 어두운 회색) 배경
+    const activeClass = isActive
+      ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500 dark:border-blue-500 ring-1 ring-blue-500 shadow-md z-10"
+      : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-lg dark:hover:shadow-none hover:bg-slate-50 dark:hover:bg-slate-700/50";
+
+    li.className = `${baseClass} ${activeClass}`;
 
     const holdBadge = hasHold
-      ? `<i class="fas fa-bookmark text-primary text-xs" aria-label="on hold"></i>`
+      ? `<span class="ml-auto text-amber-500 text-xs font-bold flex items-center gap-1"><i class="fas fa-pause-circle"></i> 보류중</span>`
       : "";
 
+    // [수정] 버튼 로직: Active면 '해제(회색)', 아니면 '선택(파랑)'
+    let actionBtnHTML = "";
+    if (isActive) {
+      actionBtnHTML = `
+        <button class="deselect-btn flex-1 btn btn-dark h-8 text-xs font-bold rounded-lg dark:text-slate-300 dark:hover:bg-slate-700" data-id="${v.id}">
+          선택 해제
+        </button>`;
+    } else {
+      actionBtnHTML = `
+        <button class="select flex-1 btn btn-primary-weak h-8 text-xs font-bold rounded-lg" data-id="${v.id}">
+          선택
+        </button>`;
+    }
+
     li.innerHTML = `
-      <div class="meta grid gap-1 text-sm text-slate-800">
-        <div class="name font-semibold text-slate-900 flex items-center gap-2">${
+      <div class="flex justify-between items-start mb-2">
+        <div class="font-bold text-slate-800 dark:text-slate-100 text-lg">${
           v.name
-        } ${holdBadge}</div>
-        <div class="sub text-xs text-slate-600">${v.birth || ""} ${
-      v.phone ? " | " + v.phone : ""
-    }</div>
+        }</div>
+        ${holdBadge}
       </div>
-      <div class="actions flex items-center gap-2">
-        <button class="select btn btn-dark-weak text-xs" data-id="${
+      <div class="text-xs text-slate-500 dark:text-slate-400 font-medium mb-4">
+        ${
+          v.birth || ""
+        } <span class="text-slate-300 dark:text-slate-600 mx-1">|</span> ${
+      v.phone || ""
+    }
+      </div>
+      <div class="mt-auto flex gap-2">
+        ${actionBtnHTML}
+        <button class="remove w-8 h-8 flex items-center justify-center btn btn-danger rounded-lg transition-colors" data-id="${
           v.id
-        }">선택</button>
-        <button class="remove btn btn-danger text-xs" data-id="${
-          v.id
-        }">삭제</button>
+        }" title="삭제">
+          <i class="fas fa-times"></i>
+        </button>
       </div>
     `;
     visitorListEl.appendChild(li);
   });
-
   try {
     saveVisitorDraft(visitorList);
   } catch {}
@@ -1242,9 +1327,12 @@ visitorListEl?.addEventListener("click", async (e) => {
   const idx = visitorList.findIndex((v) => v.id === id);
   if (idx === -1) return;
 
-  if (e.target.classList.contains("remove")) {
-    // 선택 중인 고객을 제거하려 하면 경고
-    if (selectedCustomer?.id === id && selectedItems.length > 0) {
+  // 1. 삭제 버튼 (기존 로직 유지)
+  if (e.target.classList.contains("remove") || e.target.closest(".remove")) {
+    const targetId =
+      e.target.dataset.id || e.target.closest(".remove").dataset.id;
+
+    if (selectedCustomer?.id === targetId && selectedItems.length > 0) {
       const ok = await openConfirm({
         title: "선택 해제",
         message: "현재 장바구니가 있습니다. 이 방문자를 리스트에서 제거할까요?",
@@ -1254,22 +1342,53 @@ visitorListEl?.addEventListener("click", async (e) => {
       });
       if (!ok) return;
     }
-    if (selectedCustomer?.id === id) {
+    if (selectedCustomer?.id === targetId) {
+      // 선택된 사람 삭제 시 선택 해제 로직 수행
       selectedCustomer = null;
       selectedItems = [];
       renderSelectedList();
       clearProvisionDraft();
+      productSection.classList.add("hidden");
+      submitSection.classList.add("hidden");
+      renderProvisionCustomerInfo();
     }
-    localStorage.removeItem(HOLD_PREFIX + id);
+    localStorage.removeItem(HOLD_PREFIX + targetId);
 
-    visitorList.splice(idx, 1);
+    visitorList = visitorList.filter((v) => v.id !== targetId);
     renderVisitorList();
     saveVisitorDraft(visitorList);
     return;
   }
 
+  // [추가] 2. 선택 해제 버튼 클릭 시
+  if (e.target.classList.contains("deselect-btn")) {
+    // 장바구니가 있으면 경고 (선택 사항)
+    if (selectedItems.length > 0) {
+      const ok = await openConfirm({
+        title: "선택 해제",
+        message:
+          "작성 중인 장바구니가 있습니다. 선택을 해제하시겠습니까? (내용은 유지됩니다)",
+        confirmText: "해제",
+        cancelText: "취소",
+      });
+      if (!ok) return;
+    }
+
+    // 선택 해제 수행
+    selectedCustomer = null;
+    // (선택사항) 장바구니를 비울지, 유지할지 결정. 여기선 UI만 숨김(Draft 유지)
+    // selectedItems = []; // 비우고 싶으면 주석 해제
+
+    productSection.classList.add("hidden");
+    submitSection.classList.add("hidden");
+    renderProvisionCustomerInfo(); // 정보 카드 숨김
+    renderVisitorList(); // 버튼 상태 갱신 (다시 '선택'으로)
+    clearProvisionDraft();
+    return;
+  }
+
+  // 3. 선택 버튼 클릭 (기존 로직 + UI 업데이트)
   if (e.target.classList.contains("select")) {
-    // 고객 전환 시, 기존 장바구니 보류 안내
     if (
       selectedCustomer &&
       selectedItems.length > 0 &&
@@ -1286,21 +1405,20 @@ visitorListEl?.addEventListener("click", async (e) => {
       if (!ok) return;
     }
     selectedCustomer = visitorList[idx];
-    // ✅ 교환 탭에서는 상품/제공 영역을 노출하지 않음
+
     const _ex =
       document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
     if (!_ex) {
-      // 제공 탭에서만 보이도록 유지
       productSection.classList.remove("hidden");
       submitSection.classList.remove("hidden");
     }
     renderProvisionCustomerInfo();
-    // 방문자 전환 시 기본은 빈 장바구니
+
     selectedItems = [];
     undoStack = [];
     redoStack = [];
-    lifeloveCheckbox.checked = false; // lifelove도 초기화
-    // 🔍 선택한 방문자에 보류 데이터가 있으면, 불러올지 물어본 뒤 자동 적용
+    lifeloveCheckbox.checked = false;
+
     try {
       const holdRaw = localStorage.getItem(HOLD_PREFIX + selectedCustomer.id);
       if (holdRaw) {
@@ -1322,10 +1440,11 @@ visitorListEl?.addEventListener("click", async (e) => {
         }
       }
     } catch {}
+
     renderSelectedList();
-    renderVisitorList(); // active 표시 갱신
+    renderVisitorList(); // Active 상태 갱신
     saveProvisionDraft();
-    // ✅ 제공 탭에서 고객을 선택하면 바코드 입력창에 자동 포커스
+
     if (!_ex && typeof barcodeInput !== "undefined" && barcodeInput) {
       try {
         barcodeInput.focus();
@@ -1333,7 +1452,6 @@ visitorListEl?.addEventListener("click", async (e) => {
     }
     document.dispatchEvent(new Event("provision_customer_switched"));
 
-    // ✅ 선택 직후 화면 하단(상품 영역 아래)으로 부드럽게 스크롤
     setTimeout(() => scrollToSubmitSection(), 10);
   }
 });
@@ -1495,26 +1613,24 @@ function renderAutocomplete(matches) {
     autocompleteList.classList.add("hidden");
     return;
   }
-
   matches.forEach((product) => {
     const div = document.createElement("div");
-    div.textContent = `${product.name}`;
+    // [수정] 다크모드 대응: 텍스트(흰색), 배경(어두운 슬레이트), 호버(어두운 파랑/회색), 보더
+    div.className =
+      "px-4 py-3 text-sm text-slate-700 dark:text-slate-200 font-medium cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-none flex justify-between items-center";
+
+    // 가격 텍스트 색상 조정
+    div.innerHTML = `<span>${product.name}</span> <span class="text-xs text-slate-400 dark:text-slate-500 font-normal">${product.price}p</span>`;
+
     div.addEventListener("click", () => {
       nameInput.value = product.name;
-      quantityInput.focus(); // 이름 → 수량 → Enter로 추가
+      quantityInput.focus();
       autocompleteList.classList.add("hidden");
     });
     autocompleteList.appendChild(div);
   });
-
   autocompleteList.classList.remove("hidden");
 }
-
-document.addEventListener("click", (e) => {
-  if (!e.target.closest(".product-input-area")) {
-    autocompleteList.classList.add("hidden");
-  }
-});
 
 // ===== 공통 유틸: 담기, EAN-13, 클린업 =====
 function addToSelected(prod, qty) {
@@ -1705,43 +1821,68 @@ function applyCategoryViolationHighlight() {
 function renderSelectedList() {
   selectedTableBody.innerHTML = "";
 
+  // 1. 빈 상태(Empty State) 처리
+  if (selectedItems.length === 0) {
+    selectedTableBody.innerHTML = `
+      <tr id="cart-empty-state">
+        <td colspan="5" class="py-12 text-center select-none pointer-events-none">
+           <div class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600">
+             <div class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center mb-1">
+               <i class="fas fa-basket-shopping text-3xl text-slate-200 dark:text-slate-600"></i>
+             </div>
+             <p class="text-slate-400 dark:text-slate-500 font-medium text-sm">
+               상품의 바코드를 스캔하거나<br>상품명을 검색해주세요.
+             </p>
+           </div>
+        </td>
+      </tr>
+    `;
+    // 합계 초기화 및 경고 숨김
+    totalPointsEl.textContent = "0";
+    warningEl.classList.add("hidden");
+    saveProvisionDraft();
+    return;
+  }
+
+  // 2. 상품 목록 렌더링 (다크 모드 디자인 적용)
   selectedItems.forEach((item, idx) => {
     const tr = document.createElement("tr");
     const totalPrice = item.quantity * item.price;
 
+    // 행 스타일: 다크 모드 호버 및 보더 색상 적용
+    tr.className =
+      "hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors border-b border-slate-100 dark:border-slate-700/50 last:border-0";
+
     tr.innerHTML = `
-      <td>${item.name}</td>
-      <td class="text-center">
-        <div class="quantity-wrapper">
-        <button class="decrease-btn btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
-        <input type="number" name="quantity-${idx}" min="1" max="30" value="${item.quantity}" data-idx="${idx}" class="quantity-input input w-16 text-center" />
-        <button class="increase-btn btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
+      <td class="py-3 px-4 font-medium text-slate-800 dark:text-slate-200">${item.name}</td>
+      <td class="py-3 px-4 text-center">
+        <div class="inline-flex items-center justify-center border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
+          <button class="decrease-btn btn btn-dark-weak w-8 h-8 flex items-center justify-center" data-idx="${idx}">−</button>
+          <input type="number" value="${item.quantity}" data-idx="${idx}" class="quantity-input w-10 h-8 text-center rounded-lg text-sm font-bold text-slate-700 dark:text-white border-x border-slate-200 dark:border-slate-600 bg-transparent focus:outline-none focus:bg-blue-50 dark:focus:bg-blue-900/30 transition-colors" />
+          <button class="increase-btn btn btn-dark-weak w-8 h-8 flex items-center justify-center" data-idx="${idx}">+</button>
         </div>
       </td>
-      <td class="text-center">${item.price}</td>
-      <td class="text-center">${totalPrice}</td>
-      <td class="text-center">
-        <button class="remove-btn btn btn-danger" data-idx="${idx}" aria-label="상품 삭제"><i class="fas fa-trash"></i></button>
+      <td class="py-3 px-4 text-center text-slate-600 dark:text-slate-400 font-medium">${item.price}</td>
+      <td class="py-3 px-4 text-center text-slate-800 dark:text-white font-bold">${totalPrice}</td>
+      <td class="py-3 px-4 text-center">
+        <button class="remove-btn w-8 h-8 rounded-lg btn btn-danger transition-all shadow-sm hover:shadow-md" data-idx="${idx}">
+          <i class="fas fa-trash-alt"></i>
+        </button>
       </td>
     `;
-
-    // 행 데이터 세팅(제한 검사용)
     tr.dataset.id = item.id;
     tr.dataset.category = item.category || "";
     tr.dataset.price = String(item.price ?? "");
     selectedTableBody.appendChild(tr);
   });
 
-  // 합계 업데이트
   calculateTotal();
-  // 제한 검사/강조
   applyCategoryViolationHighlight();
-  // ✅ 렌더 후 상태 저장(수량/합계 변경 반영)
   saveProvisionDraft();
 
-  // ▶ 방금 '추가'된 경우에만 submit-section으로 스크롤
+  // 4. 상품 추가 직후 부드러운 스크롤 이동
   if (__scrollAfterAdd) {
-    setTimeout(() => scrollToSubmitSection(), 0);
+    setTimeout(() => scrollToSubmitSection(), 50);
     __scrollAfterAdd = false;
   }
 }
@@ -2034,8 +2175,6 @@ const exNewEl = document.getElementById("ex-new-total");
 const exWarnEl = document.getElementById("ex-warning");
 const exSubmitBtn = document.getElementById("exchange-submit-btn");
 const exHistoryTable = document.getElementById("exchange-history-table");
-// 교환 섹션(검색 아래, 히스토리+빌더를 감싸는 컨테이너)
-const exchangeSection = document.getElementById("exchange-section");
 // 교환 히스토리 섹션(표 래퍼)
 const exchangeHistorySection = document.getElementById(
   "exchange-history-section"
@@ -2079,16 +2218,27 @@ exName?.addEventListener("input", async () => {
 function renderExAutocomplete(matches) {
   if (!exAutocompleteList) return;
   exAutocompleteList.innerHTML = "";
+
   if (!matches || matches.length === 0) {
     exAutocompleteList.classList.add("hidden");
     return;
   }
+
   matches.forEach((product) => {
     const div = document.createElement("div");
-    div.textContent = `${product.name}`;
+    // [수정] 다크모드 대응: 배경, 텍스트, 호버, 보더
+    div.className =
+      "px-4 py-3 text-sm text-slate-700 dark:text-slate-200 font-medium cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-none flex justify-between items-center";
+
+    div.innerHTML = `<span>${
+      product.name
+    }</span> <span class="text-xs text-slate-400 dark:text-slate-500 font-normal">${
+      product.price || 0
+    }p</span>`;
+
     div.addEventListener("click", () => {
       exName.value = product.name;
-      exQty?.focus(); // 이름 선택 후 수량으로 자연스러운 포커스 이동
+      exQty?.focus();
       exAutocompleteList.classList.add("hidden");
     });
     exAutocompleteList.appendChild(div);
@@ -2108,6 +2258,17 @@ let exchangeOriginalItems = [];
 let exchangeOriginalTotal = 0;
 let exchangeProvision = null; // { id, data }
 
+// 교환 탭 Undo/Redo 및 자동저장용 변수
+let exUndoStack = [];
+let exRedoStack = [];
+const EXCHANGE_AUTOSAVE_PREFIX = "fm.exchange.autosave";
+
+function getExAutoSaveKey() {
+  const uid = (auth.currentUser && auth.currentUser.uid) || "local";
+  // 날짜별로 격리 (오늘 작업분만 유효)
+  return `${EXCHANGE_AUTOSAVE_PREFIX}:${uid}:${ymdLocal()}`;
+}
+
 async function loadRecentProvisionsForCustomer(customerId) {
   if (!customerId || !exchangeHistoryTbody) return;
   // 최근 50일
@@ -2125,36 +2286,67 @@ async function loadRecentProvisionsForCustomer(customerId) {
 
 function renderExchangeHistory(rows) {
   exchangeHistoryTbody.innerHTML = "";
-  exchangeHistoryTbody.innerHTML = "";
-  // 고객 선택 후에는 섹션/표를 항상 노출 (없으면 안내문 표시)
   exchangeHistorySection?.classList.remove("hidden");
   exHistoryTable?.classList.remove("hidden");
+
+  // [수정] 내역 없음(Empty State) 디자인 개선
   if (!rows.length) {
-    exchangeHistoryTbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#666;">최근 50일 내 제공내역이 없습니다.</td></tr>`;
+    exchangeHistoryTbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="py-12 text-center select-none pointer-events-none">
+          <div class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600">
+            <div class="w-12 h-12 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center mb-1">
+              <i class="fas fa-history text-2xl text-slate-200 dark:text-slate-500"></i>
+            </div>
+            <p class="text-slate-400 dark:text-slate-500 font-medium text-sm">
+              최근 50일 내 제공 내역이 없습니다.
+            </p>
+          </div>
+        </td>
+      </tr>
+    `;
     exchangeBuilder.classList.add("hidden");
     return;
   }
+
   rows.forEach((r) => {
     const ts = r.timestamp?.toDate
       ? r.timestamp.toDate()
       : new Date(r.timestamp);
     const when = ts
-      ? `${ts.getFullYear()}-${String(ts.getMonth() + 1).padStart(
+      ? `${ts.getFullYear()}.${String(ts.getMonth() + 1).padStart(
           2,
           "0"
-        )}-${String(ts.getDate()).padStart(2, "0")} ${String(
+        )}.${String(ts.getDate()).padStart(2, "0")} ${String(
           ts.getHours()
         ).padStart(2, "0")}:${String(ts.getMinutes()).padStart(2, "0")}`
       : "-";
+
     const tr = document.createElement("tr");
+    // [수정] 테이블 행 다크모드 대응 (Hover, Border, Text)
+    tr.className =
+      "hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors border-b border-slate-100 dark:border-slate-700/50 last:border-0";
+
     tr.innerHTML = `
-      <td>${when}</td>
-      <td class="text-center">${r.items?.length || 0}건</td>
-      <td class="text-center">${r.total ?? 0}</td>
-      <td class="text-center">${r.lifelove ? "생명사랑" : "-"}</td>
-      <td class="text-center"><button class="ex-pick btn btn-basic" data-id="${
-        r.id
-      }">선택</button></td>
+      <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-400">${when}</td>
+      <td class="py-3 px-4 text-center text-sm font-bold text-slate-700 dark:text-slate-200">${
+        r.items?.length || 0
+      }건</td>
+      <td class="py-3 px-4 text-center text-sm font-bold text-blue-600 dark:text-blue-400">${
+        r.total ?? 0
+      }p</td>
+      <td class="py-3 px-4 text-center text-xs">
+        ${
+          r.lifelove
+            ? '<span class="px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold">생명사랑</span>'
+            : '<span class="text-slate-300 dark:text-slate-600">-</span>'
+        }
+      </td>
+      <td class="py-3 px-4 text-center">
+        <button class="ex-pick btn btn-primary-weak h-7 px-3 text-xs rounded-md" data-id="${
+          r.id
+        }">선택</button>
+      </td>
     `;
     exchangeHistoryTbody.appendChild(tr);
   });
@@ -2180,38 +2372,75 @@ exchangeHistoryTbody?.addEventListener("click", async (e) => {
   renderExchangeList();
   exchangeBuilder.classList.remove("hidden");
   showToast("교환 편집을 시작합니다.");
+
+  // 명시적 저장
+  saveExchangeAutoSave();
 });
 
 // 교환 리스트 렌더
 function renderExchangeList() {
   exTableBody.innerHTML = "";
+
+  // [수정] 빈 상태(Empty State) 처리
+  if (exchangeItems.length === 0) {
+    exTableBody.innerHTML = `
+      <tr>
+        <td colspan="5" class="py-12 text-center select-none pointer-events-none">
+          <div class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600">
+            <div class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center mb-1">
+              <i class="fas fa-exchange-alt text-3xl text-slate-200 dark:text-slate-600"></i>
+            </div>
+            <p class="text-slate-400 dark:text-slate-500 font-medium text-sm">
+              교환할 상품을 추가하거나<br>수량을 변경하세요.
+            </p>
+          </div>
+        </td>
+      </tr>
+    `;
+    // 합계 초기화
+    if (exOriginalEl) exOriginalEl.textContent = exchangeOriginalTotal;
+    if (exNewEl) exNewEl.textContent = "0";
+    exWarnEl.classList.add("hidden");
+    return;
+  }
+
+  // 교환 목록 렌더링
   exchangeItems.forEach((item, idx) => {
     const tr = document.createElement("tr");
     const totalPrice = (item.quantity || 0) * (item.price || 0);
+
+    // [수정] 다크모드 대응
+    tr.className =
+      "hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors border-b border-slate-100 dark:border-slate-700/50 last:border-0";
+
     tr.innerHTML = `
-      <td>${item.name}</td>
-      <td class="text-center">
-        <div class="quantity-wrapper">
-          <button class="ex-dec btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
-          <input type="number" class="quantity-input input w-16 text-center"
-                min="1" max="30" value="${
-                  item.quantity || 1
-                }" data-idx="${idx}" />
-          <button class="ex-inc btn btn-dark-weak small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
+      <td class="py-3 px-4 text-sm font-medium text-slate-800 dark:text-slate-200">${
+        item.name
+      }</td>
+      <td class="py-3 px-4 text-center">
+        <div class="inline-flex items-center justify-center border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
+          <button class="ex-dec btn btn-dark-weak w-8 h-8 flex items-center justify-center" data-idx="${idx}">−</button>
+          <input type="number" class="quantity-input w-10 h-8 text-center rounded-lg text-sm font-bold text-slate-700 dark:text-white border-x border-slate-200 dark:border-slate-600 bg-transparent focus:outline-none focus:bg-blue-50 dark:focus:bg-blue-900/30 transition-colors" value="${
+            item.quantity || 1
+          }" data-idx="${idx}" />
+          <button class="ex-inc btn btn-dark-weak w-8 h-8 flex items-center justify-center" data-idx="${idx}">+</button>
         </div>
       </td>
-      <td class="text-center">${item.price || 0}</td>
-      <td class="text-center">${totalPrice}</td>
-      <td class="text-center"><button class="ex-del btn btn-danger " data-idx="${idx}" aria-label="항목 삭제">
-        <i class="fas fa-trash"></i>
-      </button></td>
+      <td class="py-3 px-4 text-center text-sm text-slate-600 dark:text-slate-400 font-medium">${
+        item.price || 0
+      }</td>
+      <td class="py-3 px-4 text-center text-sm font-bold text-slate-800 dark:text-white">${totalPrice}</td>
+      <td class="py-3 px-4 text-center">
+        <button class="ex-del w-8 h-8 rounded-lg btn btn-danger transition-all shadow-sm hover:shadow-md" data-idx="${idx}"><i class="fas fa-trash-alt"></i></button>
+      </td>
     `;
     tr.dataset.id = item.id;
     tr.dataset.category = item.category || "";
     tr.dataset.price = String(item.price ?? "");
     exTableBody.appendChild(tr);
   });
-  // 합계/경고
+
+  // 합계/경고 로직 (기존 유지)
   const newTotal = exchangeItems.reduce(
     (a, b) => a + (b.quantity || 0) * (b.price || 0),
     0
@@ -2227,6 +2456,9 @@ function renderExchangeList() {
 
   // 제한 강조
   applyCategoryViolationHighlightFor(exchangeItems, exTableBody);
+
+  // 렌더링 = 상태 변화 -> 자동 저장 업데이트
+  saveExchangeAutoSave();
 }
 
 function applyCategoryViolationHighlightFor(items, tbody) {
@@ -2284,6 +2516,8 @@ exAddBtn?.addEventListener("click", async () => {
   }
 });
 function exchangeAdd(prod, qty) {
+  saveExUndoState(); // 변경 전 스냅샷
+
   const ex = exchangeItems.find((it) => it.id === prod.id);
   if (ex) ex.quantity = Math.min((ex.quantity || 0) + qty, 30);
   else
@@ -2308,6 +2542,7 @@ exTableBody?.addEventListener("click", (e) => {
   const idx = e.target.dataset.idx || e.target.closest("button")?.dataset.idx;
   if (idx == null) return;
   if (e.target.classList.contains("ex-inc")) {
+    saveExUndoState();
     exchangeItems[idx].quantity = Math.min(
       (exchangeItems[idx].quantity || 1) + 1,
       30
@@ -2326,6 +2561,7 @@ exTableBody?.addEventListener("click", (e) => {
 });
 exTableBody?.addEventListener("change", (e) => {
   if (!e.target.classList.contains("quantity-input")) return;
+  saveExUndoState();
   const idx = e.target.dataset.idx;
   let val = parseInt(e.target.value, 10);
   if (!Number.isFinite(val) || val < 1) val = 1;
@@ -2395,6 +2631,11 @@ exSubmitBtn?.addEventListener("click", async () => {
     });
     showToast("교환이 완료되었습니다.");
     resetExchangeUI();
+
+    localStorage.removeItem(getExAutoSaveKey());
+    exUndoStack = []; // 스택도 비움
+    exRedoStack = [];
+
     exchangeSelectedCustomer = null;
     renderExchangeCustomerInfo(); // 교환 고객정보 숨김
     if (exLookupInput) exLookupInput.value = "";
@@ -2412,3 +2653,128 @@ document.addEventListener("exchange_customer_switched", () => {
   if (isEx && exchangeSelectedCustomer)
     loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
 });
+
+// ============================================================
+// 🔄 교환 탭 스마트 자동 저장 (Auto-Save) & 복구
+// ============================================================
+
+function saveExchangeAutoSave() {
+  try {
+    const payload = {
+      v: 1,
+      updatedAt: Date.now(),
+      step: 0,
+      customer: exchangeSelectedCustomer, // 1단계: 고객 정보
+      provision: exchangeProvision, // 2단계: 원본 영수증
+      originalItems: exchangeOriginalItems,
+      originalTotal: exchangeOriginalTotal,
+      currentItems: exchangeItems, // 3단계: 작업 중인 장바구니
+      undo: exUndoStack,
+      redo: exRedoStack,
+    };
+
+    // 단계 판별
+    if (exchangeItems.length > 0 || (exUndoStack && exUndoStack.length > 0)) {
+      payload.step = 3; // 물품 수정 중
+    } else if (exchangeProvision) {
+      payload.step = 2; // 내역 선택 완료
+    } else if (exchangeSelectedCustomer) {
+      payload.step = 1; // 고객만 선택됨
+    } else {
+      // 저장할 내용 없음 -> 삭제
+      localStorage.removeItem(getExAutoSaveKey());
+      return;
+    }
+
+    localStorage.setItem(getExAutoSaveKey(), JSON.stringify(payload));
+  } catch (e) {
+    console.warn("Auto-save failed:", e);
+  }
+}
+
+// ============================================================
+// 7. 교환 탭 하단 기능 버튼 (Undo, Redo, Reset, Clear)
+// ============================================================
+
+// 1. 되돌리기 (Undo)
+document.getElementById("ex-undo-btn")?.addEventListener("click", () => {
+  if (exUndoStack.length === 0)
+    return showToast("되돌릴 작업이 없습니다.", true);
+
+  // 현재 상태를 Redo로 보냄 (스냅샷 X, 그냥 이동)
+  exRedoStack.push(JSON.parse(JSON.stringify(exchangeItems)));
+
+  exchangeItems = exUndoStack.pop();
+  renderExchangeList();
+});
+
+// 2. 다시 실행 (Redo)
+document.getElementById("ex-redo-btn")?.addEventListener("click", () => {
+  if (exRedoStack.length === 0)
+    return showToast("다시 실행할 작업이 없습니다.", true);
+
+  // 현재 상태를 Undo로 보냄
+  exUndoStack.push(JSON.parse(JSON.stringify(exchangeItems)));
+
+  exchangeItems = exRedoStack.pop();
+  renderExchangeList();
+});
+
+// 3. 원래대로 (Reset Initial)
+document
+  .getElementById("ex-reset-initial-btn")
+  ?.addEventListener("click", async () => {
+    if (!exchangeProvision) return showToast("선택된 내역이 없습니다.", true);
+
+    const ok = await openConfirm({
+      title: "초기화",
+      message: "처음 불러온 상태로 되돌리시겠습니까?",
+      confirmText: "되돌리기",
+      cancelText: "취소",
+      variant: "warn",
+    });
+
+    if (ok) {
+      saveExUndoState(); // 이 행위도 Undo 가능하도록 저장
+      // 원본 깊은 복사로 복구
+      exchangeItems = JSON.parse(JSON.stringify(exchangeOriginalItems));
+      renderExchangeList();
+      showToast("초기 상태로 복구되었습니다.");
+    }
+  });
+
+// 4. 전체 비우기 (Clear All) - 고객 선택부터 다시
+document
+  .getElementById("ex-clear-all-btn")
+  ?.addEventListener("click", async () => {
+    const ok = await openConfirm({
+      title: "전체 비우기",
+      message: "교환 작업을 완전히 종료하고 초기화하시겠습니까?",
+      confirmText: "비우기",
+      cancelText: "취소",
+      variant: "warn",
+    });
+
+    if (ok) {
+      // 1. 메모리 초기화
+      resetExchangeUI();
+      exchangeSelectedCustomer = null;
+      renderExchangeCustomerInfo();
+
+      // 2. 스택 초기화
+      exUndoStack = [];
+      exRedoStack = [];
+
+      // 3. 자동 저장 데이터 삭제 (가장 중요)
+      localStorage.removeItem(getExAutoSaveKey());
+
+      // 4. 검색창 초기화
+      if (exLookupInput) exLookupInput.value = "";
+
+      showToast("모든 내역이 초기화되었습니다.");
+    }
+  });
+
+// [추가] 교환 완료 시(submit 성공 후)에도 자동저장 삭제
+// exSubmitBtn 클릭 리스너의 성공 블록 안에 아래 코드 추가 필요:
+// localStorage.removeItem(getExAutoSaveKey());
