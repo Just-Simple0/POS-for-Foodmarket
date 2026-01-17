@@ -10,7 +10,11 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 import { db } from "./components/firebase-config.js";
-import { withLoading, makeSectionSkeleton } from "./components/comp.js";
+import {
+  withLoading,
+  makeSectionSkeleton,
+  makeWidgetSkeleton,
+} from "./components/comp.js";
 
 // 로컬(KST) 기준 날짜 키: 'YYYY-MM-DD'
 function dateKeyLocal(d) {
@@ -97,11 +101,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
   // 초기 로딩을 전역 오버레이로 묶어 사용자가 '모두 로드된 뒤' 이용하게 함
-  await withLoading(async () => {
-    await loadDashboardData();
-    await loadRecentProducts();
-    setExpiryInfo();
-  }, "대시보드 데이터 불러오는 중…");
+  loadDashboardData();
+  loadRecentProducts();
+  setExpiryInfo();
 
   // 통계로 이동
   const visitCard = document.getElementById("visit-card");
@@ -124,8 +126,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function loadDashboardData() {
   let __skVisit, __skItems;
   try {
-    __skVisit = makeSectionSkeleton(document.getElementById("visit-card"), 6);
-    __skItems = makeSectionSkeleton(document.getElementById("item-card"), 6);
+    __skVisit = makeWidgetSkeleton(document.getElementById("visit-card"));
+    __skItems = makeWidgetSkeleton(document.getElementById("item-card"));
     const { visitData, todayItemsMap, todayItemsTotal, prevItemsTotal } =
       await fetchProvisionStats();
 
@@ -257,46 +259,36 @@ function renderVisitSection(visitData) {
 
   if (visitChangeEl) {
     if (customerDiff > 0) {
-      visitChangeEl.textContent = `▲ ${customerDiff}명 (${customerRate}%) 증가`;
-      // [수정] 다크모드 대응 (bg-emerald-900/30, text-emerald-400)
-      visitChangeEl.className =
-        "text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-md ml-1";
+      visitChangeEl.innerHTML = `<span class="badge badge-sm badge-weak-success">▲ ${customerDiff}명 (${customerRate}%)</span>`;
     } else if (customerDiff < 0) {
-      visitChangeEl.textContent = `▼ ${Math.abs(
+      visitChangeEl.innerHTML = `<span class="badge badge-sm badge-weak-danger">▼ ${Math.abs(
         customerDiff
-      )}명 (${customerRate}%) 감소`;
-      // [수정] 다크모드 대응 (bg-rose-900/30, text-rose-400)
-      visitChangeEl.className =
-        "text-sm font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 rounded-md ml-1";
+      )}명 (${customerRate}%)</span>`;
     } else {
-      visitChangeEl.textContent = `변동 없음`;
-      // [수정] 다크모드 대응
-      visitChangeEl.className =
-        "text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md ml-1";
+      visitChangeEl.innerHTML = `<span class="badge badge-sm badge-weak-grey">변동 없음</span>`;
     }
   }
 
+  // Chart.js 스타일 TDS 최적화
   const ctx = document.getElementById("visit-chart");
   if (ctx) {
-    const existingChart = Chart.getChart(ctx);
-    if (existingChart) existingChart.destroy();
-
     new Chart(ctx, {
       type: "line",
       data: {
         labels,
         datasets: [
           {
-            label: "이용 고객 수",
             data: counts,
-            borderColor: "#3b82f6", // blue-500
-            backgroundColor: "rgba(59, 130, 246, 0.1)",
+            borderColor: "#3182F6", // TDS Primary Blue
+            backgroundColor: "rgba(49, 130, 246, 0.05)",
             fill: true,
             tension: 0.4,
-            pointRadius: 4,
-            pointBackgroundColor: "#fff",
-            pointBorderColor: "#3b82f6",
-            pointBorderWidth: 2,
+            pointRadius: 0, // 기본 상태에서는 점을 숨김
+            pointHoverRadius: 5, // 마우스 올렸을 때만 점 크기를 키움
+            pointHoverBackgroundColor: "#3182F6",
+            pointHoverBorderColor: "#fff",
+            pointHoverBorderWidth: 2,
+            borderWidth: 3,
           },
         ],
       },
@@ -305,12 +297,13 @@ function renderVisitSection(visitData) {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
+          tooltip: {
+            enabled: true, // 툴팁 활성화
+            intersect: false, // 라인 근처만 가도 툴팁 표시
+            mode: "index",
+          },
         },
-        scales: {
-          x: { display: false },
-          y: { display: false, beginAtZero: true },
-        },
-        layout: { padding: 5 },
+        scales: { x: { display: false }, y: { display: false } },
       },
     });
   }
@@ -326,24 +319,16 @@ function renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal) {
 
   if (itemCountEl) itemCountEl.textContent = `총 ${todayItemsTotal}개`;
   if (itemChangeEl) {
-    if (itemDiff > 0) {
-      itemChangeEl.textContent = `▲ ${itemDiff}개 (${itemRate}%) 증가`;
-      // [수정] 다크모드 대응
-      itemChangeEl.className =
-        "text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-md inline-block";
-    } else if (itemDiff < 0) {
-      itemChangeEl.textContent = `▼ ${Math.abs(
-        itemDiff
-      )}개 (${itemRate}%) 감소`;
-      // [수정] 다크모드 대응
-      itemChangeEl.className =
-        "text-sm font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 rounded-md inline-block";
-    } else {
-      itemChangeEl.textContent = `변동 없음`;
-      // [수정] 다크모드 대응
-      itemChangeEl.className =
-        "text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md inline-block";
-    }
+    const colorClass =
+      itemDiff > 0
+        ? "badge-weak-success"
+        : itemDiff < 0
+        ? "badge-weak-danger"
+        : "badge-weak-grey";
+    const icon = itemDiff > 0 ? "▲" : itemDiff < 0 ? "▼" : "";
+    itemChangeEl.innerHTML = `<span class="badge badge-sm ${colorClass}">${icon} ${Math.abs(
+      itemDiff
+    )}개 (${itemRate}%)</span>`;
   }
 
   const topList = document.getElementById("top-items-list");
@@ -418,26 +403,47 @@ function openExpiryModal() {
   const customBtn = document.getElementById("expiry-calc-btn");
   const customOut = document.getElementById("expiry-custom-result");
 
-  if (!baseEl._flatpickr) {
-    flatpickr(baseEl, {
-      locale: "ko",
-      dateFormat: "Y-m-d",
-      defaultDate: "today",
-      disableMobile: true,
-      animate: true,
-      onChange: function (selectedDates, dateStr, instance) {
-        renderBaseResults();
+  // daterangepicker 초기화 (jQuery 사용)
+  const $base = $(baseEl);
+  if (!$base.data("daterangepicker")) {
+    $base.daterangepicker(
+      {
+        singleDatePicker: true,
+        showDropdowns: true,
+        autoApply: true,
+        locale: {
+          format: "YYYY-MM-DD",
+          monthNames: [
+            "1월",
+            "2월",
+            "3월",
+            "4월",
+            "5월",
+            "6월",
+            "7월",
+            "8월",
+            "9월",
+            "10월",
+            "11월",
+            "12월",
+          ],
+          daysOfWeek: ["일", "월", "화", "수", "목", "금", "토"],
+        },
       },
-    });
+      function (start) {
+        renderBaseResults(start.toDate());
+      }
+    );
   }
 
-  const today = new Date();
-  baseEl._flatpickr.setDate(today);
-  renderBaseResults();
+  // 오늘 날짜로 세팅
+  $base.data("daterangepicker").setStartDate(new Date());
+  renderBaseResults(new Date());
 
   todayBtn.onclick = () => {
-    baseEl._flatpickr.setDate(new Date());
-    renderBaseResults();
+    const today = new Date();
+    $base.data("daterangepicker").setStartDate(today);
+    renderBaseResults(today);
   };
 
   customBtn.onclick = () => {
@@ -475,8 +481,8 @@ function openExpiryModal() {
     }
   });
 
-  function renderBaseResults() {
-    const base = parseDateInput(baseEl.value);
+  function renderBaseResults(selectedDate) {
+    const base = selectedDate || parseDateInput(baseEl.value);
     if (!base) {
       out20.textContent = "-";
       out30.textContent = "-";

@@ -6,7 +6,6 @@
     <title>POS System - Dashboard</title>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -17,16 +16,14 @@
       crossorigin
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment/min/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
+      href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"
     />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css"
-    />
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
 
     <link rel="stylesheet" href="css/tw.css" />
     <link rel="stylesheet" href="css/tw-input.css" />
@@ -36,7 +33,6 @@
     </script>
     <script type="module" src="js/components/firebase-config.js"></script>
     <script type="module" src="js/dashboard.js" defer></script>
-
     <script>
       (function () {
         try {
@@ -51,176 +47,149 @@
     </script>
   </head>
 
-  <body
-    class="bg-[#f2f4f6] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans antialiased min-h-screen flex flex-col"
-  >
+  <body>
     <div id="header-container"></div>
 
     <main
-      class="flex-1 w-full max-w-[1920px] mx-auto px-4 sm:px-6 py-8 animate-fade-in"
+      class="main-layout"
     >
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <div
-          class="group relative flex flex-col justify-between bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-[24px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:shadow-[0_20px_60px_rgba(15,23,42,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden"
+          class="card flex flex-col group cursor-pointer"
           id="visit-card"
           tabindex="0"
-          aria-label="이용 고객 수 상세 보기"
         >
-          <div class="flex items-center gap-3 mb-4">
+          <div class="flex items-center gap-3 mb-6">
             <div
-              class="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+              class="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary"
             >
               <i class="fas fa-user-group text-lg"></i>
             </div>
-            <h2 class="text-lg font-bold text-slate-800 dark:text-white">
+            <h2 class="text-[17px] font-bold text-slate-900 dark:text-white">
               이용 고객 수
             </h2>
           </div>
-
-          <div class="mb-6 gap-1">
+          <div class="mb-2">
             <span
               id="visit-count"
-              class="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
+              class="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight"
               >-명</span
             >
             <div class="flex items-center gap-2 mt-1">
-              <span
-                class="text-sm font-medium text-slate-500 dark:text-slate-400"
+              <span class="text-[13px] font-medium text-slate-500"
                 >전일 대비</span
               >
-              <span id="visit-change" class="text-sm font-bold">-명 (-%)</span>
+              <span id="visit-change" class="text-[13px] font-bold">-</span>
             </div>
           </div>
-
-          <div class="mt-auto relative h-[180px] w-full">
+          <div class="mt-auto h-[160px] w-full">
             <canvas id="visit-chart"></canvas>
           </div>
         </div>
 
         <div
-          class="group relative flex flex-col bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-[24px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:shadow-[0_20px_60px_rgba(15,23,42,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+          class="card flex flex-col group cursor-pointer"
           id="item-card"
           tabindex="0"
-          aria-label="오늘 제공된 물품 수 상세 보기"
         >
           <div class="flex items-center gap-3 mb-6">
             <div
-              class="flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
+              class="flex items-center justify-center w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400"
             >
               <i class="fas fa-boxes-stacked text-lg"></i>
             </div>
-            <h2 class="text-lg font-bold text-slate-800 dark:text-white">
+            <h2 class="text-[17px] font-bold text-slate-900 dark:text-white">
               오늘 제공된 물품
             </h2>
           </div>
-
-          <div class="mb-6 gap-1">
+          <div class="mb-6">
             <span
               id="item-total"
-              class="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
+              class="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight"
               >총 -개</span
             >
             <div class="flex items-center gap-2 mt-1">
-              <span
-                class="text-sm font-medium text-slate-500 dark:text-slate-400"
+              <span class="text-[13px] font-medium text-slate-500"
                 >전일 대비</span
               >
-              <div id="item-change" class="text-sm font-bold">-개 (-%)</div>
+              <div id="item-change" class="text-[13px] font-bold">-</div>
             </div>
           </div>
-
-          <div class="mt-auto justify-center">
-            <ul id="top-items-list" class="space-y-3"></ul>
+          <div class="mt-auto">
+            <ul id="top-items-list" class="space-y-2"></ul>
           </div>
         </div>
 
         <div
-          class="group relative flex flex-col bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-[24px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:shadow-[0_20px_60px_rgba(15,23,42,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+          class="card flex flex-col group cursor-pointer"
           id="recent-product-card"
           tabindex="0"
-          aria-label="등록/수정된 상품 상세 보기"
         >
           <div class="flex items-center gap-3 mb-6">
             <div
-              class="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+              class="flex items-center justify-center w-10 h-10 rounded-xl bg-green-500/10 text-green-600 dark:text-green-400"
             >
               <i class="fas fa-clock-rotate-left text-lg"></i>
             </div>
-            <h2 class="text-lg font-bold text-slate-800 dark:text-white">
+            <h2 class="text-[17px] font-bold text-slate-900 dark:text-white">
               최근 상품 내역
             </h2>
           </div>
-
           <ul
             id="recent-products-list"
-            class="flex flex-col gap-2 overflow-y-auto max-h-[280px] custom-scrollbar"
-          >
-            <li
-              class="py-3 px-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2"
-            >
-              <i class="fas fa-spinner fa-spin text-slate-400"></i> 불러오는
-              중...
-            </li>
-          </ul>
+            class="flex flex-col gap-2 overflow-y-auto max-h-[280px]"
+          ></ul>
         </div>
 
         <div
-          class="group relative flex flex-col bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-[24px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:shadow-[0_20px_60px_rgba(15,23,42,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+          class="card flex flex-col group cursor-pointer"
           id="expiry-base-card"
           tabindex="0"
-          aria-label="임박 기준일 안내 상세 보기"
         >
           <div class="flex items-center gap-3 mb-6">
             <div
-              class="flex items-center justify-center w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
+              class="flex items-center justify-center w-10 h-10 rounded-xl bg-danger/10 text-danger"
             >
               <i class="fas fa-calendar-xmark text-lg"></i>
             </div>
-            <h2 class="text-lg font-bold text-slate-800 dark:text-white">
+            <h2 class="text-[17px] font-bold text-slate-900 dark:text-white">
               임박 기준일
             </h2>
           </div>
-
-          <div class="flex flex-col gap-5">
-            <div class="flex flex-col gap-1">
+          <div class="space-y-5">
+            <div>
               <span
-                class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider"
+                class="text-xs font-bold text-slate-400 uppercase tracking-widest"
                 >Today</span
               >
               <div
                 id="today-date"
-                class="text-2xl font-bold text-slate-800 dark:text-white tracking-tight"
+                class="text-xl font-bold text-slate-800 dark:text-white mt-1"
               >
                 -
               </div>
             </div>
-
-            <div class="w-full h-px bg-slate-100 dark:bg-slate-700"></div>
-
-            <div class="grid grid-cols-1 gap-4">
+            <div class="h-px bg-slate-100 dark:bg-slate-800"></div>
+            <div class="space-y-4">
               <div>
-                <span
-                  class="block text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1"
+                <span class="block text-sm font-bold text-slate-500 mb-1.5"
                   >제과류 / 음료수</span
                 >
-                <div
+                <span
                   id="expiry-snack-drink"
-                  class="text-xl font-bold text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 inline-block px-3 py-1 rounded-lg"
+                  class="badge badge-lg badge-weak-danger"
+                  >-</span
                 >
-                  -
-                </div>
               </div>
               <div>
-                <span
-                  class="block text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1"
+                <span class="block text-sm font-bold text-slate-500 mb-1.5"
                   >식료품 / 생필품</span
                 >
-                <div
+                <span
                   id="expiry-food-daily"
-                  class="text-xl font-bold text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 inline-block px-3 py-1 rounded-lg"
+                  class="badge badge-lg badge-weak-danger"
+                  >-</span
                 >
-                  -
-                </div>
               </div>
             </div>
           </div>
@@ -228,86 +197,63 @@
       </div>
     </main>
 
-    <div id="expiry-modal" class="modal-overlay hidden" aria-hidden="true">
-      <div class="modal-panel max-w-[480px]" role="dialog" aria-modal="true">
-        <div class="flex justify-between items-center mb-6">
-          <h3
-            class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2"
+    <div id="expiry-modal" class="modal-overlay hidden">
+      <div class="modal-content max-w-md">
+        <div class="p-8 pb-0 text-center">
+          <h4
+            class="text-[20px] font-bold text-slate-900 dark:text-white leading-tight"
           >
-            <i class="fas fa-calendar-day text-blue-500"></i> 날짜 계산기
-          </h3>
-          <button
-            type="button"
-            id="expiry-modal-close"
-            class="btn btn-ghost !p-2 rounded-full w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-          >
-            <i class="fas fa-times text-xl"></i>
-          </button>
+            날짜 계산기
+          </h4>
+          <p class="text-sm text-slate-500 mt-2">
+            기준 날짜를 선택하여 경과일을 계산합니다.
+          </p>
         </div>
-
-        <div class="space-y-6">
-          <div class="space-y-2">
-            <label
-              for="expiry-base-date"
-              class="block text-sm font-bold text-slate-700 dark:text-slate-300"
-              >기준 날짜</label
-            >
+        <div class="p-8 space-y-6">
+          <div class="field-group">
+            <label class="field-label">기준 날짜</label>
             <div class="flex gap-2">
-              <div class="relative flex-1 group">
-                <div
-                  class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none z-10"
-                >
-                  <i
-                    class="fas fa-calendar-alt text-slate-400 group-hover:text-blue-500 text-lg transition-colors"
-                  ></i>
-                </div>
-
+              <div class="field-box flex-1">
+                <i class="fas fa-calendar-alt ml-4 text-slate-400"></i>
                 <input
                   type="text"
                   id="expiry-base-date"
-                  class="w-full h-11 pl-10 pr-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white font-bold text-[15px] transition-all cursor-pointer outline-none hover:bg-white dark:hover:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:ring-2 hover:ring-blue-50 dark:hover:ring-blue-900/20 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/40 placeholder:text-slate-400"
-                  placeholder="날짜를 선택하세요"
+                  class="field-input font-sans !pl-2"
                   readonly
                 />
               </div>
-
               <button
-                type="button"
                 id="expiry-today-btn"
-                class="btn btn-primary-weak whitespace-nowrap"
+                class="btn btn-md btn-primary-weak whitespace-nowrap px-6"
               >
                 오늘
               </button>
             </div>
           </div>
-
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-2 gap-3">
             <div
-              class="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-4 text-center"
+              class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700"
             >
-              <div
-                class="text-xs font-bold text-blue-500 dark:text-blue-400 mb-1"
-              >
+              <p class="text-[11px] font-bold text-primary mb-1 uppercase">
                 제과/음료 (+20일)
-              </div>
+              </p>
               <div
                 id="expiry-20"
-                class="text-lg font-extrabold text-blue-700 dark:text-blue-300"
+                class="text-[17px] font-bold text-slate-900 dark:text-white"
               >
                 -
               </div>
             </div>
+
             <div
-              class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-4 text-center"
+              class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700"
             >
-              <div
-                class="text-xs font-bold text-indigo-500 dark:text-indigo-400 mb-1"
-              >
-                식료품/생필품 (+30일)
-              </div>
+              <p class="text-[11px] font-bold text-purple-500 mb-1 uppercase">
+                식료/생필 (+30일)
+              </p>
               <div
                 id="expiry-30"
-                class="text-lg font-extrabold text-indigo-700 dark:text-indigo-300"
+                class="text-[17px] font-bold text-slate-900 dark:text-white"
               >
                 -
               </div>
@@ -315,59 +261,52 @@
           </div>
 
           <details
-            id="expiry-custom-details"
-            class="group bg-slate-50 dark:bg-slate-700/30 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"
+            class="group bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700"
           >
             <summary
-              class="flex items-center gap-2 px-4 py-3 cursor-pointer font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors select-none list-none [&::-webkit-details-marker]:hidden"
+              class="flex items-center justify-between p-4 cursor-pointer list-none font-bold text-slate-700 dark:text-slate-300"
             >
-              <i class="fas fa-sliders-h text-slate-400"></i>
-              <span class="flex-1">사용자 지정 계산</span>
+              <span class="text-[14px]">사용자 지정 계산</span>
               <i
-                class="fas fa-chevron-down text-sm text-slate-400 group-open:rotate-180 transition-transform"
+                class="fas fa-chevron-down text-xs transition-transform group-open:rotate-180"
               ></i>
             </summary>
-
-            <div
-              class="p-4 pt-0 border-t border-slate-200/50 dark:border-slate-700/50 mt-3"
-            >
-              <div class="flex gap-2 mb-4">
-                <input
-                  type="number"
-                  id="expiry-custom-days"
-                  placeholder="일수 입력 (예: 14)"
-                  class="input flex-1"
-                  min="0"
-                />
+            <div class="p-4 pt-0">
+              <div class="flex gap-2">
+                <div class="field-box flex-1 mb-0">
+                  <input
+                    type="number"
+                    id="expiry-custom-days"
+                    class="field-input"
+                    placeholder="일수 입력"
+                  />
+                </div>
                 <button
-                  type="button"
                   id="expiry-calc-btn"
-                  class="btn btn-primary"
+                  class="btn btn-md btn-primary px-6"
                 >
                   계산
                 </button>
               </div>
-
               <div
-                class="flex justify-between items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3"
-              >
-                <span
-                  class="text-sm font-medium text-slate-500 dark:text-slate-400"
-                  >결과</span
-                >
-                <span
-                  id="expiry-custom-result"
-                  class="text-lg font-bold text-slate-800 dark:text-white"
-                ></span>
-              </div>
+                id="expiry-custom-result"
+                class="mt-4 text-center text-lg font-bold text-primary"
+              ></div>
             </div>
           </details>
+        </div>
+        <div class="p-6 pt-0 flex gap-3">
+          <button
+            id="expiry-modal-close"
+            class="btn btn-md btn-light flex-1 !rounded-2xl"
+          >
+            닫기
+          </button>
         </div>
       </div>
     </div>
 
     <div id="footer-container"></div>
-
     <script type="module">
       import { loadHeader, loadFooter } from "./js/components/comp.js";
       loadHeader("header-container");

@@ -25,7 +25,38 @@
     padding-bottom: 60px;
   }
   .sr-only {
-    @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0 clip-[rect(0,0,0,0)];
+    @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  /* 1. 특정 클래스가 아닌 전역 혹은 .custom-scrollbar에 적용 */
+  ::-webkit-scrollbar {
+    width: 8px; /* 여백을 위해 폭을 살짝 늘림 */
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    /* 2. border-4 border-transparent를 추가하여 핸들 주위에 여백을 만듦 */
+    @apply bg-slate-300 dark:bg-slate-600 rounded-full border-[2.5px] border-solid border-transparent bg-clip-padding;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400 dark:bg-slate-500;
+  }
+
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* [2] 파이어폭스 브라우저에서 화살표 제거 */
+  input[type="number"] {
+    -moz-appearance: textfield;
   }
 }
 
@@ -39,6 +70,24 @@
     transform: translateY(0);
   }
 }
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.animate-fade-out {
+  animation: fadeOut 0.2s ease-out forwards;
+}
+
 @keyframes modalPop {
   from {
     opacity: 0;
@@ -49,8 +98,36 @@
     transform: scale(1);
   }
 }
-.animate-fade-in {
-  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+@keyframes toastSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastSlideUp {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+}
+
+@keyframes tds-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* =========================================
@@ -61,200 +138,815 @@
     @apply mx-auto px-4;
   }
 
-  /* Buttons: Toss Design System Style (Border-less & Flat) */
+  /* [통합] 표준 메인 레이아웃 */
+  .main-layout {
+    /* 레이아웃 구조 */
+    @apply flex-1 w-full max-w-[1920px] mx-auto;
+
+    /* 여백 및 간격 (표준: py-8, space-y-6) */
+    @apply px-4 sm:px-6 py-8 space-y-6;
+
+    /* 애니메이션 */
+    @apply animate-fade-in;
+  }
+
+  /* =========================================
+     Buttons: Toss Design System (TDS) Style
+     ========================================= */
+
+  /* [1] Base Button Style */
   .btn {
-    @apply inline-flex items-center justify-center rounded-2xl px-5 py-3 text-[15px] font-bold gap-1.5 transition-all duration-200 ease-out border-none shadow-none;
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100;
+    @apply inline-flex items-center justify-center font-bold gap-1.5 transition-all duration-200 ease-out border-none shadow-none select-none;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100;
   }
+
+  /* [2] Color Variants (Semantic) */
+
+  /* Primary: 핵심 액션 (가장 강조) */
   .btn-primary {
-    @apply bg-blue-600 text-white hover:bg-blue-700;
+    /* DEFAULT(#3182F6) 배경, 600(#1B64DA) 호버 */
+    @apply bg-primary text-white hover:bg-primary-600;
   }
+
+  /* Primary Weak: 보조 액션 (Primary와 함께 쓰일 때) */
+  .btn-primary-weak {
+    /* 50(#E8F3FF) 배경, 600(#1B64DA) 텍스트 */
+    @apply bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-500/20;
+  }
+
   .btn-dark {
-    @apply bg-slate-800 text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600;
+    @apply bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600;
   }
+
+  .btn-dark-weak {
+    @apply bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700;
+  }
+
+  /* Danger: 삭제, 경고 액션 */
   .btn-danger {
-    @apply bg-rose-500 text-white hover:bg-rose-600;
+    @apply bg-danger text-white hover:bg-danger-600;
   }
+
+  /* Danger Weak: 삭제 취소 등 보조 위험 액션 */
+  .btn-danger-weak {
+    @apply bg-danger-50 dark:bg-danger-500/10 text-danger-600 dark:text-danger-400 hover:bg-danger-100 dark:hover:bg-danger-500/20;
+  }
+
+  /* Light: 취소, 닫기, 일반 선택 */
   .btn-light {
     @apply bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-600;
   }
-  .btn-ghost {
-    @apply bg-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200;
-  }
-  .btn-primary-weak {
-    @apply bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20;
-  }
-  .btn-danger-weak {
-    @apply bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20;
-  }
+
+  /* Light Weak: 배경 없는 아주 약한 액션 */
   .btn-light-weak {
     @apply bg-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800;
   }
-  .btn-dark-weak {
-    @apply bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600;
-  } /* 추가됨 */
+
+  /* Ghost: 배경과 테두리 없이 텍스트만 강조 */
+  .btn-ghost {
+    @apply bg-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-100;
+  }
+
+  /* Outline: 테두리가 있는 보조 액션 */
   .btn-outline {
     @apply bg-transparent text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800;
   }
 
-  /* Inputs: Toss TDS 'Box' Style */
-  .input {
-    @apply h-12 w-full rounded-xl border border-transparent bg-slate-100 dark:bg-slate-900 px-4 text-slate-900 dark:text-white text-[15px] font-medium font-sans transition-all duration-200 placeholder:text-slate-400 dark:placeholder:text-slate-500;
-    @apply focus:bg-white dark:focus:bg-black focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none;
-  }
-  .input[readonly] {
-    @apply bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-500 cursor-not-allowed border-transparent;
-  }
-  input[type="number"]::-webkit-outer-spin-button,
-  input[type="number"]::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-  input[type="number"] {
-    -moz-appearance: textfield;
-    appearance: textfield;
+  /* [3] Size Variants (TDS Standard) */
+
+  /* Large (XL/L): 페이지 하단 고정 버튼 등 (h: 56px) */
+  .btn-lg {
+    @apply h-[56px] px-6 rounded-[18px] text-[17px] tracking-tight;
   }
 
-  /* Checkbox & Radio (Toss Style: Circle Check) */
-  .input-toss {
-    @apply appearance-none w-[22px] h-[22px] rounded-full border border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-800 transition-all duration-200 cursor-pointer shrink-0 relative;
-    @apply focus:ring-2 focus:ring-blue-500/20 focus:outline-none;
+  /* Medium (M): 일반적인 모달/폼 버튼 (h: 48px) */
+  .btn-md {
+    @apply h-[48px] px-5 rounded-2xl text-[15px];
   }
+
+  /* Small (S): 테이블 내부, 인라인 버튼 (h: 32px) */
+  .btn-sm {
+    @apply h-[32px] px-3 rounded-xl text-[13px] gap-1;
+  }
+
+  /* Extra Small: 아주 작은 태그형 버튼 (h: 26px) */
+  .btn-xs {
+    @apply h-[26px] px-2 rounded-lg text-[11px] gap-0.5;
+  }
+
+  /* Full Width */
+  .btn-full {
+    @apply w-full;
+  }
+
+  /* =========================================
+     Pagination: TDS Style Implementation
+     ========================================= */
+
+  /* 1. 컨테이너 */
+  .pagination-wrapper {
+    @apply flex items-center justify-center mt-8 gap-1 select-none;
+  }
+
+  /* 2. 버튼 공통 (Ghost Base) */
+  .pagination-btn {
+    /* 기본적으로 배경은 투명, 글자는 회색 */
+    @apply inline-flex items-center justify-center min-w-[36px] h-[32px] px-2 rounded-xl font-sans text-[13px] font-bold transition-all duration-200;
+    @apply bg-transparent text-slate-500 dark:text-slate-400 border border-transparent;
+  }
+
+  /* 3. 호버 효과 (확실한 구분감) */
+  .pagination-btn:hover:not(:disabled):not(.active) {
+    /* 배경을 slate-200으로 진하게 해서 Hover 됨을 명확히 표시 */
+    @apply bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-200;
+  }
+
+  /* 4. 활성 상태 (Active) */
+  .pagination-btn.active {
+    /* 파란색 배경 유지 */
+    @apply bg-primary text-white shadow-md shadow-blue-500/20 border-transparent cursor-default;
+  }
+
+  /* 5. 비활성 상태 (Disabled) */
+  .pagination-btn:disabled {
+    @apply opacity-30 cursor-not-allowed;
+  }
+
+  /* =========================================
+     TextField: TDS Box Style Implementation
+     ========================================= */
+
+  /* [1] TextField Container (Sustain Label Structure) */
+  /* 라벨과 입력창을 감싸는 전체 틀 */
+  .field-group {
+    @apply flex flex-col gap-1.5 w-full;
+  }
+
+  .field-label {
+    @apply text-[13px] font-bold text-slate-600 dark:text-slate-400 ml-1 select-none;
+  }
+
+  /* [2] Input Wrapper (Prefix/Suffix/Right Component) */
+  /* 아이콘, 클리어 버튼 등을 배치하기 위한 컨테이너 */
+  .field-box {
+    @apply relative flex items-center h-12 w-full rounded-xl bg-slate-100 dark:bg-slate-900 border border-transparent transition-all duration-200;
+    @apply focus-within:bg-white dark:focus-within:bg-black focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20;
+  }
+
+  /* [3] Pure Input Element */
+  .field-input {
+    /* border-none과 outline-none을 명시적으로 추가하여 기본 디자인 제거 */
+    @apply flex-1 h-full bg-transparent px-4 text-[15px] font-sans font-medium text-slate-900 dark:text-white;
+    @apply border-none outline-none ring-0 focus:ring-0 focus:outline-none;
+  }
+  .field-input[type="number"] {
+    @apply dark:bg-transparent;
+  }
+  select.field-input {
+    /* 기본 화살표 숨김 & 오른쪽 여백 확보 & 커서 변경 */
+    @apply appearance-none pr-10 cursor-pointer;
+
+    /* 커스텀 화살표 (SVG) - Slate-400 색상 */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8' stroke-width='2'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3e%3c/path%3e%3c/svg%3e");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem;
+  }
+
+  /* [4] Decoration Components (Prefix, Suffix, Icons) */
+  .field-prefix,
+  .field-suffix {
+    @apply pl-3 flex items-center justify-center text-slate-400 dark:text-slate-500 text-[15px] pointer-events-none;
+  }
+
+  /* 오른쪽 버튼/아이콘 영역 (검색창 등) */
+  .field-right {
+    @apply flex items-center gap-1 pr-2;
+  }
+
+  /* [5] TextField States */
+
+  /* 에러 상태 (Error State) */
+  .field-group.is-error .field-box {
+    @apply border-danger bg-rose-50 dark:bg-danger/10 focus-within:ring-danger/20;
+  }
+  .field-group.is-error .field-label {
+    @apply text-danger;
+  }
+  .field-error-text {
+    @apply text-xs font-medium text-danger ml-1 mt-1 animate-fade-in;
+  }
+
+  /* 비활성화 상태 (Disabled State) */
+  .field-group.is-disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+  .field-group.is-disabled .field-box {
+    @apply bg-slate-50 dark:bg-slate-800/50 pointer-events-none;
+  }
+  .field-group.is-disabled .field-input {
+    @apply text-slate-400 dark:text-slate-500;
+  }
+
+  /* [6] Utility Buttons (Clear, Password Toggle) */
+  .field-btn-clear {
+    @apply w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors;
+  }
+
+  .field-btn-toggle {
+    @apply w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors;
+  }
+
+  /* =========================================
+     Checkbox & Radio: TDS Circle Style
+     ========================================= */
+
+  /* [1] 공통 베이스: 테두리 소실 방지 및 원형 디자인 */
+  .input-toss {
+    /* appearance-none으로 브라우저 기본 UI를 완전히 제거 */
+    @apply appearance-none w-[22px] h-[22px] rounded-full bg-white dark:bg-slate-800 transition-all duration-200 cursor-pointer shrink-0 relative flex items-center justify-center;
+
+    /* [수정] border 대신 또는 border와 함께 ring을 사용하여 가시성 강제 확보 */
+    @apply border-2 border-slate-300 dark:border-slate-500;
+    box-shadow: 0 0 0 2px inset theme("colors.slate.300"); /* Computed에서 0px이 되는 것을 방지하기 위한 안쪽 그림자 */
+  }
+
+  /* [2] 내부 체크 아이콘: 미선택 시 연한 회색 상시 노출 */
   .input-toss::before {
     content: "";
-    @apply absolute inset-0 m-auto w-3.5 h-3.5 transition-transform duration-200;
+    @apply absolute inset-0 m-auto w-[14px] h-[14px] transition-all duration-200;
     -webkit-mask-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
     mask-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
     -webkit-mask-size: contain;
     mask-size: contain;
     -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
     -webkit-mask-position: center;
-    mask-position: center;
+    /* 미선택 시 아이콘 색상 */
     @apply bg-slate-300 dark:bg-slate-500;
   }
+
+  /* [3] 선택 상태 (Checked) */
   .input-toss:checked {
-    @apply bg-blue-600 border-blue-600 dark:bg-blue-500 dark:border-blue-500;
+    /* 배경을 채우고 테두리를 파란색으로 변경 */
+    @apply bg-primary border-primary;
+    box-shadow: none; /* 체크 시에는 안쪽 그림자 제거 */
   }
   .input-toss:checked::before {
-    @apply bg-white transform scale-100;
+    @apply bg-white;
   }
+
+  /* [4] 호버 상태 */
   .input-toss:hover:not(:checked) {
-    @apply border-slate-400 dark:border-slate-400;
+    @apply border-slate-400;
+    box-shadow: 0 0 0 2px inset theme("colors.slate.400");
   }
   .input-toss:hover:not(:checked)::before {
     @apply bg-slate-400 dark:bg-slate-400;
   }
+  .input-toss:checked:hover {
+    @apply bg-primary-600 border-primary-600;
+  }
+
   .input-toss-radio,
   .input-toss-checkbox {
     @apply input-toss;
   }
 
-  /* Cards & Tables */
+  /* =========================================
+     Switch (TDS Toggle) Component
+     ========================================= */
+  .switch {
+    @apply relative inline-flex h-[30px] w-[50px] shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75;
+    /* 기본(OFF) 배경색 */
+    @apply bg-slate-200 dark:bg-slate-700;
+  }
+
+  /* ON 상태 배경색 */
+  .switch.is-checked {
+    @apply bg-primary;
+  }
+
+  .switch-thumb {
+    @apply pointer-events-none inline-block h-[26px] w-[26px] transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out;
+    /* 기본(OFF) 위치 */
+    @apply translate-x-0;
+  }
+
+  /* ON 상태 위치 이동 */
+  .switch.is-checked .switch-thumb {
+    @apply translate-x-[20px];
+  }
+
+  /* =========================================
+     Cards: TDS Layered Style
+     ========================================= */
   .card {
-    @apply rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 p-6 shadow-sm dark:shadow-none transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md;
+    /* 테두리는 최소화하고 그림자로 레이어 구분 */
+    @apply rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 p-6 shadow-soft transition-all duration-300 ease-out;
+    /* 호버 시 선명한 그림자로 반응 */
+    @apply hover:shadow-lifted hover:border-slate-200 dark:hover:border-slate-700;
   }
+
+  /* =========================================
+     Tables: TDS List-based Style
+     ========================================= */
   .table {
-    @apply w-full border-separate border-spacing-0 overflow-hidden rounded-xl bg-white dark:bg-slate-800 text-sm shadow-sm dark:shadow-none;
+    /* 표 전체를 하나의 카드처럼 취급 */
+    @apply w-full border-separate border-spacing-0 overflow-hidden rounded-2xl bg-white dark:bg-slate-800 text-[14px] shadow-sm;
   }
+
+  /* 헤더: TDS의 'Label' 또는 'Caption' 스타일 적용 */
   .table thead th {
-    @apply bg-slate-50 dark:bg-slate-700/50 px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 whitespace-nowrap;
+    @apply bg-slate-50/50 dark:bg-slate-900/30 px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700 whitespace-nowrap tracking-tight;
   }
+
+  /* 바디: TDS의 'Cell' 디자인 이식 */
   .table tbody td {
-    @apply px-4 py-3 text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700/50 align-middle;
+    @apply px-4 py-4 text-slate-800 dark:text-slate-200 border-b border-slate-50 dark:border-slate-700/50 align-middle transition-colors;
   }
+
+  /* 마지막 행 구분선 제거 (Toss 리스트의 특징) */
   .table tbody tr:last-child td {
     @apply border-b-0;
   }
+
+  /* 호버: 데이터 행을 강조하는 은은한 배경색 */
   .table tbody tr:hover {
-    @apply bg-blue-50/50 dark:bg-slate-700/30 transition-colors;
+    @apply bg-primary-50/50 dark:bg-slate-700/40;
   }
 
-  /* Others */
+  /* =========================================
+     Badges: TDS Tag-style Variants
+     ========================================= */
+  /* [1] Badge Base */
   .badge {
-    @apply inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900/30 px-3 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400;
+    @apply inline-flex items-center justify-center leading-none select-none whitespace-nowrap rounded-full;
   }
+
+  /* [2] Size Variants (xsmall, small, medium, large) */
+  .badge-xs {
+    @apply px-[7px] py-[3px] h-[21px] font-semibold text-[10px];
+  }
+  .badge-sm {
+    @apply px-[7px] py-[3px] h-[24px] font-bold text-[12px];
+  }
+  .badge-md {
+    @apply px-[7px] py-[3px] h-[25.5px] font-bold text-[13px];
+  }
+  .badge-lg {
+    @apply px-2 py-1 h-[29px] font-bold text-[14px];
+  }
+
+  /* [3] Style Variants: Fill (강조) */
+  .badge-fill-primary {
+    @apply bg-primary text-white;
+  }
+  .badge-fill-danger {
+    @apply bg-danger text-white;
+  }
+  .badge-fill-success {
+    @apply bg-green-500 text-white;
+  }
+  .badge-fill-warning {
+    @apply bg-orange-500 text-white;
+  }
+  .badge-fill-grey {
+    @apply bg-slate-500 text-white;
+  }
+
+  /* [4] Style Variants: Weak (보조) */
+  .badge-weak-primary {
+    @apply bg-primary/10 text-primary-600 dark:bg-primary/20 dark:text-primary-400;
+  }
+  .badge-weak-danger {
+    @apply bg-danger/10 text-danger-600 dark:bg-danger/20 dark:text-danger-400;
+  }
+  .badge-weak-success {
+    @apply bg-green-500/10 text-green-600 dark:bg-green-500/20 dark:text-green-400;
+  }
+  .badge-weak-warning {
+    @apply bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400;
+  }
+  .badge-weak-grey {
+    @apply bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400;
+  }
+
+  /* =========================================
+     Modals: TDS Style Implementation
+     ========================================= */
+
+  /* [1] 모달 오버레이 */
   .modal-overlay {
-    @apply fixed inset-0 z-[1300] flex items-center justify-center bg-black/45 backdrop-blur-sm p-4 animate-[fadeIn_0.15s_ease-out];
-  }
-  .modal-panel {
-    @apply relative w-full bg-white dark:bg-slate-800 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-slate-100 dark:border-slate-700 p-6 transform scale-100 transition-all animate-[modalPop_0.2s_ease-out];
+    @apply fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-[2px];
+    animation: fadeIn 0.3s ease-out forwards;
   }
 
-  /* Tabs */
-  .tab-glass-center {
-    @apply w-full flex justify-center items-center mb-6;
-  }
-  .tab-glass-track {
-    @apply relative inline-flex items-center bg-slate-200/30 dark:bg-slate-800/50 backdrop-blur-2xl border border-white/50 dark:border-slate-600/50 p-1.5 rounded-full shadow-[inset_0_2px_8px_rgba(0,0,0,0.05)] gap-1 transition-all duration-300 hover:shadow-[inset_0_2px_12px_rgba(0,0,0,0.08)];
-  }
-  .tab-glass-btn {
-    @apply relative px-5 py-2 rounded-full text-[13px] font-bold transition-all duration-300 ease-out flex items-center gap-1.5 outline-none bg-slate-200/30 dark:bg-slate-700/30 text-slate-500 dark:text-slate-400 border border-transparent cursor-pointer;
-    @apply hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/30 dark:hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-blue-500/50;
-  }
-  .tab-glass-btn.active {
-    @apply bg-gradient-to-b from-white to-white/90 dark:from-slate-700 dark:to-slate-600 text-blue-600 dark:text-blue-400 shadow-[0_4px_12px_rgba(59,130,246,0.15),0_1px_2px_rgba(0,0,0,0.05)] border-white/80 dark:border-slate-500 backdrop-blur-sm;
+  /* [2] 모달 컨텐츠: 배경색을 900으로 유지하되 내부 요소와의 대비 준비 */
+  .modal-content {
+    @apply w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[28px] shadow-floating overflow-hidden flex flex-col;
+    animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
-  /* Custom Scrollbar */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-slate-300 dark:bg-slate-600 rounded-full;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-400 dark:bg-slate-500;
+  /* [추가] 모달 내 결과 박스/카드: 다크 모드 구분감 해결의 핵심 */
+  .modal-content .bg-slate-50 {
+    /* 다크 모드일 때 배경보다 밝은 800번대 사용 및 테두리 추가 */
+    @apply dark:bg-slate-800 border border-transparent dark:border-slate-700/50 transition-colors;
   }
 
-  /* Autocomplete & Lists */
+  /* [추가] 모달 내 입력창(field-box) 다크 모드 보정 */
+  .modal-content .field-box {
+    /* 배경은 더 어둡게, 테두리는 더 밝게 하여 입력 영역 강조 */
+    @apply dark:bg-slate-950 dark:border-slate-700 focus-within:dark:border-primary-500/50;
+  }
+
+  /* [추가] 사용자 지정 계산(details) 영역 */
+  .modal-content details {
+    @apply dark:bg-slate-800/50 dark:border-slate-700 rounded-2xl overflow-hidden;
+  }
+
+  /* 기존 header, title, body, footer 유지 */
+  .modal-header {
+    @apply p-6 pb-2 flex justify-between items-center;
+  }
+  .modal-title {
+    @apply text-[20px] font-bold text-slate-900 dark:text-white;
+  }
+  .modal-body {
+    @apply p-6 text-[15px] text-slate-700 dark:text-slate-300 leading-relaxed;
+  }
+  .modal-footer {
+    @apply p-6 pt-2 flex gap-3 justify-between;
+  }
+
+  /* =========================================
+      Segmented Tabs: TDS Style Implementation
+      ========================================= */
+
+  /* [1] 탭 컨테이너: 배경 대비를 위해 한 단계 진한 slate-200 적용 */
+  .tabs-segmented {
+    @apply flex p-1 bg-slate-200/60 dark:bg-slate-800/80 rounded-[14px] w-fit border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-md shadow-inner;
+  }
+
+  /* [2] 개별 탭 아이템 */
+  .tab-item {
+    @apply relative flex items-center justify-center gap-2 px-6 py-2.5 text-[14px] font-bold text-slate-500 transition-all duration-200 cursor-pointer rounded-[11px] select-none;
+    border: none !important;
+    background: none;
+    outline: none !important;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  /* 아이콘 크기 고정 */
+  .tab-item i {
+    @apply text-[16px];
+  }
+
+  /* [3] 활성화 상태: 가장 밝은 배경과 입체적인 그림자로 확실한 구분감 제공 */
+  .tab-item.is-active {
+    @apply bg-white dark:bg-slate-700 text-primary shadow-md !important;
+    border: none !important;
+  }
+
+  /* 호버 상태 (비활성 시에만): 배경색을 살짝 밝게 처리 */
+  .tab-item:not(.is-active):hover {
+    @apply text-slate-700 dark:text-slate-300 bg-white/40 dark:bg-white/5;
+    border: none !important;
+  }
+
+  /* [4] Full Width 옵션 */
+  .tabs-segmented-full {
+    @apply flex w-full p-1 bg-slate-200/60 dark:bg-slate-800/80 rounded-[14px] shadow-inner;
+  }
+  .tabs-segmented-full .tab-item {
+    @apply flex-1;
+  }
+
+  /* =========================================
+     Autocomplete & List Items: TDS Style Implementation
+     ========================================= */
+  /* [1] Autocomplete List (Dropdown) */
   .autocomplete-list {
-    @apply absolute top-full left-0 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl max-h-[260px] overflow-y-auto z-[1500] py-1.5 overflow-hidden;
-  }
-  .autocomplete-list div {
-    @apply flex items-center justify-between px-4 py-3 text-[14px] text-slate-700 dark:text-slate-200 font-medium cursor-pointer border-b border-slate-50 dark:border-slate-700 last:border-none transition-colors;
-  }
-  .autocomplete-list div:hover {
-    @apply bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-400;
-  }
-  .visitor-list li {
-    @apply flex items-center justify-between gap-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 transition-all;
-  }
-  .visitor-list li.active {
-    @apply ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20 border-blue-500 dark:border-blue-500 z-10 !important;
-  }
-  #duplicate-list li {
-    @apply flex flex-col gap-1 p-3.5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl cursor-pointer transition-all;
-  }
-  #duplicate-list li.selected {
-    @apply bg-blue-50 dark:bg-blue-900/20 border-blue-500 dark:border-blue-500 ring-2 ring-blue-500;
+    /* shadow-lifted로 깊이감 강조, py-2로 상하 여백 확보 */
+    @apply absolute top-[calc(100%+8px)] left-0 w-full bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700 rounded-2xl shadow-lifted max-h-[300px] overflow-y-auto z-[1500] py-2;
   }
 
-  /* Flatpickr, Toast, Loading ... (기존 유지) */
-  /* (이미 파일에 포함된 내용은 그대로 둡니다) */
+  .autocomplete-list div {
+    /* 경계선을 제거하고 여백(mx-2)과 라운드(rounded-xl)를 주어 '아이템' 느낌 강조 */
+    @apply flex items-center justify-between px-4 py-3 mx-2 text-[15px] text-slate-800 dark:text-slate-200 font-medium cursor-pointer rounded-xl transition-all border-none;
+  }
+
+  .autocomplete-list div:hover {
+    /* 배경색을 부드러운 primary/5로 변경하고 텍스트를 primary 컬러로 */
+    @apply bg-primary/5 text-primary dark:bg-slate-700 dark:text-primary-400;
+  }
+
+  /* [2] Visitor & General List Item: TDS Refined Floating Style */
+  .visitor-item {
+    /* 기본 상태: 그림자를 최소화하고 부드러운 전환 설정 */
+    @apply relative flex flex-col items-center justify-center p-6 text-center rounded-3xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 transition-all duration-300 ease-out shadow-[0_2px_8px_rgba(0,0,0,0.04)];
+  }
+
+  /* 호버 상태: 이동 거리를 줄이고(4px), 그림자를 매우 은은하게 보정 */
+  .visitor-item:hover {
+    /* 기존 shadow-lifted 대신 훨씬 연하고 좁은 그림자 적용 */
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
+    @apply border-slate-200 dark:border-slate-600;
+    transform: translateY(-4px); /* 부유 거리를 6px -> 4px로 단축 */
+  }
+
+  /* 선택된 상태(active): 불필요한 그림자 제거 및 안정감 부여 */
+  .visitor-item.active {
+    @apply bg-primary/5 border-primary/30 ring-1 ring-primary/30 z-10 !important;
+    box-shadow: none !important; /* 선택 시에는 그림자보다 색상으로 구분 */
+    transform: translateY(0);
+  }
+
+  /* [3] Duplicate & Multi-line List */
+  #duplicate-list li {
+    /* 세로 경계선보다는 간격(gap)으로 구분 유도 */
+    @apply flex flex-col gap-1.5 p-4 mb-2 border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-2xl cursor-pointer transition-all shadow-sm last:mb-0;
+  }
+
+  #duplicate-list li.selected {
+    @apply bg-primary/5 border-primary/30 ring-1 ring-primary/30 shadow-md;
+  }
+
+  /* =========================================
+     Toasts: TDS Style Implementation
+     ========================================= */
+  /* [1] 토스트 컨테이너 */
+  .toast-container {
+    @apply fixed top-8 left-1/2 -translate-x-1/2 z-[2000] flex flex-col gap-3 w-full max-w-[calc(100%-40px)] sm:max-w-[420px];
+    /* 항목이 추가/삭제될 때 내부 레이아웃이 부드럽게 변하도록 transition 추가 */
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* [2] 토스트 패널 */
   .toast-panel {
-    @apply relative flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-semibold transition-all duration-300;
+    @apply relative flex items-center gap-3.5 px-6 py-4 rounded-[22px] shadow-lifted text-[16px] font-bold transition-all duration-500;
+    /* 패널 자체가 이동할 때도 부드럽게 움직이도록 transition 추가 */
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: toastSlideDown 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+
+  /* [3] Success: TDS 표준 다크 스타일 (가장 선호됨) */
   .toast-success {
-    @apply bg-slate-800 dark:bg-white text-white dark:text-slate-900 border-transparent dark:border-slate-200;
+    @apply bg-slate-900/95 dark:bg-white text-white dark:text-slate-900 backdrop-blur-lg border-none;
   }
+
+  /* [4] Error: 위험 알림 스타일 */
   .toast-error {
-    @apply bg-rose-600 text-white border-rose-500;
+    @apply bg-danger text-white border-none shadow-danger/20;
   }
+
+  /* 아이콘 크기 및 색상 */
+  .toast-panel i {
+    @apply text-[20px] shrink-0;
+  }
+  .toast-success i {
+    @apply text-green-400 dark:text-green-600;
+  }
+  /* 사라지는 상태 클래스 */
+  .toast-out {
+    animation: toastSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+    /* 사라지는 동안 물리적 공간을 0으로 줄여 아래 요소들을 끌어올림 */
+    max-height: 0 !important;
+    margin-top: -12px !important; /* gap(3) = 12px 만큼 상쇄 */
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* =========================================
+     Loading Overlay: TDS Style Implementation
+     ========================================= */
+  /* [1] 로딩 오버레이: 배경은 모달과 동일한 깊이감 유지 */
   .loading-overlay {
-    @apply fixed inset-0 z-[2500] flex items-center justify-center bg-white/60 dark:bg-slate-900/70 backdrop-blur-sm transition-opacity duration-300 opacity-0 pointer-events-none;
+    @apply fixed inset-0 z-[9999] flex items-center justify-center bg-white/70 dark:bg-slate-900/80 backdrop-blur-md transition-all duration-300 opacity-0 pointer-events-none;
   }
+
   .loading-overlay.is-active {
     @apply opacity-100 pointer-events-auto;
   }
+
+  /* [2] 로딩 컨텐츠: 박스 그림자와 테두리를 제거하여 더 가볍게 수정 */
   .loading-box {
-    @apply flex flex-col items-center justify-center gap-4 bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 transform scale-95 transition-transform duration-300;
+    @apply flex flex-col items-center justify-center gap-5 p-10 transform scale-90 transition-all duration-500 ease-out;
   }
+
   .loading-overlay.is-active .loading-box {
     @apply scale-100;
+  }
+
+  /* [3] TDS 스타일 스피너 (CSS로만 구현) */
+  .tds-spinner {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    /* 전체적으로 연한 회색 테두리를 먼저 설정 */
+    border: 4px solid theme("colors.slate.200");
+    /* 윗부분만 파란색(Primary)으로 설정하여 회전 효과 부각 */
+    border-top-color: theme("colors.primary.DEFAULT");
+
+    /* 애니메이션 직접 지정 (tailwind config 의존성 제거) */
+    animation: tds-spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    display: inline-block;
+  }
+
+  /* 다크모드 대응 */
+  .dark .tds-spinner {
+    border-color: theme("colors.slate.700");
+    border-top-color: theme("colors.primary.DEFAULT");
+  }
+
+  /* [4] 로딩 텍스트 스타일 */
+  .loading-text {
+    @apply text-[17px] font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-4;
+  }
+
+  /* =========================================
+   daterangepicker TDS 최종 정밀 보정
+   ========================================= */
+
+  /* [1] 캘린더 메인 컨테이너 */
+  .daterangepicker {
+    @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lifted rounded-[24px] font-sans p-2 mt-2 !important;
+    z-index: 10000 !important;
+  }
+
+  /* [2] 상단 헤더: 순서 역전 (float 방식 유지) */
+  .daterangepicker .calendar-table th.month {
+    display: table-cell !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  /* 연도를 왼쪽으로 밀기 */
+  .daterangepicker select.yearselect {
+    float: left !important;
+    width: fit-content;
+    margin-left: 20px !important;
+    @apply bg-transparent border-none font-extrabold text-[15px] text-slate-900 dark:text-white cursor-pointer outline-none !important;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 14px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right center;
+    background-size: 10px;
+  }
+  .dark .daterangepicker select.yearselect {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  }
+
+  /* 월을 오른쪽으로 밀기 */
+  .daterangepicker select.monthselect {
+    width: fit-content;
+    float: right !important;
+    margin-right: 20px !important;
+    @apply bg-transparent border-none font-extrabold text-[15px] text-slate-900 dark:text-white cursor-pointer outline-none !important;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 14px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right center;
+    background-size: 10px;
+  }
+  .dark .daterangepicker select.monthselect {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  }
+
+  /* float 해제 */
+  .daterangepicker .calendar-table th.month::after {
+    content: "";
+    display: block;
+    clear: both;
+  }
+
+  /* [3] 가독성 해결: 선택된 날짜 글자색 강제 지정 */
+  /* 오늘 날짜이든 아니든, 선택된 날짜(.active)는 무조건 흰색 글자로 고정 */
+  .daterangepicker td.active,
+  .daterangepicker td.active:hover {
+    @apply bg-primary text-white !important;
+    color: #ffffff !important; /* CSS 변수 충돌 방지용 강제 지정 */
+    border-radius: 12px !important;
+  }
+
+  /* 오늘 날짜인데 선택되지 않았을 때 (강조만) */
+  .daterangepicker td.today:not(.active) {
+    @apply text-primary font-extrabold bg-transparent !important;
+  }
+
+  /* [4] 날짜 기본 스타일 (레이아웃 보호) */
+  .daterangepicker td.available {
+    @apply text-slate-700 dark:text-slate-300 font-medium text-[14px] transition-all !important;
+    border: none !important;
+  }
+
+  .daterangepicker td.available:hover {
+    @apply bg-slate-100 dark:bg-slate-700 rounded-xl !important;
+  }
+
+  /* 다크모드 드롭다운 옵션 보정 */
+  .dark .daterangepicker select option {
+    @apply bg-slate-800 text-white !important;
+  }
+
+  /* 다크모드 날짜 텍스트 보정 */
+  .dark .daterangepicker td.available {
+    @apply text-slate-300 !important;
+  }
+  .dark .daterangepicker th.month {
+    @apply text-slate-400 !important;
+  }
+
+  /* [5] 이전 달 및 다음 달 날짜 (off) 처리: 연하게 투명도 조절 */
+  .daterangepicker td.off {
+    @apply text-slate-300 dark:text-slate-600 opacity-40 bg-transparent !important;
+  }
+
+  /* [6] 다크모드 내부 테이블 배경 강제 통합 (흰색 배경 제거) */
+  .dark .daterangepicker .calendar-table,
+  .dark .daterangepicker table {
+    @apply bg-slate-800 !important;
+  }
+
+  /* 다크 모드에서 선택된 날짜(.active) 가시성 강화 */
+  .dark .daterangepicker td.active,
+  .dark .daterangepicker td.active:hover {
+    background-color: #3182f6 !important; /* TDS Primary Blue */
+    color: #ffffff !important;
+    @apply shadow-[0_0_0_2px_rgba(49,130,246,0.5)] z-10 !important; /* 외곽 글로우 효과 */
+  }
+
+  /* 오늘 날짜가 active일 때 중복 스타일 제거 */
+  .dark .daterangepicker td.today.active {
+    @apply bg-primary !important;
+  }
+
+  /* [7] 오늘(Today) 날짜 강조: 선택되지 않았을 때도 Primary 컬러 유지 */
+  .daterangepicker td.today,
+  .dark .daterangepicker td.today {
+    @apply text-primary font-extrabold !important;
+    position: relative;
+  }
+
+  /* [TDS] Numeric Spinner - 캡슐형 배경 및 입체 숫자 박스 */
+  .numeric-spinner {
+    /* [사진 1] 처럼 전체적으로 아주 연한 회색 캡슐 배경 */
+    @apply inline-flex items-center p-1 bg-slate-100/80 dark:bg-slate-900/80 rounded-2xl transition-all;
+  }
+
+  /* 스피너 내부 버튼 (배경 없이 아이콘만 강조) */
+  .spinner-btn {
+    @apply flex items-center justify-center w-10 h-10 text-slate-400 dark:text-slate-500 
+         hover:text-primary transition-transform duration-100 ease-out disabled:opacity-20;
+    border: none !important;
+    background: transparent !important;
+    /* 모바일에서 터치 시 회색 박스 생기는 것 방지 */
+    -webkit-tap-highlight-color: transparent;
+  }
+  .spinner-btn:active {
+    transform: scale(0.85);
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  /* [핵심] 가운데 숫자 필드: 하얀색 둥근 박스로 입체감 부여 */
+  .spinner-value-box {
+    @apply flex items-center justify-center w-12 h-10 bg-white dark:bg-slate-700 
+         rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.05)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3)];
+    border: none !important;
+  }
+
+  /* 숫자 입력창 스타일 */
+  .spinner-input {
+    @apply w-full h-full text-center font-black text-[17px] text-slate-900 dark:text-white bg-transparent focus:outline-none;
+    border: none !important;
+    box-shadow: none !important;
+    -moz-appearance: textfield;
+  }
+
+  /* 스피너 전용 화살표 제거 */
+  .spinner-input::-webkit-inner-spin-button,
+  .spinner-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+  /* [추가] 제한 정책 위반 행 스타일 */
+  tr.limit-violation {
+    @apply bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 transition-colors duration-300 !important;
+  }
+  /* 위반 행 내부 텍스트 색상 강조 (선택 사항) */
+  tr.limit-violation td,
+  tr.limit-violation span {
+    @apply text-rose-700 dark:text-rose-300 !important;
+  }
+  /* 위반 행 내부 버튼도 붉은 계열로 변경 */
+  tr.limit-violation .spinner-btn {
+    @apply text-rose-400 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-200 !important;
   }
 }
