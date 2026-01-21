@@ -20,10 +20,10 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/f
 import { showToast, openCaptchaModal, openConfirm } from "./components/comp.js";
 
 let ADMIN_STS = sessionStorage.getItem("admin_sts") || "";
-let __adminSessionPromise = null; // 동시 실행 가드
-let __stsRenewTimer = null; // 갱신 타이머 핸들
+let __adminSessionPromise = null;
+let __stsRenewTimer = null;
 
-// === STS(body) exp 파싱 & 갱신 스케줄 ===
+// === STS 로직 (기존 유지) ===
 function b64urlDecode(s) {
   try {
     s = String(s).replace(/-/g, "+").replace(/_/g, "/");
@@ -47,14 +47,13 @@ function parseStsExp(token) {
 function isStsValid(tok, safetyMs = 60_000) {
   const exp = parseStsExp(tok);
   if (!exp) return false;
-  return exp * 1000 - Date.now() > safetyMs; // 만료까지 safetyMs 이상 남았는가?
+  return exp * 1000 - Date.now() > safetyMs;
 }
 
-// === 공통 fetch 래퍼: STS 주입 + 만료/부족 시 강제 갱신 + 1회 자동 재시도 ===
+// === Fetch Wrapper (기존 유지) ===
 async function adminFetch(path, init = {}, retry = true) {
   const user = auth.currentUser;
   if (!user) throw new Error("not-authenticated");
-  // 호출 직전 STS 유효성 확인(30초 미만 남았으면 강제 갱신)
   if (!isStsValid(ADMIN_STS, 30_000)) {
     await ensureAdminSession(true);
   } else {
@@ -72,7 +71,6 @@ async function adminFetch(path, init = {}, retry = true) {
       const j = await res.json();
       msg = j?.message || "";
     } catch {}
-    // STS 없음/만료 응답이면 1회 강제 갱신 후 재시도
     if (
       retry &&
       (res.status === 400 || res.status === 403) &&
@@ -95,8 +93,8 @@ function scheduleStsRenewal() {
   }
   const exp = parseStsExp(ADMIN_STS);
   if (!exp) return;
-  const msUntilPrompt = exp * 1000 - Date.now() - 60_000; // 만료 1분 전
-  const wait = Math.max(0, Math.min(msUntilPrompt, 14 * 60_000)); // 안전 클램프
+  const msUntilPrompt = exp * 1000 - Date.now() - 60_000;
+  const wait = Math.max(0, Math.min(msUntilPrompt, 14 * 60_000));
   __stsRenewTimer = setTimeout(async () => {
     const remain = Math.max(0, exp * 1000 - Date.now());
     const mins = Math.floor(remain / 60000),
@@ -110,14 +108,14 @@ function scheduleStsRenewal() {
     });
     if (!ok) return;
     try {
-      await ensureAdminSession(true); // 강제 갱신
+      await ensureAdminSession(true);
       showToast("관리자 인증이 갱신되었습니다.");
     } catch {
       showToast("갱신 실패. 만료 후 다시 인증해 주세요.", true);
     }
   }, wait);
 }
-if (ADMIN_STS) scheduleStsRenewal(); // 새로고침/재방문 시 바로 스케줄
+if (ADMIN_STS) scheduleStsRenewal();
 
 const API_BASE =
   location.hostname === "localhost" || location.hostname === "127.0.0.1"
@@ -141,11 +139,14 @@ const els = {
   btnEnable: document.getElementById("btn-enable"),
   btnReset: document.getElementById("btn-reset"),
   btnExport: document.getElementById("btn-export-xlsx"),
+
   // logs
   logUid: document.getElementById("log-uid"),
   logAction: document.getElementById("log-action"),
   btnLogs: document.getElementById("btn-logs"),
   logsTbody: document.getElementById("logs-tbody"),
+
+  // counters
   cRoles: document.getElementById("c-roles"),
   cDisable: document.getElementById("c-disable"),
   cReset: document.getElementById("c-reset"),
@@ -154,30 +155,33 @@ const els = {
   c7Disable: document.getElementById("c7-disable"),
   c7Reset: document.getElementById("c7-reset"),
   c7Delete: document.getElementById("c7-delete"),
+
   // tabs
-  tabUsersBtn: document.querySelector('.tabbar .tab[data-tab="users"]'),
-  tabAprBtn: document.querySelector('.tabbar .tab[data-tab="approvals"]'),
+  tabUsersBtn: document.querySelector('.tab-item[data-tab="users"]'),
+  tabAprBtn: document.querySelector('.tab-item[data-tab="approvals"]'),
   tabUsersWrap: document.getElementById("tab-users"),
   aprCard: document.getElementById("approvals-card"),
+
   // approvals
   aprRefresh: document.getElementById("apr-refresh"),
   aprApprove: document.getElementById("apr-approve"),
   aprReject: document.getElementById("apr-reject"),
   aprAll: document.getElementById("apr-all"),
   aprTbody: document.getElementById("approvals-tbody"),
+
   // customer logs
   cLogsRefresh: document.getElementById("clogs-refresh"),
-  cLogsTbody: document.getElementById("clogs-tbody"),
+  cLogsTbody: document.getElementById("c-logs-tbody"),
 };
 
 let nextPageToken = null;
 let latestQuery = "";
 let latestFilters = { role: "", provider: "", sort: "lastSignInTime:desc" };
-let currentUsers = []; // 현재 화면 데이터(엑셀/선택용)
-let approvals = []; // 승인 요청 목록
-let cLogs = []; // 고객 로그 목록(30일)
+let currentUsers = [];
+let approvals = [];
+let cLogs = [];
 
-// ===== 로그 유틸 =====
+// [Utility] Log & XLSX functions (기존 로직 유지)
 async function logEvent(type, data = {}) {
   try {
     await addDoc(collection(db, "customerLogs"), {
@@ -197,7 +201,7 @@ async function pruneOldCustomerLogs() {
       collection(db, "customerLogs"),
       where("createdAt", "<", Timestamp.fromDate(cutoff)),
       orderBy("createdAt", "asc"),
-      limit(300)
+      limit(300),
     );
     const snap = await getDocs(q);
     if (snap.empty) return;
@@ -209,7 +213,6 @@ async function pruneOldCustomerLogs() {
   }
 }
 
-// ===== XLSX 백업 유틸 =====
 function ymd(d) {
   const y = d.getFullYear(),
     m = String(d.getMonth() + 1).padStart(2, "0"),
@@ -225,7 +228,7 @@ async function exportProvisionsXlsx(db, fromDate, toDate) {
       where("timestamp", ">=", Timestamp.fromDate(fromDate)),
       where("timestamp", "<", Timestamp.fromDate(toDate)),
       orderBy("timestamp", "asc"),
-      limit(500)
+      limit(500),
     );
     if (last) qy = query(qy, startAfter(last));
     const snap = await getDocs(qy);
@@ -236,9 +239,7 @@ async function exportProvisionsXlsx(db, fromDate, toDate) {
       rows.push({
         id: d.id,
         date: ts
-          ? `${ymd(ts)} ${String(ts.getHours()).padStart(2, "0")}:${String(
-              ts.getMinutes()
-            ).padStart(2, "0")}`
+          ? `${ymd(ts)} ${String(ts.getHours()).padStart(2, "0")}:${String(ts.getMinutes()).padStart(2, "0")}`
           : "",
         customerId: v.customerId || "",
         customerName: v.customerName || "",
@@ -271,7 +272,7 @@ async function exportVisitsXlsx(db, fromDate, toDate) {
       where("day", ">=", toDay(fromDate)),
       where("day", "<", toDay(toDate)),
       orderBy("day", "asc"),
-      limit(1000)
+      limit(1000),
     );
     if (last) qy = query(qy, startAfter(last));
     const snap = await getDocs(qy);
@@ -296,13 +297,10 @@ async function exportVisitsXlsx(db, fromDate, toDate) {
 
 function fiscalDefaultRange() {
   const now = new Date();
-  // 전년도 3/1 ~ 당해 3/1
   const from = new Date(now.getFullYear() - 1, 2, 1);
   const to = new Date(now.getFullYear(), 2, 1);
   return { from, to };
 }
-
-// "YYYY.MM.DD" → Date 파서
 function parseYmdDots(s) {
   const t = String(s || "").trim();
   if (!t) return new Date("invalid");
@@ -314,9 +312,8 @@ function fmtDot(d) {
     : d.toISOString().slice(0, 10).replace(/-/g, ".");
 }
 
-// (9) 가상 스크롤(200행↑에서만 가동)
 const VIRTUAL_THRESHOLD = 200;
-let rowHeight = 44;
+let rowHeight = 60; // TDS 테이블 행 높이에 맞춰 조정
 let firstIndex = 0,
   visibleCount = 60;
 
@@ -328,28 +325,21 @@ function fmtTime(s) {
     return s;
   }
 }
-
-// Firestore Timestamp(JSON 직렬화 포함) → 로컬 문자열
 function fmtServerTimestamp(ts) {
   if (!ts) return "";
   try {
-    // Admin SDK Timestamp 객체 그대로 올 때
-    if (typeof ts.toDate === "function") {
+    if (typeof ts.toDate === "function")
       return ts.toDate().toLocaleString("ko-KR");
-    }
-    // JSON 직렬화된 형태({_seconds,_nanoseconds} 또는 {seconds,nanoseconds})
     const sec = ts._seconds ?? ts.seconds;
     const ns = ts._nanoseconds ?? ts.nanoseconds ?? 0;
     if (typeof sec === "number")
       return new Date(sec * 1000 + Math.floor(ns / 1e6)).toLocaleString(
-        "ko-KR"
+        "ko-KR",
       );
     if (typeof ts === "string") return new Date(ts).toLocaleString("ko-KR");
   } catch {}
   return "";
 }
-
-// 고객 문서 id 규칙(이름+생일)
 function slugId(name, birth) {
   const n = String(name || "").replace(/\s+/g, "");
   const b = String(birth || "").replace(/\D/g, "");
@@ -361,7 +351,7 @@ function roleOptions(selected) {
   return ro
     .map(
       (r) =>
-        `<option value="${r}" ${r === selected ? "selected" : ""}>${r}</option>`
+        `<option value="${r}" ${r === selected ? "selected" : ""}>${r}</option>`,
     )
     .join("");
 }
@@ -370,11 +360,9 @@ function renderRows(users) {
   if (!Array.isArray(users)) users = [];
   if (!users.length) {
     if (!els.tbody.children.length)
-      els.tbody.innerHTML = `<tr><td colspan="8">결과가 없습니다.</td></tr>`;
+      els.tbody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-slate-400">결과가 없습니다.</td></tr>`;
     return;
   }
-  if (!users?.length) return;
-
   if (currentUsers.length > VIRTUAL_THRESHOLD) {
     els.tbody.innerHTML = `
       <tr class="vspacer"><td colspan="8"><div class="pad" id="pad-top"></div></td></tr>
@@ -386,31 +374,57 @@ function renderRows(users) {
     users.forEach((u) => frag.appendChild(renderRow(u)));
     els.tbody.innerHTML = "";
     els.tbody.appendChild(frag);
-    // 행 높이 실측
     const one = els.tbody.querySelector("tr:not(.vspacer)");
-    if (one) rowHeight = Math.max(40, one.offsetHeight || rowHeight);
+    if (one) rowHeight = Math.max(50, one.offsetHeight || rowHeight);
     updateSelectionUI();
   }
 }
 
 function renderRow(u) {
   const tr = document.createElement("tr");
-  if (u.disabled) tr.classList.add("is-disabled");
+  if (u.disabled)
+    tr.classList.add("is-disabled", "bg-slate-50", "dark:bg-slate-900/50");
+
+  // 상태 뱃지 로직
+  let statusBadge = "";
+  if (u.disabled)
+    statusBadge = `<span class="badge badge-sm badge-fill-grey">비활성</span>`;
+  else if (u.role === "admin")
+    statusBadge = `<span class="badge badge-sm badge-weak-primary">관리자</span>`;
+  else if (u.role === "manager")
+    statusBadge = `<span class="badge badge-sm badge-weak-success">매니저</span>`;
+  else statusBadge = `<span class="badge badge-sm badge-weak-grey">일반</span>`;
+
+  // 이상 징후 버튼
+  const checkBadge = `<span class="badge badge-xs badge-weak-grey cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" data-anom="${u.uid}">확인</span>`;
+
   tr.innerHTML = `
-    <td><input type="checkbox" class="row-chk" data-uid="${u.uid}"></td>
-    <td>${u.email || "-"}</td>
-    <td>${u.displayName || "-"}</td>
-    <td><select class="input role-select" data-uid="${u.uid}" ${
-    u.disabled ? "disabled" : ""
-  }>${roleOptions(u.role)}</select></td>
-    <td>${fmtTime(u.lastSignInTime)}</td>
-    <td>${(u.providers || []).join(", ") || "-"}</td>
-    <td><span class="badge small muted" data-anom="${u.uid}">확인</span></td>
+    <td class="text-center">
+      <div class="flex items-center justify-center">
+        <input type="checkbox" class="input-toss row-chk" data-uid="${u.uid}">
+      </div>
+    </td>
+    <td class="font-medium text-slate-900 dark:text-slate-100">${u.email || "-"}</td>
+    <td class="text-slate-600 dark:text-slate-400">${u.displayName || "-"}</td>
     <td>
-      <button class="btn btn-ghost btn-apply" data-uid="${u.uid}" ${
-    u.disabled ? "disabled" : ""
-  }>적용</button>
-      <button class="btn btn-warn btn-delete" data-uid="${u.uid}">삭제</button>
+      <div class="field-box !h-8 w-28 bg-transparent border border-slate-200 dark:border-slate-700">
+        <select class="field-input role-select text-sm py-0" data-uid="${u.uid}" ${u.disabled ? "disabled" : ""}>
+          ${roleOptions(u.role)}
+        </select>
+      </div>
+    </td>
+    <td class="text-xs text-slate-500">${fmtTime(u.lastSignInTime)}</td>
+    <td class="text-xs text-slate-500">${(u.providers || []).join(", ") || "-"}</td>
+    <td class="text-center">${checkBadge}</td>
+    <td class="text-center">
+      <div class="flex items-center justify-center gap-1">
+        <button class="btn btn-ghost w-8 h-8 p-0 rounded-lg btn-apply text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20" data-uid="${u.uid}" ${u.disabled ? "disabled" : ""} title="역할 저장">
+          <i class="fas fa-check"></i>
+        </button>
+        <button class="btn btn-ghost w-8 h-8 p-0 rounded-lg btn-delete text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20" data-uid="${u.uid}" title="삭제">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
     </td>`;
   return tr;
 }
@@ -427,14 +441,8 @@ function mountVirtualWindow() {
     firstIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 10);
     visibleCount = Math.min(80, Math.ceil(viewport / rowHeight) + 20);
     const lastIndex = Math.min(currentUsers.length, firstIndex + visibleCount);
-    // 패딩
     padTop.style.height = `${firstIndex * rowHeight}px`;
-    padBot.style.height = `${Math.max(
-      0,
-      (currentUsers.length - lastIndex) * rowHeight
-    )}px`;
-    // 윈도우 교체
-    // anchor 다음에 있는 실제 행들 제거
+    padBot.style.height = `${Math.max(0, (currentUsers.length - lastIndex) * rowHeight)}px`;
     let n = anchor.nextElementSibling;
     while (n && !n.classList.contains("vspacer")) {
       const x = n;
@@ -454,7 +462,6 @@ function mountVirtualWindow() {
 async function fetchUsers(q = "", append = false) {
   const user = auth.currentUser;
   if (!user) return;
-
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (nextPageToken && append) params.set("next", nextPageToken);
@@ -471,18 +478,16 @@ async function fetchUsers(q = "", append = false) {
   if (append) currentUsers = currentUsers.concat(users);
   else currentUsers = users.slice();
   renderRows(users);
-  els.btnMore.style.display = nextPageToken ? "inline-block" : "none";
+  if (els.btnMore)
+    els.btnMore.style.display = nextPageToken ? "inline-flex" : "none";
 }
 
 async function applyRole(uid, role) {
   const user = auth.currentUser;
   if (!user) return;
-
   const res = await adminFetch(`/api/admin/setRole`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ uid, role }),
   });
   const data = await res.json();
@@ -493,40 +498,34 @@ async function applyRole(uid, role) {
 async function applyRoleBulk(role) {
   if (!role) return showToast("역할을 선택하세요.", true);
   const checked = [...document.querySelectorAll(".row-chk:checked")].map((c) =>
-    c.getAttribute("data-uid")
+    c.getAttribute("data-uid"),
   );
   if (!checked.length) return showToast("선택된 사용자가 없습니다.", true);
   const res = await adminFetch(`/api/admin/setRoleBulk`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ items: checked.map((uid) => ({ uid, role })) }),
   });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data?.message || "일괄 적용 실패");
   showToast(
-    `역할 일괄 적용 완료(성공 ${data.success} / 실패 ${data.fail.length})`
+    `역할 일괄 적용 완료(성공 ${data.success} / 실패 ${data.fail.length})`,
   );
 }
 
 async function disableEnable(uidList, disabled) {
   if (!uidList.length) return showToast("선택된 사용자가 없습니다.", true);
-
   for (const uid of uidList) {
     const res = await adminFetch(`/api/admin/disableUser`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ uid, disabled }),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) return showToast("일부 처리 실패", true);
   }
-  // 화면 반영 (회색 처리/컨트롤 비활성)
   currentUsers = currentUsers.map((u) =>
-    uidList.includes(u.uid) ? { ...u, disabled } : u
+    uidList.includes(u.uid) ? { ...u, disabled } : u,
   );
   renderRows(currentUsers);
   showToast(disabled ? "비활성화 완료" : "활성화 완료");
@@ -534,14 +533,11 @@ async function disableEnable(uidList, disabled) {
 
 async function forceReset(uidList) {
   if (!uidList.length) return showToast("선택된 사용자가 없습니다.", true);
-
   const links = [];
   for (const uid of uidList) {
     const res = await adminFetch(`/api/admin/forcePasswordReset`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ uid, revokeAll: true }),
     });
     const data = await res.json();
@@ -578,17 +574,13 @@ function exportXLSX() {
   XLSX.writeFile(wb, `users_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-// (4) per-user 전원 로그아웃
 async function revokeSelected() {
   const targets = getSelectedUids();
   if (!targets.length) return showToast("선택된 사용자가 없습니다.", true);
-
   for (const uid of targets) {
     const res = await adminFetch(`/api/admin/revokeTokens`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ uid }),
     });
     if (!res.ok) return showToast("일부 실패", true);
@@ -596,9 +588,7 @@ async function revokeSelected() {
   showToast("전원 로그아웃 완료");
 }
 
-// (6) 요약 위젯
 async function loadCounters() {
-  const user = auth.currentUser;
   try {
     const r = await adminFetch(`/api/admin/counters?range=both`);
     if (!r.ok) throw new Error("counters-failed");
@@ -631,7 +621,7 @@ async function loadCounters() {
 
 function getSelectedUids() {
   return [...document.querySelectorAll(".row-chk:checked")].map((c) =>
-    c.getAttribute("data-uid")
+    c.getAttribute("data-uid"),
   );
 }
 function updateSelectionUI() {
@@ -643,34 +633,25 @@ function updateSelectionUI() {
     els.chkAll.indeterminate =
       boxes.some((b) => b.checked) && !els.chkAll.checked;
   }
-  // 행 하이라이트 토글
   boxes.forEach((b) => {
     const tr = b.closest("tr");
-    if (tr) tr.classList.toggle("selected", b.checked);
+    if (tr) tr.classList.toggle("bg-blue-50/50", b.checked);
   });
 }
 
-// ✅ 체크박스 상태 변화에 반응해서 즉시 하이라이트/카운트 갱신
 els.tbody?.addEventListener("change", (e) => {
   const box = e.target;
-  if (box && box.classList?.contains("row-chk")) {
-    updateSelectionUI();
-  }
+  if (box && box.classList?.contains("row-chk")) updateSelectionUI();
 });
 
-// (참고) click 핸들러에서도 row-chk를 잡고 있지만,
-// 키보드 조작/라벨 클릭 등 change 이벤트 케이스까지 커버하기 위해 추가합니다.
-
 async function fetchLogs() {
-  // ✅ 쿼리스트링 구성
   const params = new URLSearchParams();
   const uid = (els.logUid?.value || "").trim();
   const action = (els.logAction?.value || "").trim();
-  if (uid) params.set("uid", uid); // 특정 UID 필터 (선택)
-  if (action) params.set("action", action); // 액션 필터 (선택)
-  params.set("limit", "50"); // 기본 50건 (서버 최대 100)
+  if (uid) params.set("uid", uid);
+  if (action) params.set("action", action);
+  params.set("limit", "50");
 
-  // 요청
   const res = await adminFetch(`/api/admin/logs?` + params.toString());
   const data = await res.json();
   if (!res.ok || !data.ok) return showToast("로그 조회 실패", true);
@@ -679,22 +660,18 @@ async function fetchLogs() {
   const frag = document.createDocumentFragment();
 
   if (!logs.length) {
-    els.logsTbody.innerHTML = `<tr><td colspan="5">결과 없음</td></tr>`;
+    els.logsTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400">결과 없음</td></tr>`;
     return;
   }
 
   for (const l of logs) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${fmtServerTimestamp(l.createdAt)}</td>
-      <td>${l.actorEmail || l.actorUid || "-"}</td>
-      <td>${l.action}</td>
-      <td>${
-        l.targetUid ||
-        (Array.isArray(l.targets) ? l.targets.join(", ") : "") ||
-        "-"
-      }</td>
-      <td>${l.status || "-"}</td>`;
+      <td class="text-sm text-slate-500">${fmtServerTimestamp(l.createdAt)}</td>
+      <td class="font-medium text-slate-800 dark:text-slate-200">${l.actorEmail || l.actorUid || "-"}</td>
+      <td><span class="badge badge-sm badge-weak-primary">${l.action}</span></td>
+      <td class="text-sm text-slate-600">${l.targetUid || (Array.isArray(l.targets) ? l.targets.join(", ") : "") || "-"}</td>
+      <td class="text-sm text-slate-500">${l.status || "-"}</td>`;
     frag.appendChild(tr);
   }
   els.logsTbody.innerHTML = "";
@@ -710,24 +687,22 @@ els.btnSearch?.addEventListener("click", () => {
     sort: els.fSort?.value || "lastSignInTime:desc",
   };
   fetchUsers(latestQuery, false).catch((e) =>
-    showToast(e.message || String(e), true)
+    showToast(e.message || String(e), true),
   );
 });
 els.btnMore?.addEventListener("click", () => {
   fetchUsers(latestQuery, true).catch((e) =>
-    showToast(e.message || String(e), true)
+    showToast(e.message || String(e), true),
   );
 });
 
 els.tbody?.addEventListener("click", async (e) => {
-  // 역할 적용 버튼
   const btn = e.target.closest(".btn-apply");
   if (!btn) return;
   const uid = btn.getAttribute("data-uid");
   const select = btn.closest("tr").querySelector(".role-select");
   const role = select?.value;
   if (!uid || !role) return;
-  // self-demote 방지(선택): 본인 UID이면 admin->user로 내리는 것을 한번 더 확인
   if (auth.currentUser?.uid === uid && role !== "admin") {
     const ok = await openConfirm({
       title: "권한 변경 확인",
@@ -736,14 +711,12 @@ els.tbody?.addEventListener("click", async (e) => {
       variant: "warn",
       confirmText: "적용",
       cancelText: "취소",
-      defaultFocus: "cancel",
     });
     if (!ok) return;
   }
   applyRole(uid, role).catch((e) => showToast(e.message || String(e), true));
 });
 
-// 삭제 버튼
 els.tbody?.addEventListener("click", async (e) => {
   const del = e.target.closest(".btn-delete");
   if (!del) return;
@@ -764,7 +737,6 @@ els.tbody?.addEventListener("click", async (e) => {
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data?.message || "삭제 실패");
-    // UI 제거 & 상태 갱신
     currentUsers = currentUsers.filter((u) => u.uid !== uid);
     els.tbody
       .querySelector(`button[data-uid="${uid}"]`)
@@ -777,61 +749,54 @@ els.tbody?.addEventListener("click", async (e) => {
   }
 });
 
-// 이상 징후 뱃지 클릭 → on-demand 조회
 els.tbody?.addEventListener("click", async (e) => {
   const badge = e.target.closest("[data-anom]");
   if (!badge) return;
   const uid = badge.getAttribute("data-anom");
   try {
     const res = await adminFetch(
-      `/api/admin/checkAnomalies?uid=${encodeURIComponent(uid)}&limit=10`
+      `/api/admin/checkAnomalies?uid=${encodeURIComponent(uid)}&limit=10`,
     );
     const data = await res.json();
     if (res.ok && data.ok) {
-      const text = `국가변화: ${
-        data.countryChanged ? "있음" : "없음"
-      } / 새 디바이스: ${data.newDevices || 0}`;
+      const text = `국가변화: ${data.countryChanged ? "있음" : "없음"} / 새 디바이스: ${data.newDevices || 0}`;
       badge.textContent = text;
-      badge.classList.add(
+      badge.className =
         data.countryChanged || (data.newDevices || 0) > 0
-          ? "badge-alert"
-          : "badge-ok"
-      );
+          ? "badge badge-xs badge-fill-danger"
+          : "badge badge-xs badge-fill-success";
     } else showToast("조회 실패", true);
   } catch (err) {
     showToast("조회 실패", true);
   }
 });
 
-// 헤더 전체선택
 els.chkAll?.addEventListener("change", () => {
   const on = els.chkAll.checked;
   document.querySelectorAll(".row-chk").forEach((cb) => (cb.checked = on));
-  updateSelectionUI(); // 선택 상태에 따라 tr.selected 갱신
+  updateSelectionUI();
 });
 
-// 액션바 버튼들
 els.btnBulkRole?.addEventListener("click", () =>
-  applyRoleBulk(els.bulkRole?.value)
+  applyRoleBulk(els.bulkRole?.value),
 );
 els.btnDisable?.addEventListener("click", () =>
-  disableEnable(getSelectedUids(), true)
+  disableEnable(getSelectedUids(), true),
 );
 els.btnEnable?.addEventListener("click", () =>
-  disableEnable(getSelectedUids(), false)
+  disableEnable(getSelectedUids(), false),
 );
 els.btnReset?.addEventListener("click", () => forceReset(getSelectedUids()));
 els.btnExport?.addEventListener("click", exportXLSX);
 els.btnLogs?.addEventListener("click", () =>
-  fetchLogs().catch((e) => showToast("로그 조회 실패", true))
+  fetchLogs().catch((e) => showToast("로그 조회 실패", true)),
 );
 els.btnRevoke?.addEventListener("click", () =>
-  revokeSelected().catch(() => showToast("실패", true))
+  revokeSelected().catch(() => showToast("실패", true)),
 );
 
 onAuthStateChanged(auth, (user) => {
   if (!user) return;
-  // 첫 진입: STS 예열(유효하면 유지, 부족하면 갱신)
   (async () => {
     try {
       if (!isStsValid(ADMIN_STS, 60_000)) await ensureAdminSession(true);
@@ -839,10 +804,8 @@ onAuthStateChanged(auth, (user) => {
     } catch {}
     fetchUsers("", false).catch((e) => showToast(e.message || String(e), true));
     loadCounters().catch(() => {});
-    // 승인 탭 초기화
     bindTabs();
 
-    // ===== 연간 백업/정리 바인딩 =====
     const $from = document.getElementById("yr-start");
     const $to = document.getElementById("yr-end");
     const $btnDefault = document.getElementById("btn-annual-default");
@@ -850,7 +813,6 @@ onAuthStateChanged(auth, (user) => {
     const $btnVis = document.getElementById("btn-export-visits-year");
     const $confirm = document.getElementById("purge-confirm");
     const $purge = document.getElementById("btn-purge-run");
-    // daterangepicker 적용 (statistics와 동일 ranges)
     try {
       const today = window.moment ? moment() : null;
       if (window.$ && $.fn.daterangepicker && $from && $to) {
@@ -895,10 +857,6 @@ onAuthStateChanged(auth, (user) => {
                   today.clone().subtract(3, "months").startOf("day"),
                   today,
                 ],
-                "6개월": [
-                  today.clone().subtract(6, "months").startOf("day"),
-                  today,
-                ],
                 "1년": [
                   today.clone().subtract(1, "year").startOf("day"),
                   today,
@@ -915,12 +873,10 @@ onAuthStateChanged(auth, (user) => {
           function (ev, picker) {
             $from.value = picker.startDate.format("YYYY.MM.DD");
             $to.value = picker.endDate.format("YYYY.MM.DD");
-          }
+          },
         );
       }
-    } catch (e) {
-      /* optional */
-    }
+    } catch (e) {}
 
     const setDefaults = () => {
       const { from, to } = fiscalDefaultRange();
@@ -976,29 +932,18 @@ onAuthStateChanged(auth, (user) => {
             .join("&");
         const from = $from.value,
           to = $to.value;
-        // provisions → visits 순서로 삭제
         const r1 = await adminFetch(
-          `/admin/purge?${qs({
-            collection: "provisions",
-            from,
-            to,
-            confirm: "true",
-          })}`,
-          { method: "POST" }
+          `/admin/purge?${qs({ collection: "provisions", from, to, confirm: "true" })}`,
+          { method: "POST" },
         );
         const j1 = await r1.json();
         const r2 = await adminFetch(
-          `/admin/purge?${qs({
-            collection: "visits",
-            from,
-            to,
-            confirm: "true",
-          })}`,
-          { method: "POST" }
+          `/admin/purge?${qs({ collection: "visits", from, to, confirm: "true" })}`,
+          { method: "POST" },
         );
         const j2 = await r2.json();
         showToast(
-          `삭제 완료: 제공 ${j1.deleted || 0}건, 방문 ${j2.deleted || 0}건`
+          `삭제 완료: 제공 ${j1.deleted || 0}건, 방문 ${j2.deleted || 0}건`,
         );
       } catch (e) {
         showToast("삭제 실패: " + (e.message || String(e)), true);
@@ -1007,25 +952,20 @@ onAuthStateChanged(auth, (user) => {
   })();
 });
 
-/* =======================
-+   승인 요청 탭
-+   ======================= */
 function bindTabs() {
   if (!els.tabUsersBtn || !els.tabAprBtn) return;
   const act = (which) => {
     const u = which === "users";
-    els.tabUsersBtn.classList.toggle("active", u);
-    els.tabAprBtn.classList.toggle("active", !u);
+    els.tabUsersBtn.classList.toggle("is-active", u);
+    els.tabAprBtn.classList.toggle("is-active", !u);
     if (els.tabUsersWrap) els.tabUsersWrap.hidden = !u;
     if (els.aprCard) els.aprCard.hidden = u;
     if (!u) loadApprovals.catch(() => {});
   };
   els.tabUsersBtn.addEventListener("click", () => act("users"));
   els.tabAprBtn.addEventListener("click", () => act("approvals"));
-  // 기본은 users 탭
   act("users");
 
-  // 승인 테이블 버튼들
   els.aprRefresh?.addEventListener("click", () => loadApprovals());
   els.aprApprove?.addEventListener("click", () => bulkApprove());
   els.aprReject?.addEventListener("click", () => bulkReject());
@@ -1040,11 +980,11 @@ function bindTabs() {
     const btnR = e.target.closest("[data-reject]");
     if (btnA)
       approveOne(btnA.getAttribute("data-approve")).catch((err) =>
-        showToast(err.message || String(err), true)
+        showToast(err.message || String(err), true),
       );
     if (btnR)
       rejectOne(btnR.getAttribute("data-reject")).catch((err) =>
-        showToast(err.message || String(err), true)
+        showToast(err.message || String(err), true),
       );
   });
   els.cLogsRefresh?.addEventListener("click", () => {
@@ -1059,15 +999,15 @@ async function loadApprovals() {
     query(
       collection(db, "approvals"),
       orderBy("requestedAt", "desc"),
-      limit(100)
-    )
+      limit(100),
+    ),
   );
   approvals = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   renderApprovals();
 }
 function renderApprovals() {
   if (!approvals.length) {
-    els.aprTbody.innerHTML = `<tr><td colspan="7">대기중인 요청이 없습니다.</td></tr>`;
+    els.aprTbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-slate-400">대기중인 요청이 없습니다.</td></tr>`;
     return;
   }
   const frag = document.createDocumentFragment();
@@ -1076,19 +1016,21 @@ function renderApprovals() {
     const target = a.targetId
       ? a.targetId
       : a.payload
-      ? `${a.payload.name || ""}/${a.payload.birth || ""}`
-      : "-";
+        ? `${a.payload.name || ""}/${a.payload.birth || ""}`
+        : "-";
     const summary = summarizeApproval(a);
     tr.innerHTML = `
-      <td><input type="checkbox" class="apr-chk" data-id="${a.id}"></td>
-      <td>${fmtServerTimestamp(a.requestedAt) || "-"}</td>
-      <td>${a.requestedBy || "-"}</td>
-      <td>${a.type || "-"}</td>
-      <td>${target}</td>
-      <td>${summary}</td>
-      <td class="row-actions">
-        <button class="btn btn-ghost" data-approve="${a.id}">승인</button>
-        <button class="btn btn-ghost" data-reject="${a.id}">거부</button>
+      <td class="text-center"><div class="flex items-center justify-center"><input type="checkbox" class="input-toss apr-chk" data-id="${a.id}"></div></td>
+      <td class="text-sm text-slate-500">${fmtServerTimestamp(a.requestedAt) || "-"}</td>
+      <td class="font-medium text-slate-900 dark:text-slate-100">${a.requestedBy || "-"}</td>
+      <td><span class="badge badge-sm badge-weak-primary">${a.type || "-"}</span></td>
+      <td class="text-sm text-slate-600">${target}</td>
+      <td class="text-sm text-slate-700 dark:text-slate-300">${summary}</td>
+      <td class="text-center">
+        <div class="flex items-center justify-center gap-1">
+          <button class="btn btn-primary-weak btn-sm" data-approve="${a.id}">승인</button>
+          <button class="btn btn-danger-weak btn-sm" data-reject="${a.id}">거부</button>
+        </div>
       </td>`;
     frag.appendChild(tr);
   }
@@ -1106,20 +1048,15 @@ function summarizeApproval(a) {
         .slice(0, 5)
         .map((k) => `${k}→${a.changes[k]}`)
         .join(", ");
-      return `수정: ${ch}${
-        Object.keys(a.changes || {}).length > 5 ? " …" : ""
-      }`;
+      return `수정: ${ch}${Object.keys(a.changes || {}).length > 5 ? " …" : ""}`;
     }
-    if (a.type === "customer_delete") {
-      return `삭제: ${a.targetId}`;
-    }
+    if (a.type === "customer_delete") return `삭제: ${a.targetId}`;
   } catch {}
   return "-";
 }
 async function approveOne(id) {
   const item = approvals.find((x) => x.id === id);
   if (!item) return;
-  // 고객 반영
   if (item.type === "customer_add") {
     const p = item.payload || {};
     const docId = item.targetId || slugId(p.name, p.birth);
@@ -1130,7 +1067,7 @@ async function approveOne(id) {
         updatedAt: Timestamp.now(),
         updatedBy: auth.currentUser?.email || "",
       },
-      { merge: true }
+      { merge: true },
     );
     await logEvent("approval_approve", {
       approvalType: "customer_add",
@@ -1157,10 +1094,7 @@ async function approveOne(id) {
       approvalType: "customer_delete",
       targetId: item.targetId,
     });
-  } else {
-    throw new Error("알 수 없는 유형");
-  }
-  // 요청 제거
+  } else throw new Error("알 수 없는 유형");
   await deleteDoc(doc(collection(db, "approvals"), id));
   showToast("승인되었습니다.");
   await loadApprovals();
@@ -1169,20 +1103,16 @@ async function rejectOne(id) {
   const item = approvals.find((x) => x.id === id);
   await deleteDoc(doc(collection(db, "approvals"), id));
   showToast("거부 처리되었습니다.");
-  if (item) {
+  if (item)
     await logEvent("approval_reject", {
       approvalType: item.type,
       targetId: item.targetId || null,
       name: item?.payload?.name,
       birth: item?.payload?.birth,
     });
-  }
   await loadApprovals();
 }
 
-/* =======================
-   승인 탭: 고객 활동 로그 (30일)
-   ======================= */
 async function loadCustomerLogs() {
   if (!els.cLogsTbody) return;
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -1190,7 +1120,7 @@ async function loadCustomerLogs() {
     collection(db, "customerLogs"),
     where("createdAt", ">=", Timestamp.fromDate(cutoff)),
     orderBy("createdAt", "desc"),
-    limit(300)
+    limit(300),
   );
   const snap = await getDocs(qLogs);
   cLogs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -1198,7 +1128,7 @@ async function loadCustomerLogs() {
 }
 function renderCustomerLogs() {
   if (!cLogs.length) {
-    els.cLogsTbody.innerHTML = `<tr><td colspan="5">최근 30일 활동 로그가 없습니다.</td></tr>`;
+    els.cLogsTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400">최근 30일 활동 로그가 없습니다.</td></tr>`;
     return;
   }
   const rows = cLogs
@@ -1210,11 +1140,11 @@ function renderCustomerLogs() {
         l.targetId || (l.name && l.birth ? `${l.name}/${l.birth}` : "-");
       const detail = summarizeCustomerLog(l);
       return `<tr>
-      <td>${time}</td>
-      <td>${actor}</td>
-      <td>${type}</td>
-      <td>${target}</td>
-      <td>${detail}</td>
+      <td class="text-sm text-slate-500">${time}</td>
+      <td class="font-medium text-slate-800 dark:text-slate-200">${actor}</td>
+      <td><span class="badge badge-sm badge-weak-grey">${type}</span></td>
+      <td class="text-sm text-slate-600">${target}</td>
+      <td class="text-sm text-slate-500">${detail}</td>
     </tr>`;
     })
     .join("");
@@ -1254,18 +1184,11 @@ function summarizeCustomerLog(l) {
       if (s === "customer_update") return `승인: 수정`;
       if (s === "customer_delete") return `승인: 삭제`;
     }
-    if (l.type === "approval_reject") {
-      return `거부: ${safe(l.approvalType)}`;
-    }
-    if (l.type === "customer_add") {
-      return `직접 등록`;
-    }
-    if (l.type === "customer_update") {
+    if (l.type === "approval_reject") return `거부: ${safe(l.approvalType)}`;
+    if (l.type === "customer_add") return `직접 등록`;
+    if (l.type === "customer_update")
       return `직접 수정 · ${sliceObj(l.changes)}`;
-    }
-    if (l.type === "customer_delete") {
-      return `직접 삭제`;
-    }
+    if (l.type === "customer_delete") return `직접 삭제`;
   } catch (e) {}
   return "-";
 }
@@ -1297,10 +1220,9 @@ async function bulkReject() {
   for (const id of ids) await rejectOne(id);
 }
 
-// ===== STS 유틸: 관리자 세션(15분) + 갱신(강제) =====
 async function ensureAdminSession(force = false) {
   if (ADMIN_STS && !force) return;
-  if (__adminSessionPromise) return __adminSessionPromise; // 동시 호출 코얼레싱
+  if (__adminSessionPromise) return __adminSessionPromise;
   __adminSessionPromise = (async () => {
     const user = auth.currentUser;
     if (!user) throw new Error("no-user");
@@ -1322,7 +1244,7 @@ async function ensureAdminSession(force = false) {
     if (!res.ok || !data.ok || !data.sts) throw new Error("sts-issue-failed");
     ADMIN_STS = data.sts;
     sessionStorage.setItem("admin_sts", ADMIN_STS);
-    scheduleStsRenewal(); // 새 STS에 맞춰 타이머 재설정
+    scheduleStsRenewal();
   })().finally(() => {
     __adminSessionPromise = null;
   });

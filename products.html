@@ -44,9 +44,24 @@
     <div id="header-container"></div>
 
     <main class="main-layout">
+      <div class="flex justify-center mb-6">
+        <div class="tabs-segmented tabbar--products">
+          <button class="tab-item is-active" data-tab="list">
+            <i class="fas fa-boxes"></i>
+            <span>상품 관리</span>
+          </button>
+          <button class="tab-item" data-tab="policy">
+            <i class="fas fa-sliders"></i>
+            <span>구매 제한 설정</span>
+          </button>
+        </div>
+      </div>
+      <!-- 
       <div
         class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6"
-      >
+      ></div> -->
+
+      <section id="tab-products" class="space-y-6 animate-fade-in">
         <div>
           <h2
             class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight"
@@ -57,27 +72,8 @@
             판매할 물품을 등록하고 관리합니다.
           </p>
         </div>
-      </div>
 
-      <div class="flex justify-center mb-6">
-        <div class="tabs-segmented tabbar--products">
-          <button class="tab-item is-active" data-tab="list">
-            <i class="fas fa-boxes"></i>
-            <span>상품 목록</span>
-          </button>
-          <button class="tab-item" data-tab="policy">
-            <i class="fas fa-sliders"></i>
-            <span>제한 설정</span>
-          </button>
-        </div>
-      </div>
-
-      <section id="tab-products" class="space-y-6 animate-fade-in">
         <div class="card">
-          <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-4">
-            상품 조회
-          </h3>
-
           <form
             id="search-form"
             class="flex flex-col lg:flex-row gap-4 items-end"
@@ -91,7 +87,7 @@
                     type="text"
                     id="product-name"
                     class="field-input"
-                    placeholder="상품명 입력"
+                    placeholder="검색어를 입력하세요"
                   />
                 </div>
               </div>
@@ -199,89 +195,77 @@
       </section>
 
       <section id="tab-policy" class="animate-fade-in space-y-6" hidden>
-        <div class="card p-6 min-h-[500px]">
-          <div
-            class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8"
+        <div>
+          <h2
+            class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight"
           >
-            <div>
-              <h3
-                class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2"
-              >
-                <div
-                  class="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center"
-                >
-                  <i class="fas fa-sliders-h text-sm"></i>
-                </div>
-                카테고리별 구매 제한
-              </h3>
-              <p class="text-slate-500 dark:text-slate-400 text-sm mt-1 ml-10">
-                특정 카테고리나 가격대별로 1인당 구매 가능 개수를 제한합니다.
-              </p>
-            </div>
+            구매 제한 설정
+          </h2>
+          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">
+            특정 분류나 가격대별로 1인당 구매 가능 개수를 설정합니다.
+          </p>
+        </div>
 
-            <div class="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-              <div
-                class="field-box !bg-slate-50 dark:!bg-slate-700/50 border-slate-200 dark:border-slate-600 w-full sm:w-64"
-              >
-                <div class="field-prefix text-slate-400">
-                  <i class="fas fa-search"></i>
-                </div>
-                <input
-                  type="text"
-                  id="policy-search"
-                  class="field-input bg-transparent"
-                  placeholder="카테고리 검색"
-                />
-              </div>
-
-              <div class="flex gap-2 justify-end">
-                <button
-                  type="button"
-                  id="category-sync-btn"
-                  class="btn btn-light-weak btn-md text-slate-500"
-                  title="미사용 분류 정리"
-                >
-                  <i class="fas fa-broom"></i>
-                </button>
-
-                <div
-                  class="w-px h-6 bg-slate-200 dark:bg-slate-700 my-auto mx-1"
-                ></div>
-
-                <button
-                  type="button"
-                  id="policy-cancel-btn"
-                  class="btn btn-light btn-md"
-                >
-                  <i class="fas fa-undo mr-1.5"></i>취소
-                </button>
-                <button
-                  type="button"
-                  id="policy-save-btn"
-                  class="btn btn-primary btn-md shadow-md shadow-indigo-500/20"
-                  disabled
-                >
-                  <i class="fas fa-save mr-1.5"></i>저장
-                </button>
-              </div>
+        <div class="card flex flex-col lg:flex-row gap-4 items-end">
+          <div class="field-group flex-1">
+            <label class="field-label" for="policy-search">카테고리 검색</label>
+            <div class="field-box">
+              <div class="field-prefix"><i class="fas fa-search"></i></div>
+              <input
+                type="text"
+                id="policy-search"
+                class="field-input bg-transparent"
+                placeholder="카테고리 검색"
+              />
             </div>
           </div>
 
-          <div id="policy-table"></div>
+          <div class="flex gap-2 w-full lg:w-auto mt-2 lg:mt-0">
+            <button
+              type="button"
+              id="category-sync-btn"
+              class="btn btn-light-weak btn-md text-slate-500"
+              title="미사용 분류 정리"
+            >
+              <i class="fas fa-broom"></i>
+            </button>
 
-          <div
-            class="mt-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 flex items-start gap-2"
-          >
-            <i class="fas fa-info-circle text-blue-500 mt-0.5"></i>
-            <div>
-              <p class="font-bold text-slate-700 dark:text-slate-300 mb-1">
-                정책 적용 안내
-              </p>
-              <span
-                >'분류당' 제한은 해당 카테고리 내 상품들의 합계 수량을, '가격당'
-                제한은 해당 가격의 상품 개수를 기준으로 적용됩니다.</span
-              >
-            </div>
+            <div
+              class="w-px h-6 bg-slate-200 dark:bg-slate-700 my-auto mx-1"
+            ></div>
+
+            <button
+              type="button"
+              id="policy-cancel-btn"
+              class="btn btn-light btn-md"
+            >
+              <i class="fas fa-undo mr-1.5"></i>취소
+            </button>
+            <button
+              type="button"
+              id="policy-save-btn"
+              class="btn btn-primary btn-md shadow-md shadow-indigo-500/20"
+              disabled
+            >
+              <i class="fas fa-save mr-1.5"></i>저장
+            </button>
+          </div>
+        </div>
+
+        <div id="policy-table"></div>
+
+        <div
+          class="mt-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 flex items-start gap-2"
+        >
+          <i class="fas fa-info-circle text-blue-500 mt-0.5"></i>
+          <div>
+            <p class="font-bold text-slate-700 dark:text-slate-300 mb-1">
+              정책 적용 안내
+            </p>
+            <span
+              >'분류당' 제한은 해당 카테고리 내 상품들의 합계 수량을, '가격당'
+              제한은 해당 가격의 상품 개수를 기준으로 적용됩니다.</span
+            >
           </div>
         </div>
       </section>

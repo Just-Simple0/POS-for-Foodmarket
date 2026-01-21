@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
@@ -62,7 +62,7 @@
         </div>
       </div>
 
-      <section id="customer-search-section" class="card">
+      <section id="customer-search-section" class="card space-y-6">
         <div class="flex flex-col md:flex-row gap-3 items-start">
           <div id="global-search-group" class="field-group flex-1">
             <label class="field-label" for="global-search">통합 검색</label>
@@ -71,7 +71,7 @@
               <input
                 id="global-search"
                 class="field-input"
-                placeholder="이름, 전화번호, 생년월일 검색"
+                placeholder="검색어를 입력하세요"
               />
               <div class="field-right">
                 <button
@@ -97,13 +97,14 @@
 
         <div
           id="advanced-search"
-          class="hidden mt-5 border-t border-slate-100 dark:border-slate-800 animate-fade-in"
+          class="hidden p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 animate-fade-in"
         >
           <div class="flex flex-col md:flex-row gap-3 items-start">
             <div class="field-group w-full md:w-40">
+              <label class="field-label">목록 선택</label>
               <div class="field-box">
                 <select id="field-select" class="field-input cursor-pointer">
-                  <option value="">목록 선택</option>
+                  <option value="">선택 안함</option>
                   <option value="name">이용자명</option>
                   <option value="birth">생년월일</option>
                   <option value="phone">전화번호</option>
@@ -116,6 +117,7 @@
             </div>
 
             <div id="field-search-group" class="field-group flex-1">
+              <label class="field-label">상세 검색어</label>
               <div class="field-box">
                 <div class="field-prefix text-slate-400">
                   <i class="fas fa-filter"></i>
@@ -123,7 +125,7 @@
                 <input
                   id="field-search"
                   class="field-input"
-                  placeholder="상세 조건을 입력하세요"
+                  placeholder="검색어를 입력하세요"
                 />
                 <div class="field-right">
                   <button
@@ -866,9 +868,7 @@
           </div>
         </div>
 
-        <div
-          class="modal-footer flex-col sm:flex-row gap-2"
-        >
+        <div class="modal-footer flex-col sm:flex-row gap-2">
           <button
             type="button"
             class="btn btn-light btn-md w-full sm:w-auto"
@@ -878,10 +878,7 @@
           </button>
 
           <div class="flex-1 flex gap-2 w-full sm:w-auto">
-            <button
-              id="dup-new"
-              class="btn btn-primary-weak btn-md flex-1"
-            >
+            <button id="dup-new" class="btn btn-primary-weak btn-md flex-1">
               신규 등록
             </button>
             <button

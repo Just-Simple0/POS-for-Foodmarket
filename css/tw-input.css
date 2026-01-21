@@ -156,7 +156,7 @@
 
   /* [1] Base Button Style */
   .btn {
-    @apply inline-flex items-center justify-center font-bold gap-1.5 transition-all duration-200 ease-out border-none shadow-none select-none;
+    @apply inline-flex items-center justify-center font-bold gap-1.5 transition-all duration-200 ease-out border-none shadow-none select-none whitespace-nowrap;
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100;
   }
 
@@ -301,6 +301,9 @@
   }
   .field-input[type="number"] {
     @apply dark:bg-transparent;
+  }
+  .dark select.field-input option {
+    @apply bg-slate-900 text-white;
   }
   select.field-input {
     /* 기본 화살표 숨김 & 오른쪽 여백 확보 & 커서 변경 */
@@ -788,7 +791,7 @@
     float: left !important;
     width: fit-content;
     margin-left: 20px !important;
-    @apply bg-transparent border-none font-extrabold text-[15px] text-slate-900 dark:text-white cursor-pointer outline-none !important;
+    @apply bg-transparent border-none font-semibold text-[15px] text-slate-900 dark:text-white cursor-pointer outline-none !important;
     appearance: none;
     -webkit-appearance: none;
     padding-right: 14px !important;
@@ -806,7 +809,7 @@
     width: fit-content;
     float: right !important;
     margin-right: 20px !important;
-    @apply bg-transparent border-none font-extrabold text-[15px] text-slate-900 dark:text-white cursor-pointer outline-none !important;
+    @apply bg-transparent border-none font-semibold text-[15px] text-slate-900 dark:text-white cursor-pointer outline-none !important;
     appearance: none;
     -webkit-appearance: none;
     padding-right: 14px !important;
@@ -837,7 +840,7 @@
 
   /* 오늘 날짜인데 선택되지 않았을 때 (강조만) */
   .daterangepicker td.today:not(.active) {
-    @apply text-primary font-extrabold bg-transparent !important;
+    @apply text-primary font-semibold bg-transparent !important;
   }
 
   /* [4] 날짜 기본 스타일 (레이아웃 보호) */
@@ -865,13 +868,25 @@
 
   /* [5] 이전 달 및 다음 달 날짜 (off) 처리: 연하게 투명도 조절 */
   .daterangepicker td.off {
-    @apply text-slate-300 dark:text-slate-600 opacity-40 bg-transparent !important;
+    @apply text-slate-400 dark:text-slate-600 opacity-40 bg-transparent !important;
   }
 
-  /* [6] 다크모드 내부 테이블 배경 강제 통합 (흰색 배경 제거) */
+  /* [6] 다크모드 및 기본 테이블 스타일 보정 (흰색 테두리/배경 제거) */
+  .daterangepicker .calendar-table {
+    /* [수정] 라이브러리 기본 흰색 테두리(1px solid #fff) 제거 */
+    border: none !important;
+    background-color: transparent !important;
+  }
+
   .dark .daterangepicker .calendar-table,
   .dark .daterangepicker table {
     @apply bg-slate-800 !important;
+  }
+
+  /* [추가] Ranges(왼쪽 프리셋 목록) 구분선 다크모드 최적화 */
+  .daterangepicker .ranges {
+    @apply border-r border-slate-200 dark:border-slate-700 !important;
+    background-color: transparent !important;
   }
 
   /* 다크 모드에서 선택된 날짜(.active) 가시성 강화 */
@@ -890,7 +905,7 @@
   /* [7] 오늘(Today) 날짜 강조: 선택되지 않았을 때도 Primary 컬러 유지 */
   .daterangepicker td.today,
   .dark .daterangepicker td.today {
-    @apply text-primary font-extrabold !important;
+    @apply text-primary font-semibold !important;
     position: relative;
   }
 
@@ -935,7 +950,7 @@
     -webkit-appearance: none;
     margin: 0;
   }
-  
+
   /* [추가] 제한 정책 위반 행 스타일 */
   tr.limit-violation {
     @apply bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 transition-colors duration-300 !important;
@@ -948,5 +963,16 @@
   /* 위반 행 내부 버튼도 붉은 계열로 변경 */
   tr.limit-violation .spinner-btn {
     @apply text-rose-400 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-200 !important;
+  }
+
+  /* [추가] 가상 스크롤 스페이서 (높이 계산용) */
+  .vspacer td {
+    padding: 0 !important;
+    border: none !important;
+    height: 0 !important;
+  }
+  .vspacer .pad {
+    height: 0;
+    margin: 0;
   }
 }

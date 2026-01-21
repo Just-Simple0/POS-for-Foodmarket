@@ -498,7 +498,7 @@ function renderPolicyEditor() {
   ).sort((a, b) => a.localeCompare(b));
   if (searchVal) cats = cats.filter((c) => c.toLowerCase().includes(searchVal));
 
-  box.className = "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5";
+  box.className = "card grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5";
   box.innerHTML = "";
 
   if (cats.length === 0) {

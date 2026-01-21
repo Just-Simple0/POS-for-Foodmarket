@@ -52,44 +52,119 @@ async function ensureVisitAndDailyCounter(
   customerId,
   customerName,
   atDate,
+  items = [], // ✅ (추가) 이번 제공 전표의 품목 배열: [{id,name,category,price,quantity}, ...]
 ) {
   const day = toDayNumber(atDate); // 예: 20250915 (정수)
   const dateKey = toDateKey(day); // 예: '2025-09-15'
-  const periodKey = toPeriodKey(atDate); // 예: '25-26' (프로젝트 규칙)
+  const periodKey = toPeriodKey(atDate); // 예: '25-26'
   const visitId = `${dateKey}_${customerId}`; // 1일 1고객 1문서
   const visitRef = doc(db, "visits", visitId);
+  const statsRef = doc(db, "stats_daily", String(day)); // 'YYYYMMDD'
 
-  let created = false;
-  try {
-    // 1) /visits 문서: 없을 때만 'create'
-    created = await runTransaction(db, async (tx) => {
-      const snap = await tx.get(visitRef);
-      if (snap.exists()) return false;
-      tx.set(visitRef, {
-        day, // ✅ 규칙 허용 키
-        dateKey, // ✅ 규칙 허용 키
-        customerId, // ✅ 규칙 허용 키
-        customerName: customerName || null, // ✅ 규칙 허용 키
-        periodKey, // ✅ 규칙 허용 키
-        createdAt: serverTimestamp(), // ✅ 규칙 허용 키
-        createdBy: auth?.currentUser?.uid || "unknown", // ✅ createdBy == request.auth.uid 필요
-      });
-      return true;
-    });
+  // ✅ itemsTotalQty / top20 갱신을 위해 delta 계산
+  const deltasById = new Map(); // productId -> { qty, name, category }
+  let qtyDeltaTotal = 0;
 
-    // 2) '신규 방문'이 실제로 생성된 경우에만 /stats_daily + 1 (과집계 방지)
-    if (created) {
-      await setDoc(
-        doc(db, "stats_daily", String(day)), // 'YYYYMMDD'
-        {
-          uniqueVisitors: increment(1),
-          updatedAt: serverTimestamp(), // 규칙: updatedAt == request.time
-        },
-        { merge: true },
-      ).catch((e) =>
-        console.warn("[stats_daily] best-effort skipped:", e?.message || e),
-      );
+  if (Array.isArray(items)) {
+    for (const it of items) {
+      const pid = it?.id;
+      if (!pid) continue;
+      const q = Number(it?.quantity || 0);
+      if (!Number.isFinite(q) || q === 0) continue;
+
+      qtyDeltaTotal += q;
+
+      const prev = deltasById.get(pid) || {
+        qty: 0,
+        name: it?.name || "",
+        category: it?.category || "",
+      };
+      prev.qty += q;
+      // 이름/카테고리는 비어있으면 채워두기(최신값 우선)
+      if (!prev.name && it?.name) prev.name = it.name;
+      if (!prev.category && it?.category) prev.category = it.category;
+      deltasById.set(pid, prev);
     }
+  }
+
+  try {
+    await runTransaction(db, async (tx) => {
+      // 1) visits: 없을 때만 생성
+      const visitSnap = await tx.get(visitRef);
+      const created = !visitSnap.exists();
+
+      if (created) {
+        tx.set(visitRef, {
+          day, // ✅ 규칙 허용 키
+          dateKey, // ✅ 규칙 허용 키
+          customerId, // ✅ 규칙 허용 키
+          customerName: customerName || null, // ✅ 규칙 허용 키
+          periodKey, // ✅ 규칙 허용 키
+          createdAt: serverTimestamp(), // ✅ 규칙 허용 키
+          createdBy: auth?.currentUser?.uid || "unknown", // ✅ createdBy == request.auth.uid 필요
+        });
+      }
+
+      // 2) stats_daily: itemsTotalQty/top20는 "매 제공"마다 누적(중복 제공 포함)
+      //    uniqueVisitors는 "신규 방문 created==true"일 때만 +1
+      const statsSnap = await tx.get(statsRef);
+      const stats = statsSnap.exists() ? statsSnap.data() || {} : {};
+
+      // 기존 누적값
+      const curItemsTotalQty = Number(stats.itemsTotalQty || 0);
+      const nextItemsTotalQty = curItemsTotalQty + qtyDeltaTotal;
+
+      // itemStatsById: { [productId]: { qty, name, category } }
+      const curMap =
+        stats.itemStatsById && typeof stats.itemStatsById === "object"
+          ? { ...stats.itemStatsById }
+          : {};
+
+      // delta 반영
+      for (const [pid, d] of deltasById.entries()) {
+        const cur =
+          curMap[pid] && typeof curMap[pid] === "object" ? curMap[pid] : {};
+        const curQty = Number(cur.qty || 0);
+        const nextQty = curQty + Number(d.qty || 0);
+
+        if (!Number.isFinite(nextQty) || nextQty <= 0) {
+          delete curMap[pid];
+        } else {
+          curMap[pid] = {
+            qty: nextQty,
+            name: d.name || cur.name || "",
+            category: d.category || cur.category || "",
+          };
+        }
+      }
+
+      // topItems20 재계산
+      const topItems20 = Object.entries(curMap)
+        .map(([id, v]) => ({
+          id,
+          name: v?.name || "",
+          category: v?.category || "",
+          qty: Number(v?.qty || 0),
+        }))
+        .filter((x) => Number.isFinite(x.qty) && x.qty > 0)
+        .sort((a, b) => b.qty - a.qty)
+        .slice(0, 20);
+
+      // 저장(merge)
+      const payload = {
+        itemsTotalQty: nextItemsTotalQty,
+        itemStatsById: curMap,
+        topItems20,
+        updatedAt: serverTimestamp(), // 규칙: updatedAt == request.time
+      };
+
+      if (created) {
+        // 신규 방문일 때만 +1
+        payload.uniqueVisitors = increment(1);
+      }
+
+      tx.set(statsRef, payload, { merge: true });
+    });
   } catch (e) {
     console.warn("[visits/stats_daily] ensure failed:", e?.message || e);
   }
@@ -1677,7 +1752,7 @@ visitorListEl?.addEventListener("click", async (e) => {
         }
       }
     } catch {}
-    
+
     renderSelectedList();
     renderVisitorList(); // Active 상태 갱신
     saveProvisionDraft();
@@ -2409,6 +2484,7 @@ submitBtn.addEventListener("click", async () => {
       processedCustomerID,
       processedCustomerName,
       new Date(),
+      selectedItems,
     );
 
     if (processedCustomerID) {
@@ -3024,24 +3100,150 @@ exSubmitBtn?.addEventListener("click", async () => {
 
   const ok = await openConfirm({
     title: "교환 확정",
-    message: `기존 합계 ${exchangeOriginalTotal} → 교환 합계 ${newTotal}\n환불은 없습니다. 진행할까요?`,
+    message: `기존 합계 ${exchangeOriginalTotal}p → 교환 합계 ${newTotal}p\n환불은 없습니다. 진행할까요?`,
     confirmText: "교환",
     cancelText: "취소",
   });
   if (!ok) return;
 
-  try {
-    await updateDoc(doc(db, "provisions", exchangeProvision.id), {
-      items: exchangeItems,
-      total: newTotal,
-      updatedAt: serverTimestamp(),
-      exchangeLog: arrayUnion({
-        at: Timestamp.now(),
-        by: auth.currentUser?.email || null,
-        from: exchangeOriginalItems,
-        to: exchangeItems,
-      }),
+  // ✅ delta 계산: (교환 후) - (교환 전)
+  const buildQtyMap = (arr) => {
+    const m = new Map(); // pid -> { qty, name, category }
+    (Array.isArray(arr) ? arr : []).forEach((it) => {
+      const pid = it?.id;
+      if (!pid) return;
+
+      const q = Number(it?.quantity || 0);
+      if (!Number.isFinite(q) || q === 0) return;
+
+      const prev = m.get(pid) || {
+        qty: 0,
+        name: it?.name || "",
+        category: it?.category || "",
+      };
+      prev.qty += q;
+      if (!prev.name && it?.name) prev.name = it.name;
+      if (!prev.category && it?.category) prev.category = it.category;
+      m.set(pid, prev);
     });
+    return m;
+  };
+
+  const oldMap = buildQtyMap(exchangeOriginalItems);
+  const newMap = buildQtyMap(exchangeItems);
+
+  const deltaMap = new Map(); // pid -> { qty, name, category }
+  let qtyDeltaTotal = 0;
+
+  const keys = new Set([...oldMap.keys(), ...newMap.keys()]);
+  keys.forEach((pid) => {
+    const o = oldMap.get(pid) || { qty: 0, name: "", category: "" };
+    const n = newMap.get(pid) || { qty: 0, name: "", category: "" };
+    const d = Number(n.qty || 0) - Number(o.qty || 0);
+    if (!Number.isFinite(d) || d === 0) return;
+
+    qtyDeltaTotal += d;
+    deltaMap.set(pid, {
+      qty: d,
+      name: n.name || o.name || "",
+      category: n.category || o.category || "",
+    });
+  });
+
+  try {
+    const provRef = doc(db, "provisions", exchangeProvision.id);
+
+    // 이 전표가 기록된 날짜(통계 반영 기준)
+    const ts = exchangeProvision.timestamp;
+    const atDate = ts?.toDate ? ts.toDate() : new Date();
+    const dayNum = toDayNumber(atDate);
+    const statsRef = doc(db, "stats_daily", String(dayNum));
+
+    await runTransaction(db, async (tx) => {
+      // 1) 전표 교환 반영
+      tx.update(provRef, {
+        items: exchangeItems,
+        total: newTotal,
+        updatedAt: serverTimestamp(),
+        exchangeLog: arrayUnion({
+          at: Timestamp.now(),
+          by: auth.currentUser?.email || null,
+          from: exchangeOriginalItems,
+          to: exchangeItems,
+        }),
+      });
+
+      // 2) ✅ stats_daily delta 반영 (itemsTotalQty/top20)
+      //    qtyDeltaTotal이 0이어도 품목 구성 변화가 있을 수 있으니 deltaMap 기준으로 처리
+      if (deltaMap.size > 0) {
+        const statsSnap = await tx.get(statsRef);
+        const stats = statsSnap.exists() ? statsSnap.data() || {} : {};
+
+        // itemsTotalQty
+        const curItemsTotalQty = Number(stats.itemsTotalQty || 0);
+        let nextItemsTotalQty = curItemsTotalQty + qtyDeltaTotal;
+        if (!Number.isFinite(nextItemsTotalQty))
+          nextItemsTotalQty = curItemsTotalQty;
+        if (nextItemsTotalQty < 0) nextItemsTotalQty = 0;
+
+        // itemStatsById
+        let curMap = {};
+        if (stats.itemStatsById && typeof stats.itemStatsById === "object") {
+          curMap = { ...stats.itemStatsById };
+        } else if (Array.isArray(stats.topItems20)) {
+          // legacy best-effort (구버전 stats_daily 대비)
+          curMap = {};
+          for (const x of stats.topItems20) {
+            if (!x?.id) continue;
+            curMap[x.id] = {
+              qty: Number(x.qty || 0),
+              name: x.name || "",
+              category: x.category || "",
+            };
+          }
+        }
+
+        for (const [pid, d] of deltaMap.entries()) {
+          const cur =
+            curMap[pid] && typeof curMap[pid] === "object" ? curMap[pid] : {};
+          const curQty = Number(cur.qty || 0);
+          const nextQty = curQty + Number(d.qty || 0);
+
+          if (!Number.isFinite(nextQty) || nextQty <= 0) {
+            delete curMap[pid];
+          } else {
+            curMap[pid] = {
+              qty: nextQty,
+              name: d.name || cur.name || "",
+              category: d.category || cur.category || "",
+            };
+          }
+        }
+
+        const topItems20 = Object.entries(curMap)
+          .map(([id, v]) => ({
+            id,
+            name: v?.name || "",
+            category: v?.category || "",
+            qty: Number(v?.qty || 0),
+          }))
+          .filter((x) => Number.isFinite(x.qty) && x.qty > 0)
+          .sort((a, b) => b.qty - a.qty)
+          .slice(0, 20);
+
+        tx.set(
+          statsRef,
+          {
+            itemsTotalQty: nextItemsTotalQty,
+            itemStatsById: curMap,
+            topItems20,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
+    });
+
     showToast("교환이 완료되었습니다.");
     resetExchangeUI();
 

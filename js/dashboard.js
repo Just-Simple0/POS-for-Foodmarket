@@ -54,7 +54,7 @@ async function loadRecentProducts() {
       const data = doc.data();
       const dataObj = data.lastestAt?.toDate?.();
       const formatted = `${dataObj.getFullYear()}.${String(
-        dataObj.getMonth() + 1
+        dataObj.getMonth() + 1,
       ).padStart(2, "0")}.${String(dataObj.getDate()).padStart(2, "0")}`;
 
       const li = document.createElement("li");
@@ -102,8 +102,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   // 초기 로딩을 전역 오버레이로 묶어 사용자가 '모두 로드된 뒤' 이용하게 함
   loadDashboardData();
-  loadRecentProducts();
-  setExpiryInfo();
 
   // 통계로 이동
   const visitCard = document.getElementById("visit-card");
@@ -115,7 +113,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const recentProductCard = document.getElementById("recent-product-card");
   if (recentProductCard)
     onCardActivate(recentProductCard, () =>
-      navigateTo("products.html?sort=latest")
+      navigateTo("products.html?sort=latest"),
     );
 
   // 날짜 계산기 모달 오픈
@@ -124,22 +122,56 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadDashboardData() {
-  let __skVisit, __skItems;
-  try {
-    __skVisit = makeWidgetSkeleton(document.getElementById("visit-card"));
-    __skItems = makeWidgetSkeleton(document.getElementById("item-card"));
-    const { visitData, todayItemsMap, todayItemsTotal, prevItemsTotal } =
-      await fetchProvisionStats();
+  const MIN_LOADING_TIME = 1000;
 
-    renderVisitSection(visitData);
-    renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal);
+  // ✅ 4개 카드 모두 스켈레톤
+  const cleanups = [];
+  try {
+    const ids = [
+      "visit-card",
+      "item-card",
+      "recent-product-card",
+      "expiry-base-card",
+    ];
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) cleanups.push(makeWidgetSkeleton(el));
+    });
+
+    // expiry 카드(날짜 계산)는 동기라 먼저 세팅해도 됨
+    setExpiryInfo();
+
+    // ✅ 데이터 로딩 2개(방문/물품 + 최근상품) + 최소 1초 지연을 동시에
+    const taskStats = (async () => {
+      const { visitData, todayItemsMap, todayItemsTotal, prevItemsTotal } =
+        await fetchProvisionStats();
+      renderVisitSection(visitData);
+      renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal);
+    })();
+
+    const taskRecent = loadRecentProducts(); // 내부에서 리스트 스켈레톤 처리 중이어도 OK
+    const taskMinDelay = new Promise((r) => setTimeout(r, MIN_LOADING_TIME));
+
+    await Promise.all([taskStats, taskRecent, taskMinDelay]);
   } catch (err) {
     console.error(err);
-    renderVisitSection([]);
-    renderItemSection({}, 0, 0);
+    // 실패해도 카드가 아예 비지 않게 기본값 렌더
+    try {
+      renderVisitSection([]);
+      renderItemSection({}, 0, 0);
+      // 최근 상품도 실패 처리
+      const listEl = document.getElementById("recent-products-list");
+      if (listEl && !listEl.innerHTML.trim()) {
+        listEl.innerHTML =
+          '<li class="text-slate-400 dark:text-slate-500 text-sm py-4 text-center">최근 내역이 없습니다.</li>';
+      }
+      setExpiryInfo();
+    } catch (e) {
+      console.error(e);
+    }
   } finally {
-    __skVisit?.();
-    __skItems?.();
+    // ✅ 스켈레톤 제거
+    cleanups.forEach((fn) => fn && fn());
   }
 }
 
@@ -148,16 +180,60 @@ async function fetchProvisionStats() {
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - 9);
   startDate.setHours(0, 0, 0, 0);
+
   const endDate = new Date(today);
   endDate.setHours(23, 59, 59, 999);
 
-  const todayStr = dateKeyLocal(today);
   const countsByDate = {};
   const todayItemsMap = {};
   let prevItemsTotal = 0;
   let todayItemsTotal = 0;
 
+  const todayKey8 = dateKey8Local(today); // 'YYYYMMDD'
+  const yest = new Date(today);
+  yest.setDate(yest.getDate() - 1);
+  const yestKey8 = dateKey8Local(yest);
+
+  // ✅ itemsTotalQty가 "0"일 수도 있으니, 존재 여부를 flag로 따로 들고 간다
+  let todayHasItemStats = false;
+  let yestHasItemStats = false;
+
+  // ✅ 보험(필요할 때만) 스캔 함수: 하루치 provisions만 읽어서 itemsTotalQty/topMap 계산
+  const scanProvisionsItemStatsByDate = async (d) => {
+    const start = new Date(d);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(d);
+    end.setHours(23, 59, 59, 999);
+
+    const snap = await getDocs(
+      query(
+        collection(db, "provisions"),
+        where("timestamp", ">=", Timestamp.fromDate(start)),
+        where("timestamp", "<=", Timestamp.fromDate(end)),
+      ),
+    );
+
+    let itemsTotalQty = 0;
+    const map = {}; // name -> qty
+
+    snap.forEach((docSnap) => {
+      const items = docSnap.data()?.items || [];
+      for (const it of items) {
+        const q = Number(it?.quantity || 0);
+        if (!Number.isFinite(q) || q <= 0) continue;
+        itemsTotalQty += q;
+
+        const name = (it?.name || "").toString().trim();
+        if (!name) continue;
+        map[name] = (map[name] || 0) + q;
+      }
+    });
+
+    return { itemsTotalQty, map };
+  };
+
   try {
+    // 최근 10일(오늘 포함) stats_daily만 읽는다 (in: 최대 10개)
     const dayIds = [];
     for (
       let d = new Date(startDate);
@@ -166,62 +242,75 @@ async function fetchProvisionStats() {
     ) {
       dayIds.push(dateKey8Local(d));
     }
+
     const dailySnap = await getDocs(
-      query(collection(db, "stats_daily"), where(documentId(), "in", dayIds))
+      query(collection(db, "stats_daily"), where(documentId(), "in", dayIds)),
     );
+
     dailySnap.forEach((docSnap) => {
-      const id8 = docSnap.id;
-      const y = id8.slice(0, 4),
-        m = id8.slice(4, 6),
-        d = id8.slice(6, 8);
+      const id8 = docSnap.id; // 'YYYYMMDD'
+      const data = docSnap.data() || {};
+
+      // 방문자(차트/오늘 방문 카드)
+      const y = id8.slice(0, 4);
+      const m = id8.slice(4, 6);
+      const d = id8.slice(6, 8);
       const ds = `${y}-${m}-${d}`;
-      const v = Number(docSnap.data()?.uniqueVisitors || 0);
-      countsByDate[ds] = v;
+      countsByDate[ds] = Number(data.uniqueVisitors || 0);
+
+      // ✅ 오늘 물품 통계
+      if (id8 === todayKey8) {
+        if (typeof data.itemsTotalQty === "number") {
+          todayHasItemStats = true;
+          todayItemsTotal = Number(data.itemsTotalQty || 0);
+        }
+
+        // top 렌더용 map 채우기 (있으면 쓰고, 없으면 보험에서 채움)
+        if (data.itemStatsById && typeof data.itemStatsById === "object") {
+          Object.entries(data.itemStatsById).forEach(([pid, v]) => {
+            const name = (v?.name || pid).toString();
+            const qty = Number(v?.qty || 0);
+            if (qty > 0) todayItemsMap[name] = (todayItemsMap[name] || 0) + qty;
+          });
+        } else if (Array.isArray(data.topItems20)) {
+          data.topItems20.forEach((x) => {
+            const name = (x?.name || "").toString();
+            const qty = Number(x?.qty || 0);
+            if (!name || qty <= 0) return;
+            todayItemsMap[name] = (todayItemsMap[name] || 0) + qty;
+          });
+        }
+      }
+
+      // ✅ 어제 물품 통계(전일 대비)
+      if (id8 === yestKey8) {
+        if (typeof data.itemsTotalQty === "number") {
+          yestHasItemStats = true;
+          prevItemsTotal = Number(data.itemsTotalQty || 0);
+        }
+      }
     });
 
-    const todayStart = new Date(today);
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(today);
-    todayEnd.setHours(23, 59, 59, 999);
-    const todaySnap = await getDocs(
-      query(
-        collection(db, "provisions"),
-        where("timestamp", ">=", Timestamp.fromDate(todayStart)),
-        where("timestamp", "<=", Timestamp.fromDate(todayEnd))
-      )
-    );
-    todaySnap.forEach((docSnap) => {
-      const data = docSnap.data();
-      (data.items || []).forEach((item) => {
-        const qty = Number(item.quantity || 0);
-        todayItemsTotal += qty;
-        todayItemsMap[item.name] = (todayItemsMap[item.name] || 0) + qty;
-      });
-    });
+    // ✅ 보험: stats_daily에 item 값이 없을 때만 provisions 하루치 스캔 (오늘/어제만)
+    if (!todayHasItemStats) {
+      const { itemsTotalQty, map } = await scanProvisionsItemStatsByDate(today);
+      todayItemsTotal = itemsTotalQty;
 
-    const yst = new Date(today);
-    yst.setDate(yst.getDate() - 1);
-    yst.setHours(0, 0, 0, 0);
-    const yen = new Date(today);
-    yen.setDate(yen.getDate() - 1);
-    yen.setHours(23, 59, 59, 999);
-    const ySnap = await getDocs(
-      query(
-        collection(db, "provisions"),
-        where("timestamp", ">=", Timestamp.fromDate(yst)),
-        where("timestamp", "<=", Timestamp.fromDate(yen))
-      )
-    );
-    ySnap.forEach((docSnap) => {
-      const data = docSnap.data();
-      (data.items || []).forEach((item) => {
-        prevItemsTotal += Number(item.quantity || 0);
+      // map을 todayItemsMap에 채워 넣기(기존에 일부 들어있어도 합산)
+      Object.entries(map).forEach(([name, qty]) => {
+        todayItemsMap[name] = (todayItemsMap[name] || 0) + qty;
       });
-    });
+    }
+
+    if (!yestHasItemStats) {
+      const { itemsTotalQty } = await scanProvisionsItemStatsByDate(yest);
+      prevItemsTotal = itemsTotalQty;
+    }
   } catch (err) {
     console.error(err);
   }
 
+  // 최근 10일 데이터(없는 날은 0)
   const visitData = [];
   for (let i = 0; i < 10; i++) {
     const d = new Date(startDate);
@@ -262,7 +351,7 @@ function renderVisitSection(visitData) {
       visitChangeEl.innerHTML = `<span class="badge badge-sm badge-weak-success">▲ ${customerDiff}명 (${customerRate}%)</span>`;
     } else if (customerDiff < 0) {
       visitChangeEl.innerHTML = `<span class="badge badge-sm badge-weak-danger">▼ ${Math.abs(
-        customerDiff
+        customerDiff,
       )}명 (${customerRate}%)</span>`;
     } else {
       visitChangeEl.innerHTML = `<span class="badge badge-sm badge-weak-grey">변동 없음</span>`;
@@ -323,11 +412,11 @@ function renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal) {
       itemDiff > 0
         ? "badge-weak-success"
         : itemDiff < 0
-        ? "badge-weak-danger"
-        : "badge-weak-grey";
+          ? "badge-weak-danger"
+          : "badge-weak-grey";
     const icon = itemDiff > 0 ? "▲" : itemDiff < 0 ? "▼" : "";
     itemChangeEl.innerHTML = `<span class="badge badge-sm ${colorClass}">${icon} ${Math.abs(
-      itemDiff
+      itemDiff,
     )}개 (${itemRate}%)</span>`;
   }
 
@@ -432,7 +521,7 @@ function openExpiryModal() {
       },
       function (start) {
         renderBaseResults(start.toDate());
-      }
+      },
     );
   }
 

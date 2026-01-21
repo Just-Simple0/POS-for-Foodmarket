@@ -1,11 +1,10 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>POS System - Statistics</title>
 
-    <!-- ⚡️ FOUC 방지: 초기 테마 적용 -->
     <script>
       (function () {
         try {
@@ -19,8 +18,6 @@
       })();
     </script>
 
-    <!-- Libs -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
@@ -28,12 +25,12 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"
     />
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script>
       window.CF_TURNSTILE_SITEKEY = "0x4AAAAAABtE3GFMWF3_Fd4E";
     </script>
-    <!-- Common / Fonts -->
-    <link rel="stylesheet" href="css/common.css" />
+
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
@@ -45,243 +42,790 @@
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
 
-    <!-- Firebase -->
-    <script type="module" src="js/components/firebase-config.js"></script>
-
-    <!-- Page -->
-    <link rel="stylesheet" href="css/statistics.css" />
-    <script type="module" src="js/statistics.js" defer></script>
     <link rel="stylesheet" href="css/tw.css" />
+    <link rel="stylesheet" href="css/tw-input.css" />
+
+    <script type="module" src="js/components/firebase-config.js"></script>
+    <script type="module" src="js/statistics.js" defer></script>
   </head>
+
   <body>
-    <!-- ✅ 헤더/푸터는 comp.js가 주입 -->
     <div id="header-container"></div>
 
-    <main class="container">
-      <h2>통계 및 제공 이력</h2>
+    <main class="main-layout">
+      <div
+        class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6"
+      >
+        <div>
+          <h2
+            class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight"
+          >
+            통계 및 제공 이력
+          </h2>
+          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">
+            일별/월별 현황을 확인하고 데이터를 다운로드합니다.
+          </p>
+        </div>
+      </div>
 
-      <!-- Summary cards -->
-      <section class="stat-cards">
-        <div class="card" id="daily-visitors">
-          <h3>일일 방문 인원</h3>
-          <p class="value">0명</p>
-          <p class="change"></p>
-        </div>
-        <div class="card" id="daily-items">
-          <h3>일일 제공 물품 수</h3>
-          <p class="value">0개</p>
-          <p class="change"></p>
-        </div>
-        <div class="card" id="monthly-visitors">
-          <h3>월간 방문 인원</h3>
-          <p class="value">0명</p>
+      <section class="mb-12">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div
+            id="daily-visitors"
+            class="card flex flex-col items-center justify-center relative overflow-hidden group cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+          >
+            <div
+              class="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3 text-xl"
+            >
+              <i class="fas fa-users"></i>
+            </div>
+            <h3
+              class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide"
+            >
+              일일 방문 인원
+            </h3>
+            <p
+              class="value text-3xl font-black text-slate-900 dark:text-white mt-1"
+            >
+              0명
+            </p>
+            <p class="change text-xs font-bold mt-2 text-slate-400"></p>
+            <div
+              class="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+            ></div>
+          </div>
+
+          <div
+            id="daily-items"
+            class="card flex flex-col items-center justify-center relative overflow-hidden group cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
+          >
+            <div
+              class="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3 text-xl"
+            >
+              <i class="fas fa-box-open"></i>
+            </div>
+            <h3
+              class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide"
+            >
+              일일 제공 수량
+            </h3>
+            <p
+              class="value text-3xl font-black text-slate-900 dark:text-white mt-1"
+            >
+              0개
+            </p>
+            <p class="change text-xs font-bold mt-2 text-slate-400"></p>
+            <div
+              class="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+            ></div>
+          </div>
+
+          <div
+            id="monthly-visitors"
+            class="card flex flex-col items-center justify-center relative overflow-hidden group cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
+          >
+            <div
+              class="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3 text-xl"
+            >
+              <i class="fas fa-calendar-day"></i>
+            </div>
+            <h3
+              class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide"
+            >
+              월간 방문 인원
+            </h3>
+            <p
+              class="value text-3xl font-black text-slate-900 dark:text-white mt-1"
+            >
+              0명
+            </p>
+            <div
+              class="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+            ></div>
+          </div>
         </div>
       </section>
 
-      <!-- Tabs -->
-      <div class="view-toggle">
-        <button id="btn-provision" class="tab-btn active">
-          물품 제공 내역
-        </button>
-        <button id="btn-visit" class="tab-btn">이용자별 방문 일자</button>
-        <button id="btn-life" class="tab-btn">생명사랑 제공 현황</button>
-      </div>
+      <div class="flex justify-center mb-8" role="tablist">
+        <div class="tabs-segmented">
+          <button
+            type="button"
+            id="btn-provision"
+            class="tab-item is-active"
+            data-tab="provision"
+            role="tab"
+            aria-selected="true"
+          >
+            <i class="fas fa-list-alt"></i>
+            <span>물품 제공 내역</span>
+          </button>
 
-      <!-- Search / Filters -->
-      <div class="table-controls">
-        <div class="search-bar">
-          <label for="global-search">검색 : </label>
-          <input
-            id="global-search"
-            class="input w-64 md:w-80"
-            placeholder="전체 검색 (이름, 품목 등)"
-          />
-          <label><input type="checkbox" id="exact-match" /> 정확한 검색</label>
-          <button id="toggle-advanced-search" class="btn-outline">
-            고급 검색 열기
+          <button
+            type="button"
+            id="btn-visit"
+            class="tab-item"
+            data-tab="visit"
+            role="tab"
+            aria-selected="false"
+          >
+            <i class="fas fa-user-clock"></i>
+            <span>이용자별 방문 일자</span>
+          </button>
+
+          <button
+            type="button"
+            id="btn-life"
+            class="tab-item"
+            data-tab="life"
+            role="tab"
+            aria-selected="false"
+          >
+            <i class="fas fa-heartbeat"></i>
+            <span>생명사랑 제공 현황</span>
           </button>
         </div>
-        <div id="advanced-search" class="hidden">
-          <select id="field-select" class="select w-40">
-            <option value="">필드 선택</option>
-            <option value="date">제공일</option>
-            <option value="name">고객명</option>
-            <option value="birth">생년월일</option>
-            <option value="items">가져간 품목</option>
-            <option value="handler">처리자</option>
-          </select>
-          <input
-            id="field-search"
-            class="input w-64 md:w-80"
-            placeholder="선택 필드 검색"
-          />
-        </div>
       </div>
 
-      <div class="filters-wrapper">
-        <div id="filter-provision" class="filter-row">
-          <label for="start-date-input">조회 기간:</label>
-          <input
-            type="text"
-            id="start-date-input"
-            class="input w-40"
-            placeholder="시작일 (YYYY.MM.DD)"
-          />
-          <span class="range-divider"> ~ </span>
-          <input
-            type="text"
-            id="end-date-input"
-            class="input w-40"
-            placeholder="종료일 (YYYY.MM.DD)"
-          />
-        </div>
-
-        <div id="filter-visit" class="filter-row hidden">
-          <label for="fiscal-year-select">조회기간: </label>
-          <select id="fiscal-year-select" class="select w-40"></select>
-        </div>
-
-        <div id="filter-life" class="filter-row hidden">
-          <label for="life-year-select">조회연도: </label>
-          <select id="life-year-select" class="select w-32"></select>
-
-          <label for="life-quarter-select">분기: </label>
-          <select id="life-quarter-select" class="select w-24">
-            <option value="Q1">1분기</option>
-            <option value="Q2">2분기</option>
-            <option value="Q3">3분기</option>
-            <option value="Q4">4분기</option>
-          </select>
-        </div>
-
-        <div class="item-count-container">
-          <label for="item-count-select">표시 수:</label>
-          <select id="item-count-select" class="select w-24">
-            <option value="10">10개</option>
-            <option value="20" selected>20개</option>
-            <option value="50">50개</option>
-            <option value="100">100개</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Provision -->
-      <div id="provision-section">
-        <button id="export-provision" class="btn btn-info">
-          <i class="fas fa-file-excel"></i> Excel 다운로드
-        </button>
-        <table id="provision-table">
-          <thead>
-            <tr>
-              <th>제공일</th>
-              <th>고객명</th>
-              <th>생년월일</th>
-              <th>가져간 품목명</th>
-              <th>수량</th>
-              <th>개당 가격</th>
-              <th>총가격</th>
-              <th>처리자</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+      <section class="card space-y-6">
         <div
-          id="provision-pagination"
-          class="pagebar"
-          aria-label="페이지네이션"
-        ></div>
-      </div>
+          class="flex flex-col md:flex-row gap-4 justify-between items-start"
+        >
+          <div
+            class="flex flex-col sm:flex-row gap-3 w-full md:flex-1 items-start"
+          >
+            <div id="global-search-group" class="field-group w-full sm:flex-1">
+              <label class="field-label" for="global-search">통합 검색</label>
+              <div class="field-box">
+                <div class="field-prefix"><i class="fas fa-search"></i></div>
+                <input
+                  id="global-search"
+                  type="text"
+                  class="field-input"
+                  placeholder="검색어를 입력하세요"
+                />
+                <div class="field-right">
+                  <button
+                    id="btn-run-search"
+                    class="btn btn-primary btn-sm px-4 rounded-lg shadow-sm"
+                  >
+                    검색
+                  </button>
+                </div>
+              </div>
+              <p class="field-error-text hidden">검색 결과가 없습니다.</p>
+            </div>
 
-      <!-- Visit -->
-      <div id="visit-log-section" class="hidden">
-        <button id="export-visit" class="btn btn-info">
-          <i class="fas fa-file-excel"></i> Excel 다운로드
-        </button>
-        <table id="visit-log-table">
-          <thead>
-            <tr>
-              <th>고객명</th>
-              <th>생년월일</th>
-              <th>방문일자</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <div
-          id="visit-pagination"
-          class="pagebar"
-          aria-label="페이지네이션"
-        ></div>
-      </div>
+            <div class="h-12 flex items-center shrink-0 sm:mt-[26px]">
+              <label
+                class="flex items-center gap-2.5 cursor-pointer select-none px-2"
+              >
+                <input
+                  type="checkbox"
+                  id="exact-match"
+                  class="input-toss-checkbox"
+                />
+                <span
+                  class="text-[15px] font-bold text-slate-600 dark:text-slate-300"
+                  >정확히 일치</span
+                >
+              </label>
+            </div>
+          </div>
 
-      <!-- Life -->
-      <div id="life-section" class="hidden">
-        <button id="export-life" class="btn btn-info">
-          <i class="fas fa-file-excel"></i> Excel 다운로드
-        </button>
-        <table id="life-table">
-          <thead>
-            <tr>
-              <th>성명</th>
-              <th>생년월일</th>
-              <th>성별</th>
-              <th>이용자구분</th>
-              <th>이용자분류</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <div
-          id="life-pagination"
-          class="pagebar"
-          aria-label="페이지네이션"
-        ></div>
-      </div>
-    </main>
-
-    <!-- ✅ 월별 일일 방문 인원 모달 (common.css 스타일 사용) -->
-    <div
-      id="monthly-daily-modal"
-      class="modal hidden"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-    >
-      <div class="modal-content">
-        <h2 id="monthly-daily-title">월별 일일 방문 인원</h2>
-        <div class="modal-toolbar monthly-daily-controls">
-          <button id="monthly-daily-prev" class="small-btn" title="이전 달">
-            ◀
-          </button>
-          <input type="month" id="monthly-daily-input" />
-          <button id="monthly-daily-next" class="small-btn" title="다음 달">
-            ▶
+          <button
+            id="toggle-advanced-search"
+            class="btn btn-light btn-md px-5 rounded-xl w-full md:w-auto md:mt-[26px]"
+          >
+            상세 검색
           </button>
         </div>
-        <div id="monthly-daily-scroll" class="table-scroll">
-          <table id="monthly-daily-table" class="table-base">
+
+        <div
+          id="advanced-search"
+          class="hidden p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 animate-fade-in"
+        >
+          <div class="flex flex-col sm:flex-row gap-4 items-start">
+            <div class="field-group w-full sm:w-48">
+              <label class="field-label">목록 선택</label>
+              <div class="field-box">
+                <select id="field-select" class="field-input"></select>
+              </div>
+            </div>
+            <div id="field-search-group" class="field-group flex-1">
+              <label class="field-label">상세 검색어</label>
+              <div class="field-box">
+                <div class="field-prefix"><i class="fas fa-filter"></i></div>
+                <input
+                  id="field-search"
+                  type="text"
+                  class="field-input"
+                  placeholder="검색어를 입력하세요"
+                />
+                <div class="field-right">
+                  <button
+                    id="btn-run-field-search"
+                    class="btn btn-dark btn-sm px-4 rounded-lg"
+                  >
+                    조회
+                  </button>
+                </div>
+              </div>
+              <p class="field-error-text hidden">
+                조건에 맞는 결과가 없습니다.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="h-px bg-slate-100 dark:bg-slate-800"></div>
+
+        <div
+          class="flex flex-col md:flex-row gap-4 justify-between items-end md:items-center"
+        >
+          <div class="w-full md:w-auto">
+            <div
+              id="filter-provision"
+              class="flex flex-col sm:flex-row gap-3 items-start sm:items-center w-full"
+            >
+              <span
+                class="text-[13px] font-bold text-slate-500 shrink-0 mt-2 sm:mt-0"
+                >조회 기간</span
+              >
+              <div class="flex items-center gap-2 w-full sm:w-auto">
+                <div class="field-box w-44">
+                  <div class="field-prefix">
+                    <i class="far fa-calendar text-slate-400"></i>
+                  </div>
+                  <input
+                    type="text"
+                    id="start-date-input"
+                    class="field-input font-medium min-w-0"
+                    placeholder="YYYY.MM.DD"
+                    maxlength="10"
+                  />
+                </div>
+                <span class="text-slate-300 dark:text-slate-600 font-bold"
+                  >~</span
+                >
+                <div class="field-box w-44">
+                  <div class="field-prefix">
+                    <i class="far fa-calendar text-slate-400"></i>
+                  </div>
+                  <input
+                    type="text"
+                    id="end-date-input"
+                    class="field-input font-medium min-w-0"
+                    placeholder="YYYY.MM.DD"
+                    maxlength="10"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div
+              id="filter-visit"
+              class="hidden flex flex-col sm:flex-row gap-3 items-start sm:items-center w-full"
+            >
+              <span
+                class="text-[13px] font-bold text-slate-500 shrink-0 mt-2 sm:mt-0"
+                >회계연도</span
+              >
+              <div class="field-box w-full sm:w-64">
+                <div class="field-prefix"><i class="fas fa-history"></i></div>
+                <select id="fiscal-year-select" class="field-input"></select>
+              </div>
+            </div>
+
+            <div
+              id="filter-life"
+              class="hidden flex flex-col sm:flex-row gap-4 items-start sm:items-center w-full"
+            >
+              <div class="flex items-center gap-3 w-full sm:w-auto">
+                <span class="text-[13px] font-bold text-slate-500 shrink-0"
+                  >연도</span
+                >
+                <div class="field-box w-full sm:w-32">
+                  <select id="life-year-select" class="field-input"></select>
+                </div>
+              </div>
+              <div class="flex items-center gap-3 w-full sm:w-auto">
+                <span class="text-[13px] font-bold text-slate-500 shrink-0"
+                  >분기</span
+                >
+                <div class="field-box w-full sm:w-32">
+                  <select id="life-quarter-select" class="field-input">
+                    <option value="Q1">1분기</option>
+                    <option value="Q2">2분기</option>
+                    <option value="Q3">3분기</option>
+                    <option value="Q4">4분기</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="flex items-center gap-3 shrink-0 w-full md:w-auto justify-start md:justify-end mt-2 md:mt-0"
+          >
+            <span class="text-[13px] font-bold text-slate-500">표시 수</span>
+            <div class="field-box w-32">
+              <select id="item-count-select" class="field-input">
+                <option value="10">10개</option>
+                <option value="20" selected>20개</option>
+                <option value="50">50개</option>
+                <option value="100">100개</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="provision-section" class="space-y-4 animate-fade-in">
+        <div class="flex justify-between items-end">
+          <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">
+            <i class="fas fa-list-alt mr-2"></i>제공 목록
+          </h3>
+          <button
+            id="export-provision"
+            class="btn btn-light-weak btn-sm text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 dark:text-emerald-400 transition-colors"
+          >
+            <i class="fas fa-file-excel mr-1.5"></i> 엑셀 다운로드
+          </button>
+        </div>
+
+        <div
+          class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-800"
+        >
+          <table id="provision-table" class="table">
             <thead>
               <tr>
-                <th>일자</th>
-                <th>방문인원</th>
+                <th
+                  class="w-40 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="date"
+                >
+                  <div class="flex items-center gap-1">
+                    제공일시 <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+                <th
+                  class="whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="name"
+                >
+                  <div class="flex items-center gap-1">
+                    고객명 <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+                <th class="whitespace-nowrap">생년월일</th>
+                <th class="whitespace-nowrap">가져간 품목명</th>
+                <th class="text-right whitespace-nowrap">수량</th>
+                <th class="text-right whitespace-nowrap">단가</th>
+                <th class="text-right whitespace-nowrap">총가격</th>
+                <th
+                  class="whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="handler"
+                >
+                  <div class="flex items-center gap-1">
+                    처리자 <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+                <th class="whitespace-nowrap text-center">관리</th>
               </tr>
             </thead>
-            <tbody></tbody>
-            <tfoot>
+            <tbody
+              class="divide-y divide-slate-50 dark:divide-slate-700/50"
+            ></tbody>
+          </table>
+        </div>
+        <div id="provision-pagination" class="pagination-wrapper"></div>
+      </section>
+
+      <section id="visit-log-section" class="hidden space-y-4 animate-fade-in">
+        <div class="flex justify-between items-end">
+          <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">
+            <i class="fas fa-user-clock mr-2"></i>방문 기록
+          </h3>
+          <button
+            id="export-visit"
+            class="btn btn-light-weak btn-sm text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 dark:text-emerald-400 transition-colors"
+          >
+            <i class="fas fa-file-excel mr-1.5"></i> 엑셀 다운로드
+          </button>
+        </div>
+
+        <div
+          class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-800"
+        >
+          <table id="visit-log-table" class="table w-full">
+            <thead>
               <tr>
-                <td>합계</td>
-                <td id="monthly-daily-total" class="num">0</td>
+                <th
+                  class="whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="name"
+                >
+                  <div class="flex items-center gap-1">
+                    고객명 <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+                <th
+                  class="whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="birth"
+                >
+                  <div class="flex items-center gap-1">
+                    생년월일 <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+
+                <th
+                  class="whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="dates"
+                >
+                  <div class="flex items-center gap-1">
+                    방문일자 목록 (최신순)
+                    <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              class="divide-y divide-slate-50 dark:divide-slate-700/50"
+            ></tbody>
+          </table>
+        </div>
+        <div id="visit-pagination" class="pagination-wrapper"></div>
+      </section>
+
+      <section id="life-section" class="hidden space-y-4 animate-fade-in">
+        <div class="flex justify-between items-end">
+          <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">
+            <i class="fas fa-heartbeat mr-2"></i>생명사랑 현황
+          </h3>
+          <button
+            id="export-life"
+            class="btn btn-light-weak btn-sm text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 dark:text-emerald-400 transition-colors"
+          >
+            <i class="fas fa-file-excel mr-1.5"></i> 엑셀 다운로드
+          </button>
+        </div>
+
+        <div
+          class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-800"
+        >
+          <table id="life-table" class="table w-full">
+            <thead>
+              <tr>
+                <th
+                  class="whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="name"
+                >
+                  <div class="flex items-center gap-1">
+                    성명 <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+                <th
+                  class="whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="birth"
+                >
+                  <div class="flex items-center gap-1">
+                    생년월일 <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+                <th
+                  class="whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="gender"
+                >
+                  <div class="flex items-center gap-1">
+                    성별 <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+                <th
+                  class="whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="userType"
+                >
+                  <div class="flex items-center gap-1">
+                    이용자구분 <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+                <th
+                  class="whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  data-sort="userClass"
+                >
+                  <div class="flex items-center gap-1">
+                    이용자분류 <i class="fas fa-sort text-slate-300"></i>
+                  </div>
+                </th>
+                <th class="whitespace-nowrap text-center">관리</th>
+              </tr>
+            </thead>
+            <tbody
+              class="divide-y divide-slate-50 dark:divide-slate-700/50"
+            ></tbody>
+          </table>
+        </div>
+        <div id="life-pagination" class="pagination-wrapper"></div>
+      </section>
+    </main>
+
+    <div
+      id="monthly-daily-modal"
+      class="modal-overlay hidden"
+      aria-hidden="true"
+    >
+      <div
+        class="modal-content max-w-sm flex flex-col max-h-[80vh]"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          class="modal-header border-b border-slate-100 dark:border-slate-700/50"
+        >
+          <h2
+            id="monthly-daily-title"
+            class="modal-title flex items-center gap-2"
+          >
+            <div
+              class="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400"
+            >
+              <i class="fas fa-calendar-alt text-sm"></i>
+            </div>
+            <span>월별 일일 방문</span>
+          </h2>
+        </div>
+
+        <div
+          class="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50"
+        >
+          <div class="flex items-center justify-center gap-3">
+            <button
+              id="monthly-daily-prev"
+              class="btn btn-xs btn-light-weak w-8 h-8 rounded-full"
+            >
+              <i class="fas fa-chevron-left"></i>
+            </button>
+            <div
+              class="field-box !w-40 !h-9 !bg-white dark:!bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"
+            >
+              <input
+                type="month"
+                id="monthly-daily-input"
+                class="field-input text-center text-sm font-bold !p-0"
+              />
+            </div>
+            <button
+              id="monthly-daily-next"
+              class="btn btn-xs btn-light-weak w-8 h-8 rounded-full"
+            >
+              <i class="fas fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-0">
+          <table
+            id="monthly-daily-table"
+            class="table w-full border-none shadow-none rounded-none"
+          >
+            <thead
+              class="sticky top-0 bg-slate-50 dark:bg-slate-800 z-10 shadow-sm"
+            >
+              <tr>
+                <th class="text-center py-3">일자</th>
+                <th class="text-center py-3">방문인원</th>
+              </tr>
+            </thead>
+            <tbody
+              class="divide-y divide-slate-100 dark:divide-slate-700"
+            ></tbody>
+            <tfoot
+              class="bg-blue-50/50 dark:bg-slate-800 border-t-2 border-slate-200 dark:border-slate-600 sticky bottom-0 z-10"
+            >
+              <tr>
+                <td
+                  class="text-center font-bold py-3 text-slate-600 dark:text-slate-300"
+                >
+                  합계
+                </td>
+                <td
+                  id="monthly-daily-total"
+                  class="text-center font-black text-blue-600 dark:text-blue-400 py-3 text-lg"
+                >
+                  0
+                </td>
               </tr>
             </tfoot>
           </table>
         </div>
-        <div class="modal-buttons" style="margin-top: 12px">
-          <span></span>
-          <button id="monthly-daily-close">닫기</button>
+
+        <div
+          class="modal-footer border-t border-slate-100 dark:border-slate-700/50 p-4"
+        >
+          <button
+            id="monthly-daily-close"
+            class="btn btn-light btn-full btn-md"
+          >
+            닫기
+          </button>
         </div>
       </div>
     </div>
 
+    <div
+      id="provision-edit-modal"
+      class="modal-overlay hidden"
+      aria-hidden="true"
+    >
+      <div class="modal-content max-w-md flex flex-col">
+        <div
+          class="modal-header border-b border-slate-100 dark:border-slate-700/50"
+        >
+          <h2 class="modal-title">제공 내역 수정</h2>
+        </div>
+        <div class="modal-body p-6 space-y-4">
+          <input type="hidden" id="prov-edit-id" />
+          <input type="hidden" id="prov-edit-old-customer-id" />
+          <input type="hidden" id="prov-edit-new-customer-id" />
+          <input type="hidden" id="prov-edit-new-customer-birth" />
+
+          <div class="field-group">
+            <label class="field-label">제공일시</label>
+            <div class="field-box">
+              <input
+                type="datetime-local"
+                id="prov-edit-date"
+                class="field-input text-slate-500 cursor-not-allowed"
+                disabled
+              />
+            </div>
+            <p
+              class="text-xs text-slate-400 dark:text-slate-500 font-medium mt-2"
+            >
+              ※ 제공일시는 현재 수정할 수 없습니다.
+            </p>
+          </div>
+
+          <div id="prov-lookup-group" class="field-group">
+            <label for="prov-customer-search" class="field-label"
+              >이용자 조회</label
+            >
+
+            <div class="field-box">
+              <div class="field-prefix">
+                <i class="fas fa-search"></i>
+              </div>
+              <input
+                type="text"
+                id="prov-customer-search"
+                class="field-input"
+                placeholder="이용자명을 입력하세요"
+              />
+              <div class="field-right">
+                <button
+                  id="prov-lookup-btn"
+                  type="button"
+                  class="btn btn-primary btn-sm px-4"
+                >
+                  조회
+                </button>
+              </div>
+            </div>
+            <p id="prov-lookup-error" class="field-error-text hidden">
+              해당 이용자를 찾을 수 없습니다.
+            </p>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">선택된 이용자</label>
+            <div class="field-box">
+              <div class="field-prefix">
+                <i class="fas fa-user"></i>
+              </div>
+              <input
+                type="text"
+                id="prov-edit-name"
+                class="field-input text-slate-500 cursor-not-allowed"
+                disabled
+              />
+            </div>
+            <p
+              class="text-xs text-slate-400 dark:text-slate-500 font-medium mt-2"
+            >
+              ※ 이용자 조회 후 선택 완료를 누르면 여기에 반영됩니다.
+            </p>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">처리자 (Handler)</label>
+            <div class="field-box">
+              <input type="text" id="prov-edit-handler" class="field-input" />
+            </div>
+          </div>
+
+          <p class="text-xs text-rose-500 font-bold mt-2">
+            ※ 주의: 품목 및 재고 수량은 여기서 수정할 수 없습니다. 품목 변경이
+            필요한 경우 해당 내역을 삭제 후 다시 등록해주세요.
+          </p>
+
+          <!-- Debug (FirebaseError details) -->
+          <div
+            id="prov-edit-debug"
+            class="hidden rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900"
+          >
+            <div class="font-bold mb-1">에러 상세</div>
+            <pre
+              id="prov-edit-debug-pre"
+              class="whitespace-pre-wrap break-words"
+            ></pre>
+          </div>
+        </div>
+        <div
+          class="modal-footer border-t border-slate-100 dark:border-slate-700/50"
+        >
+          <button id="prov-edit-close" class="btn btn-light btn-md flex-1">
+            취소
+          </button>
+          <button id="prov-edit-save" class="btn btn-primary btn-md flex-[2]">
+            수정 저장
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="duplicate-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal-content !max-w-lg !max-h-[90vh]">
+        <div
+          class="modal-header border-b border-slate-100 dark:border-slate-700/50"
+        >
+          <h2 class="modal-title flex items-center gap-2">
+            <i class="fas fa-user-check text-blue-500"></i>
+            <span>이용자 선택</span>
+          </h2>
+        </div>
+
+        <div class="flex-1 p-4 space-y-2">
+          <ul
+            id="duplicate-list"
+            class="p-2 overflow-y-auto custom-scrollbar max-h-[400px]"
+          ></ul>
+          <div id="selected-info" class="hidden mt-4 animate-fade-in"></div>
+        </div>
+
+        <div
+          class="modal-footer border-t border-slate-100 dark:border-slate-700/50 justify-end gap-3"
+        >
+          <button
+            id="close-duplicate-modal"
+            class="btn btn-light btn-md flex-1"
+          >
+            취소
+          </button>
+          <button
+            id="confirm-duplicate"
+            class="btn btn-primary btn-md flex-[2]"
+          >
+            <i class="fas fa-check mr-2"></i> 선택 완료
+          </button>
+        </div>
+      </div>
+    </div>
     <div id="footer-container"></div>
 
     <script type="module">

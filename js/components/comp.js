@@ -117,7 +117,7 @@ export function loadHeader(containerID = null) {
             <a href="dashboard.html" class="nav-link px-3.5 py-2 rounded-xl text-[15px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap">대시보드</a>
             <a href="provision.html" class="nav-link px-3.5 py-2 rounded-xl text-[15px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap">제공등록</a>
             <a href="customers.html" class="nav-link px-3.5 py-2 rounded-xl text-[15px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap">이용자 관리</a>
-            <a href="products.html" class="nav-link px-3.5 py-2 rounded-xl text-[15px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap">상품 관리</a>
+            <a href="products.html" class="nav-link px-3.5 py-2 rounded-xl text-[15px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap">상품</a>
             <a href="statistics.html" class="nav-link px-3.5 py-2 rounded-xl text-[15px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap">통계</a>
             <a href="admin.html" id="nav-admin" class="hidden nav-link px-3.5 py-2 rounded-xl text-[15px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-all no-underline whitespace-nowrap">관리자</a>
           </nav>
@@ -165,13 +165,13 @@ export function loadHeader(containerID = null) {
           "text-primary",
           "dark:text-primary-400",
           "bg-primary-50",
-          "dark:bg-primary-500/10"
+          "dark:bg-primary-500/10",
         );
         link.classList.remove(
           "text-slate-500",
           "dark:text-slate-400",
           "hover:bg-slate-100",
-          "dark:hover:bg-slate-800"
+          "dark:hover:bg-slate-800",
         );
       }
     });
@@ -318,6 +318,11 @@ export function setBusy(el, busy = true) {
 // ---------------- Skeletons (TDS 리팩토링) ----------------
 export function makeSectionSkeleton(container, rows = 5) {
   if (!container) return () => {};
+
+  // 1. [공통] 기존 내용 비우기 (로딩 시작 시 이전 데이터 제거)
+  container.innerHTML = "";
+
+  // Case 1: 테이블 본문(TBODY)
   if (container.tagName === "TBODY") {
     const addedRows = [];
     const frag = document.createDocumentFragment();
@@ -325,25 +330,40 @@ export function makeSectionSkeleton(container, rows = 5) {
       const tr = document.createElement("tr");
       tr.className =
         "animate-pulse border-b border-slate-50 dark:border-slate-800 last:border-0";
-      tr.innerHTML = `<td colspan="100" class="p-0"><div class="h-14 flex items-center gap-4 px-4 w-full"><div class="h-4 bg-slate-100 dark:bg-slate-700 rounded w-[10%]"></div><div class="h-4 bg-slate-100 dark:bg-slate-700 rounded flex-1"></div><div class="h-4 bg-slate-100 dark:bg-slate-700 rounded w-[15%]"></div></div></td>`;
+      tr.innerHTML = `<td colspan="100" class="p-0">
+        <div class="h-14 flex items-center gap-4 px-4 w-full">
+          <div class="h-4 bg-slate-100 dark:bg-slate-700 rounded w-[10%]"></div>
+          <div class="h-4 bg-slate-100 dark:bg-slate-700 rounded flex-1"></div>
+          <div class="h-4 bg-slate-100 dark:bg-slate-700 rounded w-[15%]"></div>
+        </div>
+      </td>`;
       frag.appendChild(tr);
       addedRows.push(tr);
     }
     container.appendChild(frag);
-    return () => addedRows.forEach((tr) => tr.remove());
+    return () => {}; // 이미 innerHTML로 덮어씌워질 것이므로 클린업은 필수가 아님 (비워둬도 무방)
   }
+
+  // Case 2: 일반 섹션 (DIV 등)
   const wrap = document.createElement("div");
+  // 내용이 비워졌으므로 absolute overlay가 아니라 일반 블록으로 채움
   wrap.className =
     "w-full h-full z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-[1px] flex flex-col overflow-hidden rounded-lg";
+
   wrap.innerHTML = `<div class="w-full flex flex-col">${Array(rows)
     .fill(
-      `<div class="h-14 flex items-center gap-4 px-4 border-b border-slate-50 dark:border-slate-800"><div class="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse w-[10%]"></div><div class="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse flex-1"></div></div>`
+      `<div class="h-14 flex items-center gap-4 px-4 border-b border-slate-50 dark:border-slate-800"><div class="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse w-[10%]"></div><div class="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse flex-1"></div></div>`,
     )
     .join("")}</div>`;
+
   const originalPos = container.style.position;
+  // 스켈레톤이 내부를 채우므로 relative가 꼭 필요하진 않으나 레이아웃 안정성을 위해 유지
   if (getComputedStyle(container).position === "static")
     container.style.position = "relative";
+
   container.appendChild(wrap);
+
+  // 클린업: 로딩이 끝나면 이 요소를 제거 (또는 데이터 렌더링 시 덮어써짐)
   return () => {
     wrap.remove();
     container.style.position = originalPos;
@@ -352,6 +372,10 @@ export function makeSectionSkeleton(container, rows = 5) {
 
 export function makeGridSkeleton(container, count = 8) {
   if (!container) return () => {};
+
+  // 1. [공통] 기존 내용 비우기
+  container.innerHTML = "";
+
   const frag = document.createDocumentFragment();
   const addedNodes = [];
   for (let i = 0; i < count; i++) {
@@ -362,18 +386,33 @@ export function makeGridSkeleton(container, count = 8) {
     addedNodes.push(card);
   }
   container.appendChild(frag);
+
   return () => addedNodes.forEach((node) => node.remove());
 }
 
 export function makeWidgetSkeleton(container) {
   if (!container) return () => {};
+
+  // ✅ 기존 내용은 지우지 않는다 (overlay로만 덮는다)
   const wrap = document.createElement("div");
+
+  // 기존 카드 위에 덮는 overlay (absolute)
   wrap.className =
     "absolute inset-0 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-[1px] p-6 flex flex-col gap-6 rounded-[24px] overflow-hidden";
-  wrap.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse"></div><div class="h-6 w-32 bg-slate-100 dark:bg-slate-800 rounded animate-pulse"></div></div><div class="h-32 w-full bg-slate-50 dark:bg-slate-800/50 rounded-xl animate-pulse"></div>`;
+
+  wrap.innerHTML = `
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse"></div>
+      <div class="h-6 w-32 bg-slate-100 dark:bg-slate-800 rounded animate-pulse"></div>
+    </div>
+    <div class="h-32 w-full bg-slate-50 dark:bg-slate-800/50 rounded-xl animate-pulse"></div>
+  `;
+
   const originalPos = getComputedStyle(container).position;
   if (originalPos === "static") container.style.position = "relative";
+
   container.appendChild(wrap);
+
   return () => {
     wrap.remove();
     if (originalPos === "static") container.style.position = "";
@@ -404,7 +443,7 @@ export function renderCursorPager(container, state, handlers, options = {}) {
     '<i class="fas fa-angle-double-left"></i>',
     !hasPrev,
     "first",
-    "처음"
+    "처음",
   );
   html += mkBtn('<i class="fas fa-angle-left"></i>', !hasPrev, "prev", "이전");
 
@@ -422,7 +461,7 @@ export function renderCursorPager(container, state, handlers, options = {}) {
       '<i class="fas fa-angle-double-right"></i>',
       !hasNext,
       "last",
-      "마지막"
+      "마지막",
     );
   }
 
@@ -440,8 +479,8 @@ export function renderCursorPager(container, state, handlers, options = {}) {
     .querySelectorAll("[data-page]")
     ?.forEach((el) =>
       el.addEventListener("click", () =>
-        goPage?.(Number(el.getAttribute("data-page")))
-      )
+        goPage?.(Number(el.getAttribute("data-page"))),
+      ),
     );
   container
     .querySelector('[data-act="next"]')
@@ -454,7 +493,7 @@ export function renderCursorPager(container, state, handlers, options = {}) {
 export function initPageSizeSelect(selectEl, onChange) {
   if (selectEl)
     selectEl.addEventListener("change", () =>
-      onChange?.(Number(selectEl.value) || 25)
+      onChange?.(Number(selectEl.value) || 25),
     );
 }
 
@@ -478,7 +517,7 @@ export async function getTurnstileToken(action = "secure_action") {
         action,
         callback: (token) => resolve(token),
         "error-callback": () => resolve(null),
-      })
+      }),
     );
   } catch {
     return null;
@@ -545,7 +584,7 @@ export async function openCaptchaModal(opts = {}) {
           theme: turnstileTheme, // [수정] 테마에 따라 'dark' 또는 'light' 적용
           callback: (t) => cleanup(t),
           "error-callback": () => cleanup(null),
-        }
+        },
       );
     } catch {
       cleanup(null);
@@ -680,20 +719,20 @@ export function openAdminPendingSummaryModal({
   const content = `
     <div class="flex flex-col mb-2">
       <div class="${itemClass}"><span>사용자 권한 대기</span>${
-    pendingUsers > 0
-      ? `<a href="admin.html#pending-users" class="${hotClass}">${pendingUsers}건</a>`
-      : `<span class="text-slate-400">0건</span>`
-  }</div>
+        pendingUsers > 0
+          ? `<a href="admin.html#pending-users" class="${hotClass}">${pendingUsers}건</a>`
+          : `<span class="text-slate-400">0건</span>`
+      }</div>
       <div class="${itemClass}"><span>물품 승인 대기</span>${
-    productPending > 0
-      ? `<a href="admin.html#pending-products" class="${hotClass}">${productPending}건</a>`
-      : `<span class="text-slate-400">0건</span>`
-  }</div>
+        productPending > 0
+          ? `<a href="admin.html#pending-products" class="${hotClass}">${productPending}건</a>`
+          : `<span class="text-slate-400">0건</span>`
+      }</div>
       <div class="${itemClass}"><span>이용자 승인 대기</span>${
-    userPending > 0
-      ? `<a href="admin.html#pending-customers" class="${hotClass}">${userPending}건</a>`
-      : `<span class="text-slate-400">0건</span>`
-  }</div>
+        userPending > 0
+          ? `<a href="admin.html#pending-customers" class="${hotClass}">${userPending}건</a>`
+          : `<span class="text-slate-400">0건</span>`
+      }</div>
     </div>
   `;
   const footer = `<button id="admin-pending-close" class="btn btn-md btn-light flex-1 !rounded-2xl">닫기</button>`;
@@ -736,14 +775,14 @@ async function notifyNewAccountsOnceOnLogin(user, role) {
 async function fallbackPendingSummaryFromFirestore() {
   try {
     const usersSnap = await getDocs(
-      query(collection(db, "users"), where("role", "==", "pending"))
+      query(collection(db, "users"), where("role", "==", "pending")),
     );
     const apprSnap = await getDocs(
       query(
         collection(db, "approvals"),
         where("approved", "==", false),
-        limit(500)
-      )
+        limit(500),
+      ),
     );
     let pP = 0,
       uP = 0;
