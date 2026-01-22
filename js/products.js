@@ -12,7 +12,6 @@ import {
   writeBatch,
   arrayUnion,
   query,
-  orderBy,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   showToast,
@@ -21,34 +20,30 @@ import {
   openConfirm,
   withLoading,
   makeGridSkeleton,
-  setBusy,
+  renderEmptyState,
 } from "./components/comp.js";
 
 const productsCol = collection(db, "products");
 const POLICY_DOC = doc(db, "stats", "categoryPolicies");
 
-// ===== 상태 관리 (Client-Side Paging & Search) =====
-let allProducts = []; // 전체 상품 데이터 (메모리 캐시)
-let filteredProducts = []; // 검색/필터 적용된 데이터
+// ===== 상태 관리 =====
+let allProducts = [];
+let filteredProducts = [];
 let currentPage = 1;
 let pageSize = 20;
 let totalPages = 1;
 
-let editingProductId = null; // 수정할 상품 ID
+let editingProductId = null;
 let editInitial = null;
 
-// 엑셀 관련 상태
 let parsedRows = [];
 let parsedIssues = [];
 
 const productList = document.getElementById("product-list");
 const pagination = document.getElementById("pagination");
 
-/* ---------------------------
-  카테고리 & 정책 캐시
----------------------------- */
+// 카테고리 & 정책 캐시
 const CAT_DOC = doc(db, "meta", "categories_products");
-const CAT_CACHE_KEY = "catIndex:products:v1";
 let categoriesCache = [];
 let policiesCache = {};
 let policyDirty = false;
@@ -60,14 +55,37 @@ function normalizeCategory(c) {
 }
 
 /* ---------------------------
-  1. 전체 데이터 로드 (최초 1회)
+  [핵심 기능] 검색창 에러 메시지 제어
+---------------------------- */
+function toggleSearchError(inputId, show) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+
+  // HTML 구조상 input을 감싸는 .field-group 찾기
+  const group = el.closest(".field-group");
+  if (!group) return;
+
+  // 그룹 내부에 미리 작성해둔 에러 텍스트 찾기 (<p class="field-error-text hidden">)
+  const errText = group.querySelector(".field-error-text");
+
+  if (show) {
+    // 에러 상태: 빨간 테두리 추가 + 메시지 보이기 (hidden 제거)
+    group.classList.add("is-error");
+    if (errText) errText.classList.remove("hidden");
+  } else {
+    // 정상 상태: 빨간 테두리 제거 + 메시지 숨기기 (hidden 추가)
+    group.classList.remove("is-error");
+    if (errText) errText.classList.add("hidden");
+  }
+}
+
+/* ---------------------------
+  1. 전체 데이터 로드
 ---------------------------- */
 async function loadAllProducts() {
   const cleanup = makeGridSkeleton(productList, 12);
-
   try {
-    // 쿼리: 전체 로드 (정렬은 클라이언트에서)
-    const q = query(productsCol); // orderBy 없이 전체 가져옴
+    const q = query(productsCol);
     const snap = await getDocs(q);
 
     allProducts = snap.docs.map((d) => {
@@ -75,17 +93,12 @@ async function loadAllProducts() {
       return {
         id: d.id,
         ...data,
-        // 검색 성능을 위해 소문자/공백제거 필드 미리 생성
         _searchName: (data.name || "").toLowerCase().replace(/\s+/g, ""),
         _searchBarcode: (data.barcode || "").trim(),
-        // 정렬용 timestamp 처리
         _createdAt: data.createdAt?.seconds || 0,
       };
     });
-
     console.log(`📦 전체 상품 로드 완료: ${allProducts.length}건`);
-
-    // 초기 필터링 및 렌더링
     applyFilters();
   } catch (e) {
     console.error("데이터 로드 실패:", e);
@@ -96,28 +109,30 @@ async function loadAllProducts() {
 }
 
 /* ---------------------------
-  2. 필터링 & 정렬 (Core Logic)
+  2. 필터링 & 정렬 (에러 표시 로직 포함)
 ---------------------------- */
 function applyFilters() {
-  const nameQuery = (document.getElementById("product-name")?.value || "")
+  const nameInput = document.getElementById("product-name");
+  const barcodeInput = document.getElementById("product-barcode");
+  const catInput = document.getElementById("filter-category");
+
+  const nameQuery = (nameInput?.value || "")
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "");
-  const barcodeQuery = (
-    document.getElementById("product-barcode")?.value || ""
-  ).trim();
-  const categoryQuery = (
-    document.getElementById("filter-category")?.value || ""
-  ).trim();
+  const barcodeQuery = (barcodeInput?.value || "").trim();
+  const categoryQuery = (catInput?.value || "").trim();
   const sortBy = document.getElementById("sort-select")?.value || "date";
 
-  // 1. 필터링 (AND 조건)
+  // [초기화] 검색 시작 시 모든 에러 상태 해제
+  toggleSearchError("product-name", false);
+  toggleSearchError("product-barcode", false);
+  toggleSearchError("filter-category", false);
+
+  // 1. 필터링 수행
   filteredProducts = allProducts.filter((p) => {
-    // 바코드 검색 (일치)
     if (barcodeQuery && !p._searchBarcode.includes(barcodeQuery)) return false;
-    // 상품명 검색 (단순 포함 - includes 방식) -> "간장" 검색 시 "조림간장" 노출됨
     if (nameQuery && !p._searchName.includes(nameQuery)) return false;
-    // 카테고리 검색 (일치)
     if (categoryQuery && p.category !== categoryQuery) return false;
     return true;
   });
@@ -125,111 +140,101 @@ function applyFilters() {
   // 2. 정렬
   filteredProducts.sort((a, b) => {
     switch (sortBy) {
-      case "price": // 가격 오름차순
+      case "price":
         return (a.price || 0) - (b.price || 0);
-      case "name": // 이름 오름차순
+      case "name":
         return (a.name || "").localeCompare(b.name || "");
-      case "barcode": // 바코드 오름차순
+      case "barcode":
         return (a.barcode || "").localeCompare(b.barcode || "");
-      case "date": // 등록일 내림차순 (기본)
+      case "date":
       default:
         return b._createdAt - a._createdAt;
     }
   });
 
-  // 3. 페이지네이션 리셋 및 렌더링
+  // 3. [핵심] 결과가 0건이면 입력값이 있는 필드에 에러 표시
+  if (filteredProducts.length === 0) {
+    if (nameQuery) toggleSearchError("product-name", true);
+    if (barcodeQuery) toggleSearchError("product-barcode", true);
+    if (categoryQuery) toggleSearchError("filter-category", true);
+  }
+
+  // 4. 렌더링
   currentPage = 1;
   renderPage();
 }
 
-/* ---------------------------
-  3. 페이지 렌더링
----------------------------- */
 function renderPage() {
   const total = filteredProducts.length;
   totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  // 현재 페이지 범위 계산
   const start = (currentPage - 1) * pageSize;
   const end = start + pageSize;
-  const pageItems = filteredProducts.slice(start, end);
-
-  // 리스트 그리기
-  renderList(pageItems);
-
-  // 페이지네이션 그리기
+  renderList(filteredProducts.slice(start, end));
   renderPagination();
 }
 
 function formatDate(ts) {
   if (!ts) return "-";
-  // Firestore Timestamp or Date object
   const date = ts.toDate ? ts.toDate() : new Date(ts.seconds * 1000 || ts);
   if (isNaN(date.getTime())) return "-";
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function renderList(rows) {
+  // [수정] 빈 상태일 때 Grid 레이아웃 해제 (Empty State 중앙 정렬)
   if (rows.length === 0) {
-    productList.innerHTML = `
-      <div class="col-span-full py-24 flex flex-col items-center justify-center text-center select-none">
-        <div class="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
-          <i class="fas fa-box-open text-3xl text-slate-300 dark:text-slate-600"></i>
-        </div>
-        <p class="text-slate-500 dark:text-slate-400 font-bold text-lg">조건에 맞는 상품이 없습니다.</p>
-        <p class="text-slate-400 dark:text-slate-500 text-sm mt-1">검색어를 변경하거나 새로운 상품을 등록해보세요.</p>
-      </div>
-    `;
+    productList.style.display = "block"; // Grid 해제
+
+    renderEmptyState(
+      productList,
+      "조건에 맞는 상품이 없습니다.",
+      "fa-box-open",
+      "검색어를 변경하거나 새로운 상품을 등록해보세요.",
+    );
+
+    const emptyEl = productList.firstElementChild;
+    if (emptyEl) {
+      // col-span-full: 그리드 전체 가로폭 차지
+      // min-h-[400px]: 높이를 확보하여 수직 중앙 정렬이 예쁘게 보이도록 함
+      emptyEl.classList.add("col-span-full", "min-h-[400px]");
+    }
     return;
   }
+
+  // 데이터가 있을 때는 Grid 복구
+  productList.style.display = "";
 
   productList.innerHTML = rows
     .map(
       (p) => `
-      <div class="card flex flex-col gap-4 group relative overflow-hidden" data-id="${p.id}">
-        
-        <div class="flex justify-between items-start gap-2">
-          <div class="font-bold text-lg text-slate-800 dark:text-white leading-snug break-words line-clamp-2">
-            ${escapeHtml(p.name || "")}
-          </div>
-          <span class="badge badge-sm badge-weak-grey shrink-0">
-            ${escapeHtml(p.category || "미분류")}
-          </span>
+    <div class="card flex flex-col gap-4 group relative overflow-hidden" data-id="${p.id}">
+      <div class="flex justify-between items-start gap-2">
+        <div class="font-bold text-lg text-slate-800 dark:text-white leading-snug break-words line-clamp-2">
+          ${escapeHtml(p.name || "")}
         </div>
-        
-        <div class="space-y-1.5">
-          <div class="flex items-center gap-2">
-            <div class="w-5 flex justify-center text-slate-400"><i class="fas fa-won-sign text-sm"></i></div>
-            <span class="font-bold text-blue-600 dark:text-blue-400 text-lg">
-              ${Number(p.price || 0).toLocaleString()}
-            </span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-5 flex justify-center text-slate-400"><i class="fas fa-barcode text-sm"></i></div>
-            <span class="font-mono text-sm text-slate-500 dark:text-slate-400 tracking-wide">
-              ${escapeHtml(p.barcode || "")}
-            </span>
-          </div>
+        <span class="badge badge-sm badge-weak-grey shrink-0">${escapeHtml(p.category || "미분류")}</span>
+      </div>
+      <div class="space-y-1.5">
+        <div class="flex items-center gap-2">
+          <div class="w-5 flex justify-center text-slate-400"><i class="fas fa-won-sign text-sm"></i></div>
+          <span class="font-bold text-blue-600 dark:text-blue-400 text-lg">${Number(p.price || 0).toLocaleString()}</span>
         </div>
-
-        <div class="mt-auto pt-4 border-t border-slate-50 dark:border-slate-700/50 relative min-h-[48px]">
-          
-          <div class="absolute inset-x-0 bottom-0 top-4 flex items-center justify-between text-xs text-slate-400 transition-opacity duration-200 group-hover:opacity-0 pointer-events-none">
-            <span><i class="far fa-clock mr-1"></i> 등록: ${formatDate(p.createdAt)}</span>
-          </div>
-
-          <div class="absolute inset-x-0 bottom-0 top-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 bg-white dark:bg-slate-800">
-            <button class="edit btn btn-primary-weak btn-sm flex-1" data-id="${p.id}">
-              <i class="fas fa-pen"></i> 수정
-            </button>
-            <button class="delete-btn btn btn-danger-weak btn-sm flex-1" data-id="${p.id}">
-              <i class="fas fa-trash"></i> 삭제
-            </button>
-          </div>
-
+        <div class="flex items-center gap-2">
+          <div class="w-5 flex justify-center text-slate-400"><i class="fas fa-barcode text-sm"></i></div>
+          <span class="font-mono text-sm text-slate-500 dark:text-slate-400 tracking-wide">${escapeHtml(p.barcode || "")}</span>
         </div>
       </div>
-    `,
+      <div class="mt-auto pt-4 border-t border-slate-50 dark:border-slate-700/50 relative min-h-[48px]">
+        <div class="absolute inset-x-0 bottom-0 top-4 flex items-center justify-between text-xs text-slate-400 transition-opacity duration-200 group-hover:opacity-0 pointer-events-none">
+          <span><i class="far fa-clock mr-1"></i> 등록: ${formatDate(p.createdAt)}</span>
+        </div>
+        <div class="absolute inset-x-0 bottom-0 top-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 bg-white dark:bg-slate-800">
+          <button class="edit btn btn-primary-weak btn-sm flex-1" data-id="${p.id}"><i class="fas fa-pen"></i> 수정</button>
+          <button class="delete-btn btn btn-danger-weak btn-sm flex-1" data-id="${p.id}"><i class="fas fa-trash"></i> 삭제</button>
+        </div>
+      </div>
+    </div>
+  `,
     )
     .join("");
 }
@@ -273,19 +278,15 @@ function renderPagination() {
   );
 }
 
-// ==========================================
-// 4. 초기화 및 이벤트 바인딩
-// ==========================================
-
 document.addEventListener("DOMContentLoaded", () => {
-  // 초기 데이터 로드 순서: 카테고리 -> 정책 -> 상품
   loadCategoryIndex().then(loadPolicies).then(renderPolicyEditor);
   loadAllProducts();
   bindPageTabs();
 
-  // 검색/초기화 버튼
+  // 검색/초기화 이벤트
   document.getElementById("search-btn").addEventListener("click", applyFilters);
-  document.getElementById("reset-btn").addEventListener("click", async () => {
+
+  document.getElementById("reset-btn").addEventListener("click", () => {
     document.getElementById("product-name").value = "";
     document.getElementById("product-barcode").value = "";
     document.getElementById("filter-category").value = "";
@@ -294,28 +295,31 @@ document.addEventListener("DOMContentLoaded", () => {
     showToast(`초기화 완료 <i class='fas fa-check'></i>`);
   });
 
-  // 엔터 키 검색
+  // [추가] 입력 중 에러 메시지 숨기기 & 엔터키 검색
   ["product-name", "product-barcode", "filter-category"].forEach((id) => {
-    document.getElementById(id)?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        applyFilters();
-      }
-    });
+    const el = document.getElementById(id);
+    if (el) {
+      // 입력 시 즉시 에러 해제 (hidden 추가)
+      el.addEventListener("input", () => toggleSearchError(id, false));
+
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          applyFilters();
+        }
+      });
+    }
   });
 
-  // 정렬 및 페이지 사이즈 변경
   document
     .getElementById("sort-select")
     .addEventListener("change", applyFilters);
-
   initPageSizeSelect(document.getElementById("page-size"), (n) => {
     pageSize = n;
-    // 페이지 사이즈 변경 시 1페이지로 리셋
     applyFilters();
   });
 
-  // 모달 닫기 (바깥 클릭 & ESC)
+  // 모달 닫기
   const createOverlay = document.getElementById("product-create-modal");
   createOverlay?.addEventListener("click", (e) => {
     if (e.target === createOverlay) attemptCloseCreate();
@@ -333,7 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* ---------------------------
-   탭, 카테고리, 정책 로직
+   탭, 카테고리, 정책, 엑셀 로직 (기존 유지)
 ---------------------------- */
 function bindPageTabs() {
   const bar = document.querySelector(".tabbar--products");
@@ -482,44 +486,154 @@ async function loadPolicies() {
   }
 }
 
-// [수정] 정책 에디터 렌더링 (TDS 적용 완료 버전)
+// [수정] 정책 에디터 초기화 및 이벤트 바인딩
 function renderPolicyEditor() {
   const box = document.getElementById("policy-table");
   const saveBtn = document.getElementById("policy-save-btn");
   const cancelBtn = document.getElementById("policy-cancel-btn");
   const syncBtn = document.getElementById("category-sync-btn");
-  const searchVal =
-    document.getElementById("policy-search")?.value.trim().toLowerCase() || "";
 
-  if (!box || !saveBtn || !cancelBtn) return;
+  // 1. 이벤트 바인딩 (최초 1회만 실행되도록 체크하거나, 함수 분리)
+  // 여기서는 안전하게 매번 호출되더라도 문제없도록 분리된 바인딩 함수 호출
+  bindPolicyEvents();
+
+  // 2. 초기 리스트 렌더링
+  const currentSearch =
+    document.getElementById("policy-search")?.value.trim().toLowerCase() || "";
+  renderPolicyList(currentSearch);
+
+  // 3. 하단 버튼 제어
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.onclick = savePolicies;
+  }
+
+  if (cancelBtn) {
+    cancelBtn.onclick = () => {
+      const searchEl = document.getElementById("policy-search");
+      if (searchEl) {
+        searchEl.value = "";
+        // 에러 상태 초기화
+        togglePolicySearchError(false);
+      }
+      policyDirty = false;
+      renderPolicyList(""); // 전체 리로드
+      showToast("변경 사항을 취소했습니다.");
+    };
+  }
+
+  if (syncBtn) syncBtn.onclick = handleSyncCategories;
+
+  ensurePolicySectionVisible();
+}
+
+// [신규] 정책 검색 이벤트 연결 (HTML에 있는 요소를 활용)
+function bindPolicyEvents() {
+  const searchInput = document.getElementById("policy-search");
+  const searchBtn = document.getElementById("policy-search-btn");
+
+  if (!searchInput || !searchBtn) return;
+
+  // 중복 바인딩 방지를 위해 기존 리스너 제거 방식 대신,
+  // dataset 플래그를 사용하여 1회만 바인딩
+  if (searchInput.dataset.bound) return;
+  searchInput.dataset.bound = "true";
+
+  const performSearch = () => {
+    renderPolicyList(searchInput.value.trim().toLowerCase());
+  };
+
+  // 1. 검색 버튼 클릭
+  searchBtn.addEventListener("click", (e) => {
+    e.preventDefault(); // form 안에 있을 경우 대비
+    performSearch();
+  });
+
+  // 2. 엔터키 입력
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      performSearch();
+    }
+  });
+
+  // 3. 입력 시작 시 에러 메시지 숨기기 (UX)
+  searchInput.addEventListener("input", () => {
+    togglePolicySearchError(false);
+  });
+}
+
+// [신규] 에러 메시지 토글 헬퍼
+function togglePolicySearchError(show) {
+  const input = document.getElementById("policy-search");
+  if (!input) return;
+  const group = input.closest(".field-group");
+  const errorText = document.getElementById("policy-search-error");
+
+  if (show) {
+    if (group) group.classList.add("is-error");
+    if (errorText) errorText.classList.remove("hidden");
+  } else {
+    if (group) group.classList.remove("is-error");
+    if (errorText) errorText.classList.add("hidden");
+  }
+}
+
+// [수정] 실제 정책 리스트 그리기 (검색 및 에러 처리 포함)
+function renderPolicyList(searchVal) {
+  const box = document.getElementById("policy-table");
+  if (!box) return;
 
   let cats = Array.from(
     new Set([...(categoriesCache || []), ...Object.keys(policiesCache || {})]),
   ).sort((a, b) => a.localeCompare(b));
-  if (searchVal) cats = cats.filter((c) => c.toLowerCase().includes(searchVal));
 
-  box.className = "card grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5";
+  // 검색 필터링
+  if (searchVal) {
+    cats = cats.filter((c) => c.toLowerCase().includes(searchVal));
+  }
+
+  // [핵심] 검색 결과 0건일 때 처리
+  if (searchVal && cats.length === 0) {
+    togglePolicySearchError(true); // 에러 표시 (빨간 테두리 + 텍스트)
+  } else {
+    togglePolicySearchError(false); // 에러 해제
+  }
+
   box.innerHTML = "";
+  box.className = "card grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5";
 
+  // 리스트가 비었을 때 (Empty State)
   if (cats.length === 0) {
     box.className = "block";
     const msg = searchVal
       ? "검색 결과가 없습니다."
       : "설정할 카테고리가 없습니다.";
-    box.innerHTML = `
-      <div class="py-24 text-center select-none opacity-60">
-        <div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300 dark:text-slate-600 text-2xl"><i class="fas fa-filter"></i></div>
-        <p class="text-slate-500 dark:text-slate-400 font-medium">${msg}</p>
-      </div>`;
+    const subMsg = searchVal
+      ? "검색어를 변경하거나 새로운 상품을 등록해보세요."
+      : "새로운 상품 등록 시 분류를 추가해주세요.";
+
+    // comp.js의 renderEmptyState 활용
+    // import { renderEmptyState } from "./components/comp.js"; 가 상단에 있어야 함
+    renderEmptyState(box, msg, "fa-filter", subMsg);
+
+    // 스타일 미세 조정
+    if (box.firstElementChild) {
+      box.firstElementChild.classList.add("py-12");
+    }
     return;
   }
 
+  // 카드 생성 루프 (기존 코드 유지)
   cats.forEach((cat, idx) => {
     const raw = policiesCache[cat] || {
       mode: "category",
       limit: 1,
       active: false,
     };
+
+    // ... (이하 기존 카드 생성 로직과 동일) ...
+    // ... (pol 객체 생성) ...
     const pol = (() => {
       if (raw.mode === "one_per_category")
         return { mode: "category", limit: 1, active: raw.active !== false };
@@ -564,10 +678,12 @@ function renderPolicyEditor() {
       </div>
     `;
 
+    // 이벤트 리스너 연결 (dirty checking 등)
     const mark = () => {
       markPolicyDirty();
       const switchBtn = row.querySelector(".switch");
       const isActive = switchBtn.classList.contains("is-checked");
+      // 스타일 토글 로직...
       if (!isActive) {
         row.classList.add("opacity-60", "grayscale");
         row.classList.remove("border-transparent", "hover:border-primary-100");
@@ -592,10 +708,6 @@ function renderPolicyEditor() {
     const switchBtn = row.querySelector(".switch");
     switchBtn.addEventListener("click", () => {
       switchBtn.classList.toggle("is-checked");
-      switchBtn.setAttribute(
-        "aria-checked",
-        switchBtn.classList.contains("is-checked"),
-      );
       mark();
     });
 
@@ -617,18 +729,6 @@ function renderPolicyEditor() {
 
     box.appendChild(row);
   });
-
-  saveBtn.disabled = true;
-  cancelBtn.onclick = () => {
-    const searchEl = document.getElementById("policy-search");
-    if (searchEl) searchEl.value = "";
-    policyDirty = false;
-    renderPolicyEditor();
-    showToast("변경 사항을 취소했습니다.");
-  };
-  saveBtn.onclick = savePolicies;
-  if (syncBtn) syncBtn.onclick = handleSyncCategories;
-  ensurePolicySectionVisible();
 }
 
 function markPolicyDirty() {
@@ -1077,12 +1177,12 @@ function resetUploaderUI() {
     "dark:bg-green-900/30",
     "dark:text-green-400",
   );
-  uiIcon.className = "fas fa-cloud-upload-alt text-xl";
-  uiTextMain.textContent = "엑셀 파일을 이곳에 드래그하거나 클릭하세요";
-  uiTextMain.classList.remove("text-blue-600", "dark:text-blue-400");
-  uiTextSub.textContent = ".xlsx, .xls, .csv 파일만 지원됩니다.";
-  uiTextSub.classList.remove("text-blue-400");
-  renderEmptyState();
+  renderEmptyState(
+    $preview,
+    "데이터 미리보기",
+    "fa-file-excel",
+    "상단에서 엑셀 파일을 선택하고 <span class='text-blue-600 font-semibold'>[미리보기]</span> 버튼을 눌러주세요.",
+  );
   $file.value = "";
   $importBtn.disabled = true;
   parsedRows = [];
@@ -1141,13 +1241,17 @@ async function handleParse() {
   const file = $file.files?.[0];
   if (!file) {
     showToast("엑셀 파일을 선택해 주세요.", true);
-    renderEmptyState();
+    resetUploaderUI();
     return;
   }
   try {
     const rows = await readExcel(file);
     if (!rows.length) {
-      $preview.innerHTML = `<div class="h-full flex items-center justify-center text-rose-500 font-medium"><i class="fas fa-exclamation-circle mr-2"></i>데이터가 비어 있습니다.</div>`;
+      renderEmptyState(
+        $preview,
+        "데이터가 비어 있습니다.",
+        "fa-exclamation-circle",
+      );
       $importBtn.disabled = true;
       return;
     }
@@ -1189,7 +1293,7 @@ async function handleParse() {
     showToast("엑셀 파싱 완료");
   } catch (e) {
     console.error(e);
-    $preview.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-rose-500 gap-2"><i class="fas fa-times-circle text-2xl"></i><span>오류 발생</span></div>`;
+    renderEmptyState($preview, "오류가 발생했습니다.", "fa-times-circle");
     $importBtn.disabled = true;
   }
 }
@@ -1350,18 +1454,6 @@ async function downloadTemplate() {
   } catch (e) {
     console.error(e);
   }
-}
-
-function renderEmptyState() {
-  if (!$preview) return;
-  $preview.innerHTML = `
-    <div class="w-full h-full flex flex-col items-center justify-center text-center p-6 select-none animate-fade-in">
-      <div class="w-16 h-16 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center border border-slate-100 dark:border-slate-600 mb-4">
-        <i class="fas fa-file-excel text-3xl text-slate-300 dark:text-slate-500"></i>
-      </div>
-      <p class="text-slate-900 dark:text-slate-200 font-bold text-lg mb-1">데이터 미리보기</p>
-      <p class="text-slate-500 dark:text-slate-400 text-sm">상단에서 엑셀 파일을 선택하고<br><span class="text-blue-600 dark:text-blue-400 font-semibold">[미리보기]</span> 버튼을 눌러주세요.</p>
-    </div>`;
 }
 
 // Helper Utils

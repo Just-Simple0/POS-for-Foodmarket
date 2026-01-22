@@ -22,7 +22,12 @@ import {
   runTransaction,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { showToast, openConfirm, toggleFade } from "./components/comp.js";
+import {
+  showToast,
+  openConfirm,
+  toggleFade,
+  renderEmptyState,
+} from "./components/comp.js";
 import { getQuarterKey } from "./utils/lifelove.js";
 
 // ===== 통계용 헬퍼 & 카운터 보조 =====
@@ -2157,28 +2162,15 @@ function renderSelectedList() {
 
   // 1. 빈 상태(Empty State) - TDS 스타일
   if (selectedItems.length === 0) {
-    selectedTableBody.innerHTML = `
-      <tr>
-        <td colspan="5" class="py-16 text-center">
-          <div class="flex flex-col items-center gap-4">
-            <div class="w-20 h-20 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700 shadow-sm">
-              <i class="fas fa-basket-shopping text-4xl text-slate-200 dark:text-slate-600"></i>
-            </div>
-            <div class="space-y-1">
-              <p class="text-slate-500 dark:text-slate-400 font-bold text-lg">장바구니가 비어있습니다</p>
-              <p class="text-slate-400 dark:text-slate-500 text-sm font-medium">바코드를 스캔하거나 상품명을 검색하세요</p>
-            </div>
-          </div>
-        </td>
-      </tr>
-    `;
+    renderEmptyState(
+      selectedTableBody,
+      "장바구니가 비어있습니다",
+      "fa-basket-shopping",
+      "바코드를 스캔하거나 상품명을 검색하세요",
+    );
+
     totalPointsEl.textContent = "0";
-
-    // [수정] 빈 상태에서는 경고창을 무조건 숨김 (fade out 적용)
-    if (warningEl) {
-      toggleFade(warningEl, false);
-    }
-
+    if (warningEl) toggleFade(warningEl, false);
     saveProvisionDraft();
     return;
   }
@@ -2674,21 +2666,13 @@ function renderExchangeHistory(rows) {
   exHistoryTable?.classList.remove("hidden");
 
   // [수정] 내역 없음(Empty State) 디자인 개선
+  // [수정] Empty State 중앙화
   if (!rows.length) {
-    exchangeHistoryTbody.innerHTML = `
-      <tr>
-        <td colspan="5" class="py-12 text-center select-none pointer-events-none">
-          <div class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600">
-            <div class="w-12 h-12 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center mb-1">
-              <i class="fas fa-history text-2xl text-slate-200 dark:text-slate-500"></i>
-            </div>
-            <p class="text-slate-400 dark:text-slate-500 font-medium text-sm">
-              최근 50일 내 제공 내역이 없습니다.
-            </p>
-          </div>
-        </td>
-      </tr>
-    `;
+    renderEmptyState(
+      exchangeHistoryTbody,
+      "최근 50일 내 제공 내역이 없습니다.",
+      "fa-history",
+    );
     exchangeBuilder.classList.add("hidden");
     return;
   }
@@ -2769,22 +2753,14 @@ function renderExchangeList() {
 
   // 1. 빈 상태 (Empty State) - TDS 스타일
   if (exchangeItems.length === 0) {
-    exTableBody.innerHTML = `
-      <tr>
-        <td colspan="5" class="py-16 text-center select-none pointer-events-none">
-          <div class="flex flex-col items-center gap-4">
-            <div class="w-20 h-20 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center border border-slate-100 dark:border-slate-700 shadow-sm">
-              <i class="fas fa-right-left text-3xl text-slate-200 dark:text-slate-600"></i>
-            </div>
-            <div class="space-y-1">
-              <p class="text-slate-500 dark:text-slate-400 font-bold text-lg">교환할 상품이 없습니다</p>
-              <p class="text-slate-400 dark:text-slate-500 text-sm font-medium">위 내역에서 선택하거나 상품을 추가하세요</p>
-            </div>
-          </div>
-        </td>
-      </tr>
-    `;
-    // 합계 초기화
+    renderEmptyState(
+      exTableBody,
+      "교환할 상품이 없습니다",
+      "fa-right-left",
+      "위 내역에서 선택하거나 상품을 추가하세요",
+    );
+
+    // 합계 초기화 (기존 로직 유지)
     if (exOriginalEl)
       exOriginalEl.textContent = exchangeOriginalTotal.toLocaleString();
     if (exNewEl) exNewEl.textContent = "0";

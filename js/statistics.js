@@ -35,6 +35,7 @@ import {
   openConfirm,
   withLoading,
   setBusy,
+  renderEmptyState,
 } from "./components/comp.js";
 
 // ===== Debug helpers =====
@@ -1725,19 +1726,12 @@ function renderProvisionTable(data) {
 
   // 1) Empty State
   if (!data || data.length === 0) {
-    tbody.innerHTML = `
-      <tr class="customer-empty-state">
-        <td colspan="9" class="py-24 text-center select-none pointer-events-none">
-          <div class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600">
-            <div class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-1">
-              <i class="fas fa-box-open text-3xl text-slate-200 dark:text-slate-600"></i>
-            </div>
-            <p class="text-slate-500 dark:text-slate-400 font-medium text-base">
-              조건에 맞는 제공 내역이 없습니다.
-            </p>
-          </div>
-        </td>
-      </tr>`;
+    renderEmptyState(
+      tbody,
+      "조건에 맞는 제공 내역이 없습니다.",
+      "fa-box-open",
+      "검색어를 변경하거나 조회 기간을 수정해보세요.",
+    );
 
     // ✅ serverMode면 pager는 전체 페이지 기준 유지
     if (isServer) {
@@ -1912,20 +1906,14 @@ function renderVisitTable(data) {
   const tbody = document.querySelector("#visit-log-table tbody");
   tbody.innerHTML = "";
 
+  // [수정] Empty State 중앙화
   if (!data || data.length === 0) {
-    tbody.innerHTML = `
-      <tr class="customer-empty-state">
-        <td colspan="3" class="py-24 text-center select-none pointer-events-none">
-          <div class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600">
-            <div class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-1">
-              <i class="fas fa-user-slash text-3xl text-slate-200 dark:text-slate-600"></i>
-            </div>
-            <p class="text-slate-500 dark:text-slate-400 font-medium text-base">
-              조건에 맞는 방문 기록이 없습니다.
-            </p>
-          </div>
-        </td>
-      </tr>`;
+    renderEmptyState(
+      tbody,
+      "조건에 맞는 방문 기록이 없습니다.",
+      "fa-user-slash",
+      "검색어를 변경하거나 조회 기간을 수정해보세요.",
+    );
     renderSimplePager("visit-pagination", 1, 1, () => {});
     return;
   }
@@ -1967,9 +1955,14 @@ function renderLifeTable(data) {
   const tbody = document.querySelector("#life-table tbody");
   tbody.innerHTML = "";
 
+  // [수정] Empty State 중앙화
   if (!data || data.length === 0) {
-    // ... Empty State (기존 유지) ...
-    tbody.innerHTML = `...`;
+    renderEmptyState(
+      tbody,
+      "생명사랑 제공 내역이 없습니다.",
+      "fa-heartbeat",
+      "검색어를 변경하거나 조회 기간을 수정해보세요.",
+    );
     renderSimplePager("life-pagination", 1, 1, () => {});
     return;
   }
@@ -2295,6 +2288,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       tabBtns.forEach((b) => b.classList.remove("is-active"));
       btn.classList.add("is-active");
 
+      // 섹션 및 필터 토글
       Object.keys(sections).forEach((k) => sections[k].classList.add("hidden"));
       Object.keys(filters).forEach(
         (k) => filters[k] && filters[k].classList.add("hidden"),
@@ -2303,11 +2297,38 @@ document.addEventListener("DOMContentLoaded", async () => {
       sections[target].classList.remove("hidden");
       if (filters[target]) filters[target].classList.remove("hidden");
 
+      // [추가] 탭 변경 시 검색창 및 에러 상태 초기화
+      const gSearch = document.getElementById("global-search");
+      const fSearch = document.getElementById("field-search");
+      const exactChk = document.getElementById("exact-match");
+
+      if (gSearch) gSearch.value = "";
+      if (fSearch) fSearch.value = "";
+      if (exactChk) exactChk.checked = false;
+
+      // 에러 메시지 숨김 (toggleSearchError 함수 재사용)
+      toggleSearchError("global-search-group", false);
+      toggleSearchError("field-search-group", false);
+
+      // 필드 옵션 업데이트 (이 과정에서 select 박스도 초기화됨)
       updateFieldOptions(target);
 
-      if (target === "visit")
+      // 각 탭별 데이터 로드 (초기화된 상태로 로드)
+      if (target === "provision") {
+        // Provision 탭으로 돌아올 때 현재 검색 조건 없이 페이징 유지 혹은 초기화
+        // 여기서는 필터가 비워졌으므로 전체 목록을 다시 보여주게 됩니다.
+        if (provCursor.serverMode) {
+          // 서버 모드일 경우 검색어 없이 현재 페이지 리로드 (또는 1페이지로 리셋)
+          // 여기선 필터링 없이 렌더링만 호출하면 filterAndRender 내부에서 빈 값을 읽어 전체 목록을 표시함
+          filterAndRender();
+        } else {
+          renderProvisionTable(provisionData);
+        }
+      } else if (target === "visit") {
         loadVisitLogTable(document.getElementById("fiscal-year-select")?.value);
-      if (target === "life") loadLifeTable();
+      } else if (target === "life") {
+        loadLifeTable();
+      }
     });
   });
 

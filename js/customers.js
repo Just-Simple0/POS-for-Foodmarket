@@ -32,6 +32,7 @@ import {
   setBusy,
   showLoading,
   hideLoading,
+  renderEmptyState,
 } from "./components/comp.js";
 
 // 🔍 검색용 메모리 저장
@@ -127,7 +128,7 @@ async function fetchAndRenderPage() {
         toggleSearchError(
           "field-search-group",
           true,
-          "조건에 맞는 결과가 없습니다."
+          "조건에 맞는 결과가 없습니다.",
         );
       }
     } else {
@@ -180,7 +181,7 @@ function updatePagerUI() {
         goLastDirect().catch(console.warn);
       },
     },
-    { window: 5 }
+    { window: 5 },
   );
 }
 
@@ -269,7 +270,7 @@ function resetCreateForm() {
         "text-primary",
         "shadow-sm",
         "dark:bg-slate-700",
-        "dark:text-white"
+        "dark:text-white",
       );
       t.classList.add("text-slate-500");
     });
@@ -281,7 +282,7 @@ function resetCreateForm() {
         "text-primary",
         "shadow-sm",
         "dark:bg-slate-700",
-        "dark:text-white"
+        "dark:text-white",
       );
       directTab.classList.remove("text-slate-500");
     }
@@ -315,25 +316,25 @@ function resetCreateForm() {
       "border-slate-200",
       "dark:border-slate-700",
       "bg-slate-50/50",
-      "dark:bg-slate-800/50"
+      "dark:bg-slate-800/50",
     );
     uploaderBox.classList.remove(
       "border-blue-500",
       "bg-blue-50/30",
-      "dark:bg-blue-900/10"
+      "dark:bg-blue-900/10",
     );
   }
   if (uiIconWrap) {
     uiIconWrap.classList.add(
       "bg-blue-50",
       "text-blue-500",
-      "dark:bg-blue-900/20"
+      "dark:bg-blue-900/20",
     );
     uiIconWrap.classList.remove(
       "bg-green-100",
       "text-green-600",
       "dark:bg-green-900/30",
-      "dark:text-green-400"
+      "dark:text-green-400",
     );
   }
   if (uiIcon) uiIcon.className = "fas fa-cloud-upload-alt text-xl";
@@ -375,8 +376,8 @@ async function goPrevPage() {
         base,
         ...buildBaseQuery(),
         endBefore(__currentFirstDoc),
-        limitToLast(pageSize)
-      )
+        limitToLast(pageSize),
+      ),
     );
     const docsForRender = snap.docs;
     lastPageCount = docsForRender.length;
@@ -412,7 +413,7 @@ async function goLastDirect() {
   try {
     __cleanupSkel = makeSectionSkeleton(tbody, 8); // tbody 전달
     const snap = await getDocs(
-      query(base, ...buildBaseQuery(), limitToLast(pageSize))
+      query(base, ...buildBaseQuery(), limitToLast(pageSize)),
     );
     const docsForRender = snap.docs; // asc 정렬 그대로 마지막 pageSize개
     lastPageCount = docsForRender.length;
@@ -592,7 +593,7 @@ async function pruneOldCustomerLogs() {
       collection(db, "customerLogs"),
       where("createdAt", "<", Timestamp.fromDate(cutoff)),
       orderBy("createdAt", "asc"),
-      limit(200)
+      limit(200),
     );
     const snap = await getDocs(q);
     if (snap.empty) return;
@@ -657,7 +658,7 @@ function bindToolbarAndCreateModal() {
     ];
     if (
       directFields.some(
-        (id) => document.getElementById(id)?.value.trim() !== ""
+        (id) => document.getElementById(id)?.value.trim() !== "",
       )
     ) {
       isDirty = true;
@@ -714,7 +715,7 @@ function bindToolbarAndCreateModal() {
           "text-primary",
           "shadow-sm",
           "dark:bg-slate-700",
-          "dark:text-white"
+          "dark:text-white",
         );
         t.classList.add("text-slate-500");
       });
@@ -724,7 +725,7 @@ function bindToolbarAndCreateModal() {
         "text-primary",
         "shadow-sm",
         "dark:bg-slate-700",
-        "dark:text-white"
+        "dark:text-white",
       );
       tab.classList.remove("text-slate-500");
 
@@ -833,7 +834,7 @@ function bindToolbarAndCreateModal() {
     birth.addEventListener("blur", () => {
       if (!validateBirthStrict(birth.value)) {
         birth.setCustomValidity(
-          "생년월일은 YYYYMMDD 형식(예: 19990203)으로 입력하세요."
+          "생년월일은 YYYYMMDD 형식(예: 19990203)으로 입력하세요.",
         );
         birth.reportValidity();
       } else {
@@ -855,7 +856,7 @@ function bindToolbarAndCreateModal() {
   document.querySelectorAll("#dup-modal [data-close]")?.forEach((b) =>
     b.addEventListener("click", () => {
       document.getElementById("dup-modal").classList.add("hidden");
-    })
+    }),
   );
 
   // ============================
@@ -910,9 +911,8 @@ async function saveCreateDirect() {
     pendingCreatePayload = payload;
     pendingDupRef = ref;
     pendingDupData = snap.data() || {};
-    document.getElementById(
-      "dup-info"
-    ).textContent = `${payload.name} / ${payload.birth} 동일 항목이 이미 존재합니다.`;
+    document.getElementById("dup-info").textContent =
+      `${payload.name} / ${payload.birth} 동일 항목이 이미 존재합니다.`;
     document.getElementById("dup-modal").classList.remove("hidden");
     return;
   }
@@ -1040,20 +1040,14 @@ function renderTable(data) {
   }
 
   // 3. 데이터 없음 (Empty State)
+  // [수정] Empty State 중앙화
   if (sorted.length === 0) {
-    tbody.innerHTML = `
-      <tr class="customer-empty-state">
-        <td colspan="12" class="py-24 text-center select-none pointer-events-none">
-          <div class="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-600">
-            <div class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-1">
-              <i class="fas fa-search text-3xl text-slate-200 dark:text-slate-600"></i>
-            </div>
-            <p class="text-slate-500 dark:text-slate-400 font-medium text-base">
-              조건에 맞는 이용자가 없습니다.
-            </p>
-          </div>
-        </td>
-      </tr>`;
+    renderEmptyState(
+      tbody,
+      "조건에 맞는 이용자가 없습니다.",
+      "fa-search",
+      "검색어를 변경하거나 새로운 이용자를 등록해보세요.",
+    );
     updatePagerUI();
     return;
   }
@@ -1232,7 +1226,7 @@ function openEditModal(customer) {
   initPhoneList(
     "#edit-phone-wrap",
     "#edit-phone-add",
-    splitPhonesToArray(customer.phone)
+    splitPhonesToArray(customer.phone),
   );
   document.getElementById("edit-type").value = customer.type || "";
   document.getElementById("edit-category").value = customer.category || "";
@@ -1256,7 +1250,7 @@ function openEditModal(customer) {
     eBirth.addEventListener("blur", () => {
       if (!validateBirthStrict(eBirth.value)) {
         eBirth.setCustomValidity(
-          "생년월일은 YYYYMMDD 형식(예: 19990203)으로 입력하세요."
+          "생년월일은 YYYYMMDD 형식(예: 19990203)으로 입력하세요.",
         );
         eBirth.reportValidity();
       } else {
@@ -1577,7 +1571,7 @@ async function runServerSearch() {
           // 인덱스 없는 필드 (로컬 필터링)
           buildCurrentQuery = null;
           const filtered = customerData.filter((c) =>
-            normalize(c[field] || "").includes(fieldValue)
+            normalize(c[field] || "").includes(fieldValue),
           );
           renderTable(filtered);
 
@@ -1592,7 +1586,7 @@ async function runServerSearch() {
             toggleSearchError(
               "field-search-group",
               true,
-              "조건에 맞는 결과가 없습니다."
+              "조건에 맞는 결과가 없습니다.",
             );
           }
           return [];
@@ -1833,24 +1827,24 @@ function bindUploadTab() {
         "border-slate-200",
         "dark:border-slate-700",
         "bg-slate-50/50",
-        "dark:bg-slate-800/50"
+        "dark:bg-slate-800/50",
       );
       uploaderBox.classList.add(
         "border-blue-500",
         "bg-blue-50/30",
-        "dark:bg-blue-900/10"
+        "dark:bg-blue-900/10",
       );
 
       uiIconWrap.classList.remove(
         "bg-blue-50",
         "text-blue-500",
-        "dark:bg-blue-900/20"
+        "dark:bg-blue-900/20",
       );
       uiIconWrap.classList.add(
         "bg-green-100",
         "text-green-600",
         "dark:bg-green-900/30",
-        "dark:text-green-400"
+        "dark:text-green-400",
       );
 
       uiIcon.className = "fas fa-file-excel text-2xl"; // 엑셀 아이콘으로 변경
@@ -1881,24 +1875,24 @@ function bindUploadTab() {
       "border-slate-200",
       "dark:border-slate-700",
       "bg-slate-50/50",
-      "dark:bg-slate-800/50"
+      "dark:bg-slate-800/50",
     );
     uploaderBox.classList.remove(
       "border-blue-500",
       "bg-blue-50/30",
-      "dark:bg-blue-900/10"
+      "dark:bg-blue-900/10",
     );
 
     uiIconWrap.classList.add(
       "bg-blue-50",
       "text-blue-500",
-      "dark:bg-blue-900/20"
+      "dark:bg-blue-900/20",
     );
     uiIconWrap.classList.remove(
       "bg-green-100",
       "text-green-600",
       "dark:bg-green-900/30",
-      "dark:text-green-400"
+      "dark:text-green-400",
     );
 
     uiIcon.className = "fas fa-cloud-upload-alt text-xl";
@@ -1987,7 +1981,7 @@ function bindUploadTab() {
           .filter(
             (d) =>
               d.data().status === "지원" &&
-              !excelKeys.has(slugId(d.data().name, d.data().birth))
+              !excelKeys.has(slugId(d.data().name, d.data().birth)),
           )
           .map((d) => d.id);
       }
@@ -2029,7 +2023,7 @@ function bindUploadTab() {
                     <td class="px-3 py-2 font-bold">${r.name}</td>
                     <td class="px-3 py-2 text-slate-500">${r.birth}</td>
                     <td class="px-3 py-2"><span class="badge badge-xs badge-weak-primary">${r.status}</span></td>
-                  </tr>`
+                  </tr>`,
                   )
                   .join("")}
               </tbody>
@@ -2137,7 +2131,7 @@ function bindUploadTab() {
               updatedAt: new Date().toISOString(),
               updatedBy: email,
             },
-            { merge: true }
+            { merge: true },
           );
 
           count++;
@@ -2252,7 +2246,7 @@ async function parseAndNormalizeExcel(file, opts) {
       "행정동",
       "관할주민센터",
       "지역",
-      "센터"
+      "센터",
     );
     const address = pick(row, "주소");
     const { telCell, hpCell } = pickPhonesFromRow(row);
@@ -2349,12 +2343,12 @@ function sheetToObjectsSmart(ws) {
   const looksLikeHeader = (r = []) =>
     r.some((c) =>
       /성\s*명|이용자명|주민등록번호|행정동|주소|연락처|핸드폰|세대유형|지원자격|비고/.test(
-        String(c)
-      )
+        String(c),
+      ),
     );
   const hIdx = arr.findIndex(looksLikeHeader);
   const header = (hIdx >= 0 ? arr[hIdx] : arr[0]).map((c) =>
-    String(c).replace(/\s+/g, "").trim()
+    String(c).replace(/\s+/g, "").trim(),
   );
   const data = arr
     .slice(hIdx >= 0 ? hIdx + 1 : 1)
@@ -2470,10 +2464,10 @@ function parsePhonesPrimarySecondary(telCell, hpCell) {
     n.length === 11
       ? `${n.slice(0, 3)}-${n.slice(3, 7)}-${n.slice(7)}`
       : n.startsWith("02") && n.length === 10
-      ? `02-${n.slice(2, 5)}-${n.slice(5)}`
-      : n.length === 10
-      ? `${n.slice(0, 3)}-${n.slice(3, 6)}-${n.slice(6)}`
-      : n;
+        ? `02-${n.slice(2, 5)}-${n.slice(5)}`
+        : n.length === 10
+          ? `${n.slice(0, 3)}-${n.slice(3, 6)}-${n.slice(6)}`
+          : n;
 
   // 1) HP에서 모바일 2개까지 먼저
   const hpMobiles = hpNums.filter(isMobile);
@@ -2627,7 +2621,7 @@ function dateStamp() {
   const d = new Date();
   const z = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}_${z(
-    d.getHours()
+    d.getHours(),
   )}${z(d.getMinutes())}`;
 }
 
@@ -2853,11 +2847,11 @@ function initPhoneList(wrapSel, addBtnSel, initial = []) {
     const input = row.querySelector("input");
     input.addEventListener(
       "input",
-      () => (input.value = formatPhoneDigits(input.value.replace(/\D/g, "")))
+      () => (input.value = formatPhoneDigits(input.value.replace(/\D/g, ""))),
     );
     input.addEventListener(
       "blur",
-      () => (input.value = formatPhoneDigits(input.value.replace(/\D/g, "")))
+      () => (input.value = formatPhoneDigits(input.value.replace(/\D/g, ""))),
     );
   };
 
@@ -3011,7 +3005,7 @@ function setupAutocomplete(inputId, listId, options) {
       // 그 외(배경, 모달 등) 스크롤이면 리스트 닫기 (위치 틀어짐 방지)
       list.classList.add("hidden");
     },
-    true
+    true,
   ); // true: 캡처링 모드 사용
 
   window.addEventListener("resize", () => list.classList.add("hidden"));
@@ -3043,7 +3037,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupAutocomplete(
     "create-category",
     "create-category-list",
-    CATEGORY_OPTIONS
+    CATEGORY_OPTIONS,
   );
 
   setupAutocomplete("edit-type", "edit-type-list", TYPE_OPTIONS);
@@ -3059,7 +3053,7 @@ window.emergencyRestore = async function () {
   // 1. 관리자 확인
   if (
     !confirm(
-      "비상 복구를 시작하시겠습니까? 모든 '중단' 인원이 '지원'으로 변경됩니다."
+      "비상 복구를 시작하시겠습니까? 모든 '중단' 인원이 '지원'으로 변경됩니다.",
     )
   )
     return;
@@ -3074,14 +3068,14 @@ window.emergencyRestore = async function () {
 
     if (targetIds.length === 0) {
       console.log(
-        "✅ '중단' 상태인 이용자가 없습니다. 복구할 필요가 없습니다."
+        "✅ '중단' 상태인 이용자가 없습니다. 복구할 필요가 없습니다.",
       );
       alert("복구할 대상이 없습니다.");
       return;
     }
 
     console.log(
-      `총 ${targetIds.length}명의 '중단' 인원을 발견했습니다. 복구를 진행합니다...`
+      `총 ${targetIds.length}명의 '중단' 인원을 발견했습니다. 복구를 진행합니다...`,
     );
 
     // 3. 기존에 만들어둔 batchUpdateStatus 함수 재활용 (500개씩 끊어서 처리)

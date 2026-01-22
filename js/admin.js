@@ -17,7 +17,12 @@ import {
   startAfter,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { showToast, openCaptchaModal, openConfirm } from "./components/comp.js";
+import {
+  showToast,
+  openCaptchaModal,
+  openConfirm,
+  renderEmptyState,
+} from "./components/comp.js";
 
 let ADMIN_STS = sessionStorage.getItem("admin_sts") || "";
 let __adminSessionPromise = null;
@@ -359,8 +364,13 @@ function roleOptions(selected) {
 function renderRows(users) {
   if (!Array.isArray(users)) users = [];
   if (!users.length) {
-    if (!els.tbody.children.length)
-      els.tbody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-slate-400">결과가 없습니다.</td></tr>`;
+    if (!els.tbody.children.length) {
+      renderEmptyState(
+        els.tbody,
+        "조건에 맞는 사용자가 없습니다.",
+        "fa-user-slash",
+      );
+    }
     return;
   }
   if (currentUsers.length > VIRTUAL_THRESHOLD) {
@@ -657,6 +667,12 @@ async function fetchLogs() {
   if (!res.ok || !data.ok) return showToast("로그 조회 실패", true);
 
   const logs = data.logs || [];
+
+  if (!logs.length) {
+    renderEmptyState(els.logsTbody, "로그 내역이 없습니다.", "fa-history");
+    return;
+  }
+
   const frag = document.createDocumentFragment();
 
   if (!logs.length) {
@@ -1007,7 +1023,11 @@ async function loadApprovals() {
 }
 function renderApprovals() {
   if (!approvals.length) {
-    els.aprTbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-slate-400">대기중인 요청이 없습니다.</td></tr>`;
+    renderEmptyState(
+      els.aprTbody,
+      "대기중인 요청이 없습니다.",
+      "fa-clipboard-check",
+    );
     return;
   }
   const frag = document.createDocumentFragment();
@@ -1128,7 +1148,11 @@ async function loadCustomerLogs() {
 }
 function renderCustomerLogs() {
   if (!cLogs.length) {
-    els.cLogsTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400">최근 30일 활동 로그가 없습니다.</td></tr>`;
+    renderEmptyState(
+      els.cLogsTbody,
+      "최근 30일 활동 로그가 없습니다.",
+      "fa-history",
+    );
     return;
   }
   const rows = cLogs

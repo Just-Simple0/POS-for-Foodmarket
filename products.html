@@ -90,6 +90,7 @@
                     placeholder="검색어를 입력하세요"
                   />
                 </div>
+                <p class="field-error-text hidden">검색 결과가 없습니다.</p>
               </div>
 
               <div class="field-group">
@@ -103,6 +104,7 @@
                     placeholder="스캔 또는 입력"
                   />
                 </div>
+                <p class="field-error-text hidden">검색 결과가 없습니다.</p>
               </div>
 
               <div class="field-group relative">
@@ -215,9 +217,21 @@
                 type="text"
                 id="policy-search"
                 class="field-input bg-transparent"
-                placeholder="카테고리 검색"
+                placeholder="검색어를 입력하세요"
               />
+              <div class="field-right">
+                <button
+                  id="policy-search-btn"
+                  type="button"
+                  class="btn btn-primary btn-sm px-4"
+                >
+                  검색
+                </button>
+              </div>
             </div>
+            <p id="policy-search-error" class="field-error-text hidden">
+              검색어를 찾을 수 없습니다.
+            </p>
           </div>
 
           <div class="flex gap-2 w-full lg:w-auto mt-2 lg:mt-0">

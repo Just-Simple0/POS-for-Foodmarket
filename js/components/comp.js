@@ -419,6 +419,46 @@ export function makeWidgetSkeleton(container) {
   };
 }
 
+// ---------------- Empty State (TDS Centralized) ----------------
+/**
+ * 데이터 없음 상태 표준 렌더러
+ * @param {HTMLElement} container - 대상 엘리먼트 (tbody 또는 div)
+ * @param {string} message - 표시할 메시지
+ * @param {string} iconClass - FontAwesome 아이콘 클래스 (예: 'fa-box-open')
+ * @param {string} subMessage - (선택) 보조 메시지
+ */
+export function renderEmptyState(container, message = "데이터가 없습니다.", iconClass = "fa-box-open", subMessage = "") {
+  if (!container) return;
+
+  // TDS 스타일: 아이콘 + 원형 배경 + 메시지
+  const contentHtml = `
+    <div class="flex flex-col items-center justify-center gap-3 py-12 select-none pointer-events-none animate-fade-in text-center">
+      <div class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center border border-slate-100 dark:border-slate-700 shadow-sm mb-1">
+        <i class="fas ${iconClass} text-3xl text-slate-300 dark:text-slate-600"></i>
+      </div>
+      <div class="space-y-1">
+        <p class="text-slate-500 dark:text-slate-400 font-medium text-base">
+          ${message}
+        </p>
+        ${subMessage ? `<p class="text-slate-400 dark:text-slate-500 text-sm">${subMessage}</p>` : ""}
+      </div>
+    </div>
+  `;
+
+  if (container.tagName === "TBODY") {
+    // 테이블인 경우 colspan=100으로 안전하게 처리하여 레이아웃 유지
+    container.innerHTML = `
+      <tr>
+        <td colspan="100" class="p-0 border-none bg-transparent">
+          ${contentHtml}
+        </td>
+      </tr>`;
+  } else {
+    // 일반 DIV인 경우 내용 교체
+    container.innerHTML = contentHtml;
+  }
+}
+
 // ---------------- Pager ----------------
 export function renderCursorPager(container, state, handlers, options = {}) {
   if (!container) return;
