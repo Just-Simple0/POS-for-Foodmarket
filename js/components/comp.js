@@ -11,7 +11,11 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
   limit,
+  addDoc,
+  writeBatch,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const API_BASE =
@@ -21,6 +25,41 @@ const API_BASE =
 
 let __adminPendingModalInFlight = false;
 let __adminNotifyTimer = null;
+
+// ---------------- Audit Log ----------------
+// 공통 로그 기록 (customerLogs 컬렉션)
+// - 로깅 실패는 UX를 막지 않음
+export async function logEvent(type, data = {}) {
+  try {
+    await addDoc(collection(db, "customerLogs"), {
+      type,
+      actor: auth.currentUser?.email || "unknown",
+      createdAt: Timestamp.now(),
+      ...data,
+    });
+  } catch (e) {
+    console?.warn?.("logEvent failed:", e);
+  }
+}
+
+export async function pruneOldCustomerLogs(days = 30, batchSize = 300) {
+  try {
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const qy = query(
+      collection(db, "customerLogs"),
+      where("createdAt", "<", Timestamp.fromDate(cutoff)),
+      orderBy("createdAt", "asc"),
+      limit(batchSize),
+    );
+    const snap = await getDocs(qy);
+    if (snap.empty) return;
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (e) {
+    console?.warn?.("pruneOldCustomerLogs skipped:", e);
+  }
+}
 
 function scheduleAdminPendingNotify(user, role) {
   if (__adminNotifyTimer) return;
@@ -302,16 +341,46 @@ export async function withLoading(task, text) {
 
 export function setBusy(el, busy = true) {
   if (!el) return;
+
   if (busy) {
-    el.classList.add("opacity-70", "pointer-events-none");
-    if (!el.dataset.orgText) el.dataset.orgText = el.innerHTML;
-    el.innerHTML = `<div class="tds-spinner !w-4 !h-4 !border-2 mr-2"></div>${el.dataset.orgText}`;
+    if (el.dataset.isBusy === "true") return;
+
+    const rect = el.getBoundingClientRect();
+    el.style.width = `${rect.width}px`;
+    el.style.height = `${rect.height}px`;
+
+    // [수정] 원래 정렬 상태 저장 및 중앙 정렬 강제 적용
+    el.dataset.orgHtml = el.innerHTML;
+    el.dataset.orgJustify = el.style.justifyContent; // 원래 정렬 저장
+    el.style.justifyContent = "center"; // 무조건 중앙으로
+
+    el.dataset.isBusy = "true";
+    el.classList.add("cursor-not-allowed", "opacity-80");
+    el.disabled = true;
+
+    // [수정] w-full을 추가하여 버튼 전체 영역 내에서 중앙에 오도록 함
+    el.innerHTML = `
+      <div class="tds-dots-loader w-full flex justify-center">
+        <div class="tds-dot"></div>
+        <div class="tds-dot"></div>
+        <div class="tds-dot"></div>
+      </div>
+    `;
   } else {
-    el.classList.remove("opacity-70", "pointer-events-none");
-    if (el.dataset.orgText) {
-      el.innerHTML = el.dataset.orgText;
-      delete el.dataset.orgText;
+    // 로딩 종료: 원래 정렬 상태로 복구
+    if (el.dataset.orgHtml) {
+      el.innerHTML = el.dataset.orgHtml;
+      delete el.dataset.orgHtml;
     }
+    if (el.dataset.orgJustify !== undefined) {
+      el.style.justifyContent = el.dataset.orgJustify;
+      delete el.dataset.orgJustify;
+    }
+    el.style.width = "";
+    el.style.height = "";
+    el.dataset.isBusy = "false";
+    el.classList.remove("cursor-not-allowed", "opacity-80");
+    el.disabled = false;
   }
 }
 
@@ -427,7 +496,12 @@ export function makeWidgetSkeleton(container) {
  * @param {string} iconClass - FontAwesome 아이콘 클래스 (예: 'fa-box-open')
  * @param {string} subMessage - (선택) 보조 메시지
  */
-export function renderEmptyState(container, message = "데이터가 없습니다.", iconClass = "fa-box-open", subMessage = "") {
+export function renderEmptyState(
+  container,
+  message = "데이터가 없습니다.",
+  iconClass = "fa-box-open",
+  subMessage = "",
+) {
   if (!container) return;
 
   // TDS 스타일: 아이콘 + 원형 배경 + 메시지
@@ -586,7 +660,7 @@ export async function openCaptchaModal(opts = {}) {
   overlay.innerHTML = `
     <div class="modal-content max-w-sm text-center">
       <div class="p-8 pb-0 text-center"><h4 class="text-[20px] font-bold text-slate-900 dark:text-white leading-tight">${title}</h4></div>
-      <div class="p-8 text-center text-[15px] text-slate-600 dark:text-slate-400 leading-relaxed">
+      <div class="p-8 pb-0 text-center text-[15px] text-slate-600 dark:text-slate-400 leading-relaxed">
         ${subtitle}
         <div id="cf-turnstile-slot" class="flex justify-center my-4 min-h-[65px]"></div>
       </div>
@@ -758,7 +832,7 @@ export function openAdminPendingSummaryModal({
 
   const content = `
     <div class="flex flex-col mb-2">
-      <div class="${itemClass}"><span>사용자 권한 대기</span>${
+      <div class="${itemClass}"><span>사용자 권한 부여 대기</span>${
         pendingUsers > 0
           ? `<a href="admin.html#pending-users" class="${hotClass}">${pendingUsers}건</a>`
           : `<span class="text-slate-400">0건</span>`
@@ -768,7 +842,7 @@ export function openAdminPendingSummaryModal({
           ? `<a href="admin.html#pending-products" class="${hotClass}">${productPending}건</a>`
           : `<span class="text-slate-400">0건</span>`
       }</div>
-      <div class="${itemClass}"><span>이용자 승인 대기</span>${
+      <div class="${itemClass}"><span>변경 승인 대기</span>${
         userPending > 0
           ? `<a href="admin.html#pending-customers" class="${hotClass}">${userPending}건</a>`
           : `<span class="text-slate-400">0건</span>`

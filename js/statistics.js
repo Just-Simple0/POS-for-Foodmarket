@@ -36,7 +36,17 @@ import {
   withLoading,
   setBusy,
   renderEmptyState,
+  logEvent,
 } from "./components/comp.js";
+
+// ✅ 관리자 즉시 반영(제공 수정/삭제/생명사랑 삭제)은 utils/adminProvisionOps.js로 통일
+import {
+  adminApplyProvisionEdit,
+  adminDeleteProvision,
+  adminUnsetLifeloveForProvision,
+} from "./utils/adminProvisionOps.js";
+
+import { createApprovalRequest } from "./utils/approval.js";
 
 // ===== Debug helpers =====
 function logFirebaseError(err, context = "") {
@@ -96,387 +106,6 @@ function getCurrentProvisionRange() {
   const e = parse($("#end-date-input")?.val?.());
   const today = new Date();
   return { start: s || today, end: e || s || today };
-}
-
-// ===== Admin: provision edit apply =====
-// - 날짜 변경은 허용하지 않음 (provision.timestamp / 고객 visits / visits docs / stats_daily 정합성 문제)
-// - 이용자 변경(AAA → BBB)은 transaction으로: provisions, customers.visits, customers.lifelove, visits, stats_daily를 함께 보정
-async function adminApplyProvisionEdit({
-  provisionId,
-  handler,
-  oldCustomerId,
-  newCustomerId,
-  newCustomerName,
-  newCustomerBirth,
-}) {
-  const provRef = doc(db, "provisions", provisionId);
-  const provSnap = await getDoc(provRef);
-  if (!provSnap.exists()) throw new Error("제공 문서를 찾을 수 없습니다.");
-
-  const prov = provSnap.data();
-  const ts = prov.timestamp;
-  if (!ts || !ts.toDate) throw new Error("제공일시가 유효하지 않습니다.");
-
-  const provDate = ts.toDate();
-  const dayNum = toDayNumber(provDate);
-  const dateKey = toDateKey(dayNum); // YYYY-MM-DD
-  const periodKey = toPeriodKey(provDate);
-
-  const currentOldId = prov.customerId || oldCustomerId || "";
-  const targetId = newCustomerId || currentOldId;
-  const targetName = newCustomerName || prov.customerName || "";
-  const targetBirth = newCustomerBirth || prov.customerBirth || "";
-
-  const lifelove = !!prov.lifelove;
-  const quarterKey = prov.quarterKey || "";
-
-  // 1) handler만 수정 (이용자 변경 없음)
-  if (!newCustomerId) {
-    await updateDoc(provRef, {
-      handledBy: handler || prov.handledBy || "",
-      updatedAt: serverTimestamp(),
-      updatedBy: auth.currentUser?.email || null,
-    });
-    return;
-  }
-
-  const sameCustomer = currentOldId === targetId;
-
-  // 고객/방문 정합성 보정
-  const oldCustRef = currentOldId ? doc(db, "customers", currentOldId) : null;
-  const newCustRef = targetId ? doc(db, "customers", targetId) : null;
-
-  const oldVisitRef = currentOldId
-    ? doc(db, "visits", `${dateKey}_${currentOldId}`)
-    : null;
-  const newVisitRef = targetId
-    ? doc(db, "visits", `${dateKey}_${targetId}`)
-    : null;
-
-  const statsRef = doc(db, "stats_daily", String(dayNum));
-
-  await runTransaction(db, async (tx) => {
-    const oldVisitSnap = oldVisitRef ? await tx.get(oldVisitRef) : null;
-    const newVisitSnap = newVisitRef ? await tx.get(newVisitRef) : null;
-
-    // provisions update
-    tx.update(provRef, {
-      customerId: targetId,
-      customerName: targetName,
-      customerBirth: targetBirth,
-      handledBy: handler || prov.handledBy || "",
-      updatedAt: serverTimestamp(),
-      updatedBy: auth.currentUser?.email || null,
-    });
-
-    // visits docs
-    if (!sameCustomer) {
-      if (oldVisitRef && oldVisitSnap?.exists()) tx.delete(oldVisitRef);
-
-      if (newVisitRef) {
-        if (!newVisitSnap?.exists()) {
-          tx.set(
-            newVisitRef,
-            {
-              day: dayNum,
-              dateKey,
-              customerId: targetId,
-              customerName: targetName,
-              periodKey,
-              createdAt: serverTimestamp(),
-              // rules: visits.create requires createdBy == request.auth.uid
-              createdBy: auth.currentUser?.uid || null,
-            },
-            { merge: true },
-          );
-          // old(AAA) 방문 1건 → new(BBB) 방문 1건 (신규) : uniqueVisitors 변화 없음
-        } else {
-          // BBB가 이미 같은 날 방문 기록이 있었음 → uniqueVisitors 1 감소
-          // rules: stats_daily create/update requires updatedAt(timestamp)
-          tx.set(
-            statsRef,
-            { uniqueVisitors: increment(-1), updatedAt: serverTimestamp() },
-            { merge: true },
-          );
-
-          tx.set(newVisitRef, { customerName: targetName }, { merge: true });
-        }
-      }
-    } else {
-      // same customer re-select: visits 문서가 없다면 생성(드물지만 정합성 복구)
-      if (newVisitRef && !newVisitSnap?.exists()) {
-        tx.set(
-          newVisitRef,
-          {
-            day: dayNum,
-            dateKey,
-            customerId: targetId,
-            customerName: targetName,
-            periodKey,
-            createdAt: serverTimestamp(),
-            // rules: visits.create requires createdBy == request.auth.uid
-            createdBy: auth.currentUser?.uid || null,
-          },
-          { merge: true },
-        ); // rules: stats_daily create/update requires updatedAt(timestamp)
-        tx.set(
-          statsRef,
-          { uniqueVisitors: increment(1), updatedAt: serverTimestamp() },
-          { merge: true },
-        );
-      } else if (newVisitRef) {
-        tx.set(newVisitRef, { customerName: targetName }, { merge: true });
-      }
-    }
-
-    // customers.visits update
-    if (oldCustRef && !sameCustomer) {
-      // IMPORTANT: use tx.update for dotted field paths.
-      // tx.set(..., { merge:true }) can accidentally create a literal field like "visits.25-26".
-      tx.update(oldCustRef, {
-        [`visits.${periodKey}`]: arrayRemove(dateKey),
-      });
-    }
-    if (newCustRef) {
-      // Same reason as above: use tx.update so `visits.${periodKey}` is treated as a field-path.
-      tx.update(newCustRef, {
-        [`visits.${periodKey}`]: arrayUnion(dateKey),
-      });
-    }
-
-    // lifelove update (추가/삭제는 사후 best-effort로 정리)
-    if (lifelove && quarterKey && newCustRef) {
-      // Same reason as above: dotted field paths must be updated via tx.update.
-      tx.update(newCustRef, {
-        [`lifelove.${quarterKey}`]: true,
-      });
-    }
-  });
-
-  // 사후 정합성 보정 (best-effort)
-  try {
-    if (!sameCustomer && currentOldId) {
-      await reconcileLifeloveForQuarter(currentOldId, quarterKey);
-      await recomputeCustomerLastVisitFields(currentOldId);
-    }
-  } catch (e) {
-    console.warn("post-fix(old) failed:", e);
-  }
-  try {
-    if (targetId) {
-      // 새 고객은 lifelove는 이미 true로 올렸고, lastVisit은 visits 기반으로 재계산
-      await recomputeCustomerLastVisitFields(targetId);
-    }
-  } catch (e) {
-    console.warn("post-fix(new) failed:", e);
-  }
-}
-
-async function adminDeleteProvision(provisionId) {
-  const provRef = doc(db, "provisions", provisionId);
-  const provSnap = await getDoc(provRef);
-  if (!provSnap.exists()) throw new Error("제공 문서를 찾을 수 없습니다.");
-
-  const prov = provSnap.data();
-  const ts = prov.timestamp;
-  if (!ts || !ts.toDate) throw new Error("제공일시가 유효하지 않습니다.");
-
-  const provDate = ts.toDate();
-  const dayNum = toDayNumber(provDate);
-  const dateKey = toDateKey(dayNum);
-  const periodKey = toPeriodKey(provDate);
-
-  const customerId = prov.customerId || "";
-  const lifelove = !!prov.lifelove;
-  const quarterKey = prov.quarterKey || "";
-
-  const visitRef = customerId
-    ? doc(db, "visits", `${dateKey}_${customerId}`)
-    : null;
-  const customerRef = customerId ? doc(db, "customers", customerId) : null;
-  const statsRef = doc(db, "stats_daily", String(dayNum));
-
-  // ✅ 이번 삭제 전표의 items로 delta 계산
-  const items = Array.isArray(prov.items) ? prov.items : [];
-  const deltasById = new Map(); // pid -> { qty, name, category }
-  let qtyDeltaTotal = 0;
-
-  for (const it of items) {
-    const pid = it?.id;
-    if (!pid) continue;
-    const q = Number(it?.quantity || 0);
-    if (!Number.isFinite(q) || q === 0) continue;
-    qtyDeltaTotal += q;
-
-    const prev = deltasById.get(pid) || {
-      qty: 0,
-      name: it?.name || "",
-      category: it?.category || "",
-    };
-    prev.qty += q;
-    if (!prev.name && it?.name) prev.name = it.name;
-    if (!prev.category && it?.category) prev.category = it.category;
-    deltasById.set(pid, prev);
-  }
-
-  await runTransaction(db, async (tx) => {
-    const visitSnap = visitRef ? await tx.get(visitRef) : null;
-    const statsSnap = await tx.get(statsRef);
-    const stats = statsSnap.exists() ? statsSnap.data() || {} : {};
-
-    // 1) provision 삭제
-    tx.delete(provRef);
-
-    // 2) visit 삭제 + uniqueVisitors 역반영(기존 로직 유지)
-    if (visitRef && visitSnap?.exists()) {
-      tx.delete(visitRef);
-      tx.set(
-        statsRef,
-        { uniqueVisitors: increment(-1), updatedAt: serverTimestamp() },
-        { merge: true },
-      );
-    }
-
-    // 3) ✅ stats_daily의 itemsTotalQty/top20 역반영 (항상 수행: provision 삭제면 수량도 줄어야 함)
-    // itemsTotalQty
-    const curItemsTotalQty = Number(stats.itemsTotalQty || 0);
-    const nextItemsTotalQty = Math.max(0, curItemsTotalQty - qtyDeltaTotal);
-
-    // itemStatsById
-    const curMap =
-      stats.itemStatsById && typeof stats.itemStatsById === "object"
-        ? { ...stats.itemStatsById }
-        : {};
-
-    if (Object.keys(curMap).length > 0) {
-      for (const [pid, d] of deltasById.entries()) {
-        const cur =
-          curMap[pid] && typeof curMap[pid] === "object" ? curMap[pid] : {};
-        const curQty = Number(cur.qty || 0);
-        const nextQty = curQty - Number(d.qty || 0);
-
-        if (!Number.isFinite(nextQty) || nextQty <= 0) {
-          delete curMap[pid];
-        } else {
-          curMap[pid] = {
-            qty: nextQty,
-            name: cur.name || d.name || "",
-            category: cur.category || d.category || "",
-          };
-        }
-      }
-    } else {
-      // 과거 데이터(아직 itemStatsById가 없던 날) 삭제 시:
-      // itemsTotalQty만 보정하고, 나머지는 best-effort로 두기
-      // (오늘부터는 provision 저장 시 itemStatsById/topItems20가 채워지므로 문제 없음)
-    }
-
-    // topItems20 재계산(best-effort: map이 있을 때만 의미있음)
-    const topItems20 =
-      Object.keys(curMap).length === 0
-        ? Array.isArray(stats.topItems20)
-          ? stats.topItems20
-          : []
-        : Object.entries(curMap)
-            .map(([id, v]) => ({
-              id,
-              name: v?.name || "",
-              category: v?.category || "",
-              qty: Number(v?.qty || 0),
-            }))
-            .filter((x) => Number.isFinite(x.qty) && x.qty > 0)
-            .sort((a, b) => b.qty - a.qty)
-            .slice(0, 20);
-
-    tx.set(
-      statsRef,
-      {
-        itemsTotalQty: nextItemsTotalQty,
-        itemStatsById: curMap,
-        topItems20,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
-
-    // 4) customer visits 배열 제거(기존 로직 유지)
-    if (customerRef) {
-      tx.update(customerRef, {
-        [`visits.${periodKey}`]: arrayRemove(dateKey),
-      });
-    }
-  });
-
-  // post-fix
-  if (customerId) {
-    await recomputeCustomerLastVisitFields(customerId);
-    if (lifelove && quarterKey)
-      await reconcileLifeloveForQuarter(customerId, quarterKey);
-  }
-}
-
-async function recomputeCustomerLastVisitFields(customerId) {
-  const ref = doc(db, "customers", customerId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-  const data = snap.data();
-  const latestIso = (() => {
-    const v = data?.visits;
-    if (!v || typeof v !== "object") return "";
-    let latest = "";
-    for (const k of Object.keys(v)) {
-      const arr = Array.isArray(v[k]) ? v[k] : [];
-      for (const s of arr) {
-        if (!s) continue;
-        const iso = String(s).replace(/\./g, "-");
-        if (!latest || iso > latest) latest = iso;
-      }
-    }
-    return latest;
-  })();
-
-  if (!latestIso) {
-    await updateDoc(ref, {
-      lastVisit: deleteField(),
-      lastVisitKey: deleteField(),
-      lastVisitAt: deleteField(),
-      updatedAt: serverTimestamp(),
-    });
-    return;
-  }
-
-  const ymd = latestIso.replace(/-/g, ".");
-  const key = latestIso.replace(/-/g, "");
-  await updateDoc(ref, {
-    lastVisit: ymd,
-    lastVisitKey: key,
-    lastVisitAt: Timestamp.fromDate(new Date(latestIso)),
-    updatedAt: serverTimestamp(),
-  });
-}
-
-async function reconcileLifeloveForQuarter(customerId, quarterKey) {
-  if (!quarterKey) return;
-  // 해당 분기 lifelove 제공 내역이 더 이상 없다면 lifelove.<quarterKey> 제거
-  try {
-    const qy = query(
-      collection(db, "provisions"),
-      where("customerId", "==", customerId),
-      where("lifelove", "==", true),
-      where("quarterKey", "==", quarterKey),
-      limit(1),
-    );
-    const snap = await getDocs(qy);
-    if (snap.empty) {
-      await updateDoc(doc(db, "customers", customerId), {
-        [`lifelove.${quarterKey}`]: deleteField(),
-        updatedAt: serverTimestamp(),
-      });
-    }
-  } catch (e) {
-    // 인덱스 부족 등으로 실패할 수 있음 → 최소한의 안전장치로만 로그
-    console.warn("reconcileLifeloveForQuarter skipped:", e);
-  }
 }
 
 /* =====================================================
@@ -1229,6 +858,88 @@ function processProvisionDoc(doc) {
   };
 }
 
+// ===== Approval Payload Helpers (Admin UI friendly) =====
+function ymdFromTimestamp(ts) {
+  try {
+    const d = ts?.toDate ? ts.toDate() : ts instanceof Date ? ts : null;
+    if (!d) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}.${m}.${dd}`;
+  } catch {
+    return "";
+  }
+}
+function buildProvisionApprovalPayload(row, extra = {}) {
+  const dateYMD = row?.rawTimestamp
+    ? ymdFromTimestamp(row.rawTimestamp)
+    : (row?.date || "").split(" ")[0] || "";
+  const target = `${dateYMD} / ${row?.name || "-"}${row?.birth ? `(${row.birth})` : ""}`;
+  // ✅ Admin 승인요청 표시에 쓰일 요약 문구(요구사항 포맷 고정)
+  // - 제공 수정: "수정: 이용자 -> BBB | 처리자 -> email"
+  // - 제공 삭제: "제공 삭제: 제공일자 / AAA(생년월일)"
+  let summary = target;
+
+  const action = extra?.action || "";
+  if (action === "delete") {
+    summary = `제공 삭제: ${target}`;
+  } else if (action === "update") {
+    const parts = [];
+    const oldHandler = row?.handler || row?.handledBy || "";
+    const requestedHandler = (extra?.requestedHandler ?? "").trim();
+    const handlerChanged =
+      requestedHandler && requestedHandler !== String(oldHandler || "").trim();
+
+    const oldCustomerId = extra?.oldCustomerId || row?.customerId || "";
+    const newCustomerId = extra?.newCustomerId || "";
+    const customerChanged = newCustomerId && newCustomerId !== oldCustomerId;
+
+    if (customerChanged) {
+      const nm = (extra?.newCustomerName || "").trim() || "-";
+      parts.push(`이용자 → ${nm}`);
+    }
+    if (handlerChanged) {
+      parts.push(`처리자 → ${requestedHandler}`);
+    }
+
+    summary = parts.length ? `수정: ${parts.join(" | ")}` : `수정: ${target}`;
+  }
+
+  return {
+    displayTarget: target,
+    displaySummary: summary,
+    provisionId: row?.id,
+    providedAt: row?.date || "",
+    day: row?.rawTimestamp ? row.rawTimestamp : null,
+    customerId: row?.customerId || "",
+    customerName: row?.name || "",
+    customerBirth: row?.birth || "",
+    itemsText: row?.itemsText || "",
+    totalPrice: row?.totalPrice ?? null,
+    handledBy: row?.handler || "",
+    quarterKey: row?.quarterKey || "",
+    lifelove: !!row?.lifelove,
+    ...extra,
+  };
+}
+function buildLifeApprovalPayload(row, extra = {}) {
+  const dateYMD = (row?.providedAt || "").split(" ")[0] || "";
+  const target = `${dateYMD} / ${row?.name || "-"}${row?.birth ? `(${row.birth})` : ""}`;
+
+  const action = extra?.action || "";
+  const summary =
+    action === "lifelove_delete" ? `생명사랑 제공 삭제: ${target}` : target;
+  return {
+    displayTarget: target,
+    displaySummary: summary,
+    provId: row?.provId,
+    customerId: row?.customerId,
+    quarterKey: row?.quarterKey,
+    ...extra,
+  };
+}
+
 async function computeProvisionTotalPages() {
   const q = query(
     collection(db, "provisions"),
@@ -1379,24 +1090,36 @@ async function handleProvisionDelete(id) {
   } else {
     const ok = await openConfirm({
       title: "삭제 승인 요청",
-      message: "관리자 승인이 필요합니다. 요청하시겠습니까?",
+      message: "관리자 승인이 필요합니다. 삭제 승인을 요청할까요?",
       variant: "warn",
+      defaultFocus: "cancel",
     });
     if (!ok) return;
 
     try {
+      const row =
+        provisionData?.find((x) => x.id === id) ||
+        provisionPageRaw?.find((x) => x.id === id) ||
+        null;
+      const payload = buildProvisionApprovalPayload(row || { id }, {
+        action: "delete",
+      });
       await withLoading(
         () =>
-          addDoc(collection(db, "approvals"), {
+          createApprovalRequest({
             type: "provision_delete",
             targetId: id,
-            requestedBy: auth.currentUser?.email,
-            requestedAt: Timestamp.now(),
-            approved: false,
+            payload,
           }),
         "삭제 승인 요청 전송 중…",
       );
       showToast("삭제 승인 요청이 전송되었습니다.");
+      await logEvent("approval_request", {
+        approvalType: "provision_delete",
+        targetId: id,
+        target: payload.displayTarget || null,
+        summary: payload.displaySummary || null,
+      });
     } catch (e) {
       logFirebaseError(e, "approvals:create provision_delete");
       showToast(
@@ -1578,35 +1301,6 @@ async function loadLifeTable() {
   }
 }
 
-// [추가] customer lifelove.<quarterKey> 정합성 재계산 (best-effort)
-async function reconcileCustomerLifelove(customerId, quarterKey) {
-  if (!customerId || !quarterKey) return;
-
-  // 해당 고객/분기에 lifelove=true provision이 남아있는지 확인 (1개만 보면 됨)
-  const q2 = query(
-    collection(db, "provisions"),
-    where("lifelove", "==", true),
-    where("quarterKey", "==", quarterKey),
-    where("customerId", "==", customerId),
-    limit(1),
-  );
-  const snap = await getDocs(q2);
-
-  const custRef = doc(db, "customers", customerId);
-  if (snap.empty) {
-    await updateDoc(custRef, {
-      [`lifelove.${quarterKey}`]: deleteField(),
-      updatedAt: serverTimestamp(),
-    });
-  } else {
-    // 혹시 고객 쪽 표시가 빠져있으면 복구
-    await updateDoc(custRef, {
-      [`lifelove.${quarterKey}`]: true,
-      updatedAt: serverTimestamp(),
-    });
-  }
-}
-
 // [추가] 생명사랑 해제 핸들러
 async function handleLifeDelete(row) {
   if (isAdmin) {
@@ -1623,16 +1317,11 @@ async function handleLifeDelete(row) {
         showToast("대상(provId)을 찾을 수 없습니다.", true);
         return;
       }
-      await runTransaction(db, async (transaction) => {
-        // 1. Provision 업데이트 (lifelove: false)
-        const provRef = doc(db, "provisions", row.provId);
-        transaction.update(provRef, { lifelove: false });
+      await adminUnsetLifeloveForProvision({
+        provId: row.provId,
+        customerId: row.customerId,
+        quarterKey: row.quarterKey,
       });
-
-      // ✅ 트랜잭션 커밋 후에 정합성 재계산 (트랜잭션 콜백 내부에서 await/getDocs/updateDoc 금지)
-      if (row?.customerId && row?.quarterKey) {
-        await reconcileCustomerLifelove(row.customerId, row.quarterKey);
-      }
 
       showToast("삭제되었습니다.");
       loadLifeTable(); // 목록 새로고침
@@ -1644,21 +1333,32 @@ async function handleLifeDelete(row) {
     // 관리자가 아니면 승인 요청
     const ok = await openConfirm({
       title: "삭제 승인 요청",
-      message: "관리자 승인이 필요합니다. 삭제 요청을 보내시겠습니까?",
+      message: "관리자 승인이 필요합니다. 삭제 승인을 요청할까요?",
       variant: "warn",
+      defaultFocus: "cancel",
     });
     if (!ok) return;
 
     try {
-      await addDoc(collection(db, "approvals"), {
-        type: "lifelove_cancel", // 별도 타입
-        targetId: row.provId, // Provision ID
-        payload: { customerId: row.customerId, quarterKey: row.quarterKey },
-        requestedBy: auth.currentUser?.email,
-        requestedAt: Timestamp.now(),
-        approved: false,
+      const payload = buildLifeApprovalPayload(row, {
+        action: "lifelove_delete",
       });
+      await withLoading(
+        () =>
+          createApprovalRequest({
+            type: "lifelove_delete",
+            targetId: row.provId,
+            payload,
+          }),
+        "삭제 승인 요청 전송 중…",
+      );
       showToast("삭제 승인 요청이 전송되었습니다.");
+      await logEvent("approval_request", {
+        approvalType: "lifelove_delete",
+        targetId: row.provId,
+        target: payload.displayTarget || null,
+        summary: payload.displaySummary || null,
+      });
     } catch (e) {
       showToast("요청 실패", true);
     }
@@ -2064,11 +1764,30 @@ function bindProvisionEvents() {
       if (!id) return showToast("대상을 찾을 수 없습니다.", true);
 
       // 변경 사항이 전혀 없으면 종료
+      const baseRow =
+        provisionData?.find((x) => x.id === id) ||
+        provisionPageRaw?.find((x) => x.id === id) ||
+        null;
+
+      const oldHandler = String(
+        baseRow?.handler || baseRow?.handledBy || "",
+      ).trim();
+      const oldBirth = String(
+        baseRow?.birth || baseRow?.customerBirth || "",
+      ).trim();
+
       const hasCustomerChange =
         !!newCustomerId && newCustomerId !== oldCustomerId;
+
+      // 같은 이용자를 다시 선택한 경우(예: 생년월일 보정 등)만 변경으로 취급
       const hasCustomerReselectSame =
-        !!newCustomerId && newCustomerId === oldCustomerId;
-      const hasHandlerChange = handler.length > 0;
+        !!newCustomerId &&
+        newCustomerId === oldCustomerId &&
+        !!newCustomerBirth &&
+        String(newCustomerBirth).trim() !== oldBirth;
+
+      const hasHandlerChange =
+        !!handler && String(handler).trim() !== oldHandler;
 
       if (!hasCustomerChange && !hasCustomerReselectSame && !hasHandlerChange) {
         return showToast("변경 내용이 없습니다.", true);
@@ -2078,36 +1797,48 @@ function bindProvisionEvents() {
       if (!isAdmin) {
         const ok = await openConfirm({
           title: "수정 승인 요청",
-          message: "관리자 승인이 필요합니다. 수정 요청을 등록할까요?",
+          message: "관리자 승인이 필요합니다. 수정 승인을 요청할까요?",
           variant: "warn",
-          confirmText: "요청",
-          cancelText: "취소",
+          defaultFocus: "cancel",
         });
         if (!ok) return;
 
         try {
+          const payload = {
+            ...buildProvisionApprovalPayload(baseRow || { id }, {
+              action: "update",
+              requestedHandler: handler,
+              oldCustomerId,
+              newCustomerId,
+              newCustomerName,
+              newCustomerBirth,
+            }),
+            // admin apply 편의 필드
+            handler,
+            oldCustomerId,
+            newCustomerId,
+            newCustomerName,
+            newCustomerBirth,
+          };
           await withLoading(
             () =>
-              addDoc(collection(db, "approvals"), {
-                type: "provision_edit",
+              createApprovalRequest({
+                type: "provision_update",
                 targetId: id,
-                requestedBy: auth.currentUser?.email,
-                requestedAt: Timestamp.now(),
-                approved: false,
-                payload: {
-                  handler,
-                  oldCustomerId,
-                  newCustomerId,
-                  newCustomerName,
-                  newCustomerBirth,
-                },
+                payload,
               }),
             "수정 승인 요청 전송 중…",
           );
           showToast("수정 승인 요청이 전송되었습니다.");
+          await logEvent("approval_request", {
+            approvalType: "provision_update",
+            targetId: id,
+            target: payload.displayTarget || null,
+            summary: payload.displaySummary || null,
+          });
           modal?.classList.add("hidden");
         } catch (e) {
-          logFirebaseError(e, "approvals:create provision_edit");
+          logFirebaseError(e, "approvals:create provision_update");
           showToast(
             `요청 실패${e?.code ? ` (${e.code})` : ""}: ${e?.message || e}`,
             true,

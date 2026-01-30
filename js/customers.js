@@ -2,7 +2,6 @@
 import {
   collection,
   setDoc,
-  addDoc,
   doc,
   getDocs,
   getDoc,
@@ -33,7 +32,11 @@ import {
   showLoading,
   hideLoading,
   renderEmptyState,
+  logEvent,
+  pruneOldCustomerLogs,
 } from "./components/comp.js";
+
+import { createApprovalRequest } from "./utils/approval.js";
 
 // 🔍 검색용 메모리 저장
 let customerData = [];
@@ -572,39 +575,6 @@ async function localUnifiedSearch(keyword) {
     .slice(0, 200); // 안전 상한
 }
 
-// ===== 로그 유틸 =====
-async function logEvent(type, data = {}) {
-  try {
-    await addDoc(collection(db, "customerLogs"), {
-      type,
-      actor: auth.currentUser?.email || "unknown",
-      createdAt: Timestamp.now(),
-      ...data,
-    });
-  } catch (e) {
-    // 로깅 실패는 UX 차단하지 않음
-    console?.warn?.("logEvent failed:", e);
-  }
-}
-async function pruneOldCustomerLogs() {
-  try {
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const q = query(
-      collection(db, "customerLogs"),
-      where("createdAt", "<", Timestamp.fromDate(cutoff)),
-      orderBy("createdAt", "asc"),
-      limit(200),
-    );
-    const snap = await getDocs(q);
-    if (snap.empty) return;
-    const batch = writeBatch(db);
-    snap.docs.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-  } catch (e) {
-    console?.warn?.("pruneOldLogs skipped:", e);
-  }
-}
-
 // ===== 권한/역할 감지 & UI 토글 =====
 let isAdmin = false;
 async function applyRoleFromUser(user) {
@@ -932,22 +902,15 @@ async function saveCreateDirect() {
     });
   } else {
     const ok = await openConfirm({
-      title: "승인 요청",
-      message: "관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?",
+      title: "등록 승인 요청",
+      message: "관리자 승인이 필요합니다. 등록 승인을 요청할까요?",
       variant: "warn",
-      confirmText: "승인 요청",
-      cancelText: "취소",
       defaultFocus: "cancel",
     });
     if (!ok) return;
-    await setDoc(doc(collection(db, "approvals")), {
-      type: "customer_add",
-      payload,
-      requestedBy: auth.currentUser?.email || "",
-      requestedAt: Timestamp.now(),
-      approved: false,
-    });
-    showToast("승인 요청이 전송되었습니다");
+    await createApprovalRequest({ type: "customer_add", payload });
+
+    showToast("등록 승인 요청이 전송되었습니다");
     await logEvent("approval_request", {
       approvalType: "customer_add",
       name: payload.name,
@@ -1262,6 +1225,43 @@ function openEditModal(customer) {
   }
 }
 
+// ===== 변경분(diff)만 추출 (dup_update 패턴 재사용 + 인덱스 필드 보완) =====
+function buildCustomerChangesDiff(before = {}, payload = {}) {
+  const changes = {};
+  const keys = [
+    "name",
+    "birth",
+    "gender",
+    "status",
+    "region1",
+    "address",
+    "phone",
+    "type",
+    "category",
+    "note",
+  ];
+
+  keys.forEach((k) => {
+    if ((payload[k] ?? "") !== (before[k] ?? "")) changes[k] = payload[k] ?? "";
+  });
+
+  // ✅ 파생/인덱스 필드도 함께 동기화 (승인 시 changes만 updateDoc 해도 검색 깨지지 않게)
+  if ("name" in changes) changes.nameLower = normalize(payload.name || "");
+  if ("region1" in changes)
+    changes.regionLower = normalize(payload.region1 || "");
+  if ("phone" in changes) {
+    changes.phonePrimary = payload.phonePrimary || "";
+    changes.phoneSecondary = payload.phoneSecondary || "";
+    // buildPhoneIndexFields 결과가 payload에 있으므로 그대로 사용
+    if (payload.phoneTokens !== undefined)
+      changes.phoneTokens = payload.phoneTokens;
+    if (payload.phoneLast4 !== undefined)
+      changes.phoneLast4 = payload.phoneLast4;
+  }
+
+  return changes;
+}
+
 // 저장 시 반영
 // [수정] 수정 모달 저장 버튼 클릭 이벤트 (Form Submit 대체)
 document
@@ -1331,6 +1331,16 @@ document
       ...buildPhoneIndexFields(picked.display),
     };
 
+    // 변경분(diff)만 추출 (승인요청/로그용)
+    const changesDiff = buildCustomerChangesDiff(
+      editingOriginal || {},
+      updateData,
+    );
+    if (Object.keys(changesDiff).length === 0) {
+      showToast("변경 내용이 없습니다.", true);
+      return;
+    }
+
     try {
       if (isAdmin) {
         await updateDoc(doc(db, "customers", id), updateData);
@@ -1348,26 +1358,22 @@ document
           }
         } catch {}
 
-        await logEvent("customer_update", { id, changes: updateData });
+        await logEvent("customer_update", { id, changes: changesDiff });
       } else {
         // 비관리자 승인 요청
         const ok = await openConfirm({
           title: "수정 승인 요청",
-          message:
-            "관리자 승인이 필요한 사항입니다. 승인요청을 보내시겠습니까?",
+          message: "관리자 승인이 필요합니다. 수정 승인을 요청할까요?",
           variant: "warn",
-          confirmText: "승인 요청",
-          cancelText: "취소",
           defaultFocus: "cancel",
         });
         if (!ok) return;
 
-        await setDoc(doc(collection(db, "approvals")), {
+        // ✅ admin.js approveOne(customer_update)은 targetId + changes를 사용
+        await createApprovalRequest({
           type: "customer_update",
-          payload: { id, ...updateData },
-          requestedBy: email,
-          requestedAt: Timestamp.now(),
-          approved: false,
+          targetId: id,
+          changes: changesDiff,
         });
         showToast("수정 요청이 전송되었습니다");
       }
@@ -1717,21 +1723,17 @@ document.addEventListener("click", async (e) => {
     await loadCustomers();
   } else {
     const ok = await openConfirm({
-      title: "승인 요청",
-      message: "관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?",
+      title: "삭제 승인 요청",
+      message: "관리자 승인이 필요합니다. 삭제 승인을 요청할까요?",
       variant: "warn",
-      confirmText: "승인 요청",
-      cancelText: "취소",
       defaultFocus: "cancel",
     });
     if (!ok) return;
-    await setDoc(doc(collection(db, "approvals")), {
+    await createApprovalRequest({
       type: "customer_delete",
       targetId: del.dataset.del,
-      requestedBy: auth.currentUser?.email || "",
-      requestedAt: Timestamp.now(),
-      approved: false,
     });
+
     showToast("삭제 승인 요청이 전송되었습니다");
     await logEvent("approval_request", {
       approvalType: "customer_delete",
@@ -2176,20 +2178,17 @@ function bindUploadTab() {
       // 비관리자 로직 (기존과 동일하지만 ID 매핑이 필요하다면 서버리스 함수 등에서 처리 필요)
       // 일단 현재 구조상 비관리자는 '요청'만 보내므로 기존 코드 유지
       const ok = await openConfirm({
-        title: "승인 요청",
-        message:
-          "관리자의 승인이 필요한 사항입니다. 승인요청을 보내시겠습니까?",
+        title: "일괄 등록 승인 요청",
+        message: "관리자 승인이 필요합니다. 일괄 등록 승인을 요청할까요?",
         variant: "warn",
-        confirmText: "승인 요청",
-        cancelText: "취소",
         defaultFocus: "cancel",
       });
       if (!ok) return;
 
-      showLoading("승인 요청을 전송 중입니다...");
+      showLoading("일괄 등록 승인 요청을 전송 중입니다...");
 
       try {
-        await setDoc(doc(collection(db, "approvals")), {
+        await createApprovalRequest({
           type: "customer_bulk_upload",
           payload: {
             rows: dryRows,
@@ -2199,12 +2198,9 @@ function bindUploadTab() {
                 ? lastDeactivateTargets
                 : [],
           },
-          requestedBy: auth.currentUser?.email || "",
-          requestedAt: Timestamp.now(),
-          approved: false,
         });
 
-        showToast("업로드 승인 요청이 전송되었습니다");
+        showToast("일괄 등록 승인 요청이 전송되었습니다");
         await logEvent("approval_request", {
           approvalType: "customer_bulk_upload",
           count: dryRows.length,
@@ -2634,47 +2630,28 @@ async function onDupUpdate() {
   if (isAdmin) {
     await updateDoc(ref, payload);
     showToast("기존 정보가 업데이트되었습니다");
+    const changes = buildCustomerChangesDiff(before, payload);
     await logEvent("customer_update", {
       targetId: ref.id,
-      changes: payload,
+      changes,
       mode: "dup_update",
     });
   } else {
-    // 변경분만 추려 승인요청
-    const changes = {};
-    [
-      "name",
-      "birth",
-      "gender",
-      "status",
-      "region1",
-      "address",
-      "phone",
-      "type",
-      "category",
-      "note",
-    ].forEach((k) => {
-      if ((payload[k] ?? "") !== (before[k] ?? ""))
-        changes[k] = payload[k] ?? "";
-    });
+    // 변경분만 추려 승인요청 (공통 함수 재사용)
+    const changes = buildCustomerChangesDiff(before, payload);
     const ok = await openConfirm({
-      title: "승인 요청",
-      message: "관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?",
+      title: "수정 승인 요청",
+      message: "관리자 승인이 필요합니다. 수정 승인을 요청할까요?",
       variant: "warn",
-      confirmText: "승인 요청",
-      cancelText: "취소",
       defaultFocus: "cancel",
     });
     if (!ok) return;
-    await setDoc(doc(collection(db, "approvals")), {
+    await createApprovalRequest({
       type: "customer_update",
       targetId: ref.id,
       changes,
-      requestedBy: auth.currentUser?.email || "",
-      requestedAt: Timestamp.now(),
-      approved: false,
     });
-    showToast("승인 요청이 전송되었습니다");
+    showToast("수정 승인 요청이 전송되었습니다");
     await logEvent("approval_request", {
       approvalType: "customer_update",
       targetId: ref.id,
@@ -2700,23 +2677,18 @@ async function onDupNew() {
     });
   } else {
     const ok = await openConfirm({
-      title: "승인 요청",
-      message: "관리자의 승인이 필요한 사항입니다. 승인을 요청하시겠습니까?",
+      title: "등록 승인 요청",
+      message: "관리자 승인이 필요합니다. 등록 승인을 요청할까요?",
       variant: "warn",
-      confirmText: "승인 요청",
-      cancelText: "취소",
       defaultFocus: "cancel",
     });
     if (!ok) return;
-    await setDoc(doc(collection(db, "approvals")), {
+    await createApprovalRequest({
       type: "customer_add",
       payload,
-      mode: "create_new",
-      requestedBy: auth.currentUser?.email || "",
-      requestedAt: Timestamp.now(),
-      approved: false,
+      extra: { mode: "create_new" },
     });
-    showToast("승인 요청이 전송되었습니다");
+    showToast("등록 승인 요청이 전송되었습니다");
     await logEvent("approval_request", {
       approvalType: "customer_add",
       name: payload.name,

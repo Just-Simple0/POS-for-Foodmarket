@@ -130,6 +130,41 @@
   }
 }
 
+/* 점들을 감싸는 컨테이너 */
+.tds-dots-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px; /* 점 사이 간격 */
+}
+
+/* 개별 점 스타일 */
+.tds-dot {
+  width: 6px;
+  height: 6px;
+  background-color: currentColor; /* 부모 버튼의 텍스트 색상을 따라감 (흰색 or 회색) */
+  border-radius: 50%;
+  opacity: 0.4;
+  animation: tds-dot-flash 1.4s infinite ease-in-out both;
+}
+
+/* 순차적 애니메이션 딜레이 */
+.tds-dot:nth-child(1) { animation-delay: -0.32s; }
+.tds-dot:nth-child(2) { animation-delay: -0.16s; }
+.tds-dot:nth-child(3) { animation-delay: 0s; }
+
+/* 깜빡임 애니메이션 키프레임 */
+@keyframes tds-dot-flash {
+  0%, 80%, 100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
 /* =========================================
    2. Components Layer
    ========================================= */
@@ -238,6 +273,8 @@
   .btn-full {
     @apply w-full;
   }
+
+  
 
   /* =========================================
      Pagination: TDS Style Implementation
