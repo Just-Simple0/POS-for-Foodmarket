@@ -343,44 +343,31 @@ export function setBusy(el, busy = true) {
   if (!el) return;
 
   if (busy) {
-    if (el.dataset.isBusy === "true") return;
+    // 이미 로딩 중이면 중단
+    if (el.classList.contains("is-loading")) return;
 
-    const rect = el.getBoundingClientRect();
-    el.style.width = `${rect.width}px`;
-    el.style.height = `${rect.height}px`;
+    // 1. 로딩 클래스 추가 (CSS가 텍스트 투명화, 배경 유지 처리)
+    el.classList.add("is-loading");
 
-    // [수정] 원래 정렬 상태 저장 및 중앙 정렬 강제 적용
-    el.dataset.orgHtml = el.innerHTML;
-    el.dataset.orgJustify = el.style.justifyContent; // 원래 정렬 저장
-    el.style.justifyContent = "center"; // 무조건 중앙으로
-
-    el.dataset.isBusy = "true";
-    el.classList.add("cursor-not-allowed", "opacity-80");
+    // 2. 버튼 비활성화 (클릭 방지용, CSS로 opacity 감소는 막아둠)
     el.disabled = true;
 
-    // [수정] w-full을 추가하여 버튼 전체 영역 내에서 중앙에 오도록 함
-    el.innerHTML = `
-      <div class="tds-dots-loader w-full flex justify-center">
-        <div class="tds-dot"></div>
-        <div class="tds-dot"></div>
-        <div class="tds-dot"></div>
-      </div>
-    `;
+    // 3. 스피너가 없으면 생성해서 삽입 (최초 1회)
+    // * 주의: innerHTML을 건드리지 않고 appendChild로 추가하여 기존 텍스트 노드 보존 *
+    let loader = el.querySelector(".tds-dots-loader");
+    if (!loader) {
+      loader = document.createElement("div");
+      loader.className = "tds-dots-loader";
+      // 점 3개 생성 (색상은 CSS에서 자동 결정)
+      loader.innerHTML =
+        '<div class="tds-dot"></div><div class="tds-dot"></div><div class="tds-dot"></div>';
+      el.appendChild(loader);
+    }
   } else {
-    // 로딩 종료: 원래 정렬 상태로 복구
-    if (el.dataset.orgHtml) {
-      el.innerHTML = el.dataset.orgHtml;
-      delete el.dataset.orgHtml;
-    }
-    if (el.dataset.orgJustify !== undefined) {
-      el.style.justifyContent = el.dataset.orgJustify;
-      delete el.dataset.orgJustify;
-    }
-    el.style.width = "";
-    el.style.height = "";
-    el.dataset.isBusy = "false";
-    el.classList.remove("cursor-not-allowed", "opacity-80");
+    // 로딩 해제
+    el.classList.remove("is-loading");
     el.disabled = false;
+    // 스피너는 DOM에 남겨두지만 CSS(hidden)에 의해 숨겨짐
   }
 }
 

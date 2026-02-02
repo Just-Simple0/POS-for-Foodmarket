@@ -149,13 +149,21 @@
 }
 
 /* 순차적 애니메이션 딜레이 */
-.tds-dot:nth-child(1) { animation-delay: -0.32s; }
-.tds-dot:nth-child(2) { animation-delay: -0.16s; }
-.tds-dot:nth-child(3) { animation-delay: 0s; }
+.tds-dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.tds-dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+.tds-dot:nth-child(3) {
+  animation-delay: 0s;
+}
 
 /* 깜빡임 애니메이션 키프레임 */
 @keyframes tds-dot-flash {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     opacity: 0.4;
     transform: scale(0.8);
   }
@@ -191,8 +199,51 @@
 
   /* [1] Base Button Style */
   .btn {
-    @apply inline-flex items-center justify-center font-bold gap-1.5 transition-all duration-200 ease-out border-none shadow-none select-none whitespace-nowrap;
+    /* relative: 로더 위치 기준점 */
+    @apply relative inline-flex items-center justify-center font-bold gap-1.5 transition-all duration-200 ease-out border-none shadow-none select-none whitespace-nowrap;
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+
+  /* [2] Loading State (TDS Style) */
+  .btn.is-loading {
+    /* 1. 텍스트 노드 포함 모든 글자 투명화 (공간은 차지함) */
+    color: transparent !important;
+
+    /* 2. 클릭 방지 */
+    pointer-events: none !important;
+
+    /* 3. 배경색 유지 (disabled로 인한 흐림 방지) */
+    opacity: 1 !important;
+  }
+
+  /* 로더 위치: 중앙 정렬 (Absolute) */
+  .btn .tds-dots-loader {
+    @apply absolute inset-0 flex items-center justify-center hidden;
+    /* 로더 자체는 투명화되지 않도록 설정 */
+    color: initial;
+  }
+
+  /* 로딩 중일 때 로더 표시 */
+  .btn.is-loading .tds-dots-loader {
+    @apply flex;
+  }
+
+  /* [중요] 로더 점 색상 복구 (부모가 transparent이므로 명시적 지정 필요) */
+  /* Primary 계열 (파란 배경) -> 흰색 점 */
+  .btn-primary .tds-dot,
+  .btn-danger .tds-dot,
+  .btn-dark .tds-dot {
+    @apply bg-white;
+  }
+
+  /* Light/Ghost/Outline 계열 (밝은 배경) -> 회색 점 */
+  .btn-light .tds-dot,
+  .btn-light-weak .tds-dot,
+  .btn-ghost .tds-dot,
+  .btn-outline .tds-dot,
+  .btn-primary-weak .tds-dot,
+  .btn-danger-weak .tds-dot {
+    @apply bg-slate-500 dark:bg-slate-400;
   }
 
   /* [2] Color Variants (Semantic) */
@@ -273,8 +324,6 @@
   .btn-full {
     @apply w-full;
   }
-
-  
 
   /* =========================================
      Pagination: TDS Style Implementation
