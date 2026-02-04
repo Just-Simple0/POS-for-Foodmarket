@@ -1,0 +1,367 @@
+/* 관리자 전용 스타일 */
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
+  margin: 18px 0;
+  overflow: hidden;
+}
+/* (6) 요약 위젯 */
+.counters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+}
+.counter-card {
+  padding: 10px 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  background: #fafcff;
+}
+.counter-card .k {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.counter-card .v {
+  font-variant-numeric: tabular-nums;
+}
+.counter-card.muted {
+  background: #fff;
+}
+.card-header,
+.card-footer {
+  padding: 12px 16px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+/* common.css의 input/select 기본 width:100%를 이 범위에서만 덮어쓰기 */
+.admin-filterbar .input,
+#logs-card .logs-filter .input {
+  width: auto; /* override global 100% */
+  min-width: 160px;
+  height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+.admin-filterbar #q {
+  flex: 1;
+  min-width: 240px;
+}
+/* 크롬 기본 검색창 외형 제거(우린 type=text로 통일했지만 안전망) */
+.admin-filterbar input[type="search"] {
+  appearance: none;
+  -webkit-appearance: none;
+}
+.admin-filterbar .input:focus,
+#logs-card .logs-filter .input:focus {
+  border-color: #1976d2;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.12);
+  outline: none;
+}
+.admin-filterbar .input,
+#logs-card .logs-filter .input {
+  width: auto; /* global 100% (common.css) override in place */
+  min-width: 160px;
+}
+.admin-filterbar #q {
+  flex: 1;
+  min-width: 240px;
+}
+
+.admin-actionbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px 12px;
+  align-items: center;
+  border-top: 1px solid #f0f0f0;
+}
+.admin-actionbar .muted {
+  opacity: 0.7;
+}
+.admin-actionbar .input.small {
+  width: auto;
+  min-width: 180px;
+}
+
+.table-wrap {
+  overflow: auto;
+}
+
+.table-base thead th:first-child,
+.table-base tbody td:first-child {
+  text-align: center;
+  width: 36px;
+}
+
+/* 선택된 행 하이라이트 */
+.table-base tbody tr.selected {
+  background: #f5faff;
+  transition: background 0.15s ease;
+}
+
+/* 비활성화 사용자 행(회색 처리 + 조작막기) */
+tr.is-disabled {
+  opacity: 0.6;
+  filter: grayscale(1);
+}
+tr.is-disabled .btn,
+tr.is-disabled .role-select {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* 경고 톤 버튼(삭제용) - 간단 테마 */
+.btn-warn {
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+.btn-warn:hover {
+  background: #b91c1c;
+  color: #fff;
+}
+
+/* annual purge confirm input width */
+#annual-card #purge-confirm {
+  min-width: 220px;
+}
+
+#annual-card .filter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+#annual-card .range-divider {
+  margin: 0 0.25rem;
+}
+#annual-card #yr-start,
+#annual-card #yr-end {
+  font-family: "Pretendard", sans-serif;
+  font-size: 14px;
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  width: 180px;
+  color: #333;
+  background-color: #fff;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+/* 팝업 캘린더(전역 적용해도 무방) */
+.daterangepicker {
+  font-family: "Pretendard", sans-serif;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  border: none;
+  overflow: hidden;
+}
+.daterangepicker .drp-calendar .day {
+  border-radius: 6px;
+  height: 32px;
+  line-height: 32px;
+}
+.daterangepicker .drp-calendar .day.available:hover {
+  background: #f0f4ff;
+}
+.daterangepicker .drp-calendar .day.in-range {
+  background: #d6eaff;
+  color: #000;
+}
+.daterangepicker .drp-calendar .day.in-range.start-date,
+.daterangepicker .drp-calendar .day.in-range.end-date,
+.daterangepicker .drp-calendar .day.in-range.active {
+  background: #007bff;
+  color: #fff;
+}
+
+/* (9) 가상 스크롤용 스페이서 */
+.vspacer td {
+  padding: 0 !important;
+  border: none !important;
+  height: 0 !important;
+}
+.vspacer .pad {
+  height: 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.badge.small {
+  font-size: 0.72rem;
+}
+.badge.muted {
+  background: #eef2f7;
+  color: #475569;
+}
+.badge-ok {
+  background: #e7f8ef;
+  color: #0f8a47;
+}
+.badge-alert {
+  background: #fff0f0;
+  color: #d1282a;
+}
+
+/* ===== 감사 로그 헤더: 검색/액션/조회 가로 정렬 고정 ===== */
+#logs-card .logs-filter {
+  display: flex;
+  flex-wrap: nowrap; /* 기본은 한 줄, 좁으면 CSS 줄바꿈 */
+  gap: 8px;
+  align-items: center;
+}
+#logs-card .input {
+  min-width: 180px;
+}
+#logs-card #log-uid {
+  min-width: 220px;
+}
+#logs-card .logs-filter .btn {
+  white-space: nowrap;
+}
+#logs-card h3 {
+  margin-right: auto;
+}
+
+/* =========================
+    반응형 (common.css 기준)
+   ========================= */
+@media (max-width: 768px) {
+  /* 검색바: 가로 → 세로, 요소 전체폭 */
+  .search-bar {
+    align-items: stretch;
+  } /* common.css 참고 */
+  .search-bar .input,
+  .search-bar .btn {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* 요약 위젯 한 줄 → 세로 */
+  .counters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+  .counter-card {
+    width: 100%;
+  }
+
+  /* 감사 로그 필터: 래핑 허용 */
+  #logs-card .logs-filter {
+    flex-wrap: wrap;
+  }
+  #logs-card .logs-filter .input,
+  #logs-card .logs-filter .btn {
+    width: 100%;
+  }
+
+  /* 액션바도 세로 스택 */
+  .admin-actionbar {
+    align-items: stretch;
+    gap: 6px;
+  }
+  .admin-actionbar .input.small,
+  .admin-actionbar .btn {
+    width: 100%;
+  }
+
+  /* 요약 위젯 한 줄 → 세로 */
+  .counters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+  .counter-card {
+    width: 100%;
+  }
+
+  /* 감사 로그 필터: 기본 한 줄 → 래핑 허용 + 전체폭 */
+  #logs-card .logs-filter {
+    flex-wrap: wrap;
+  }
+  #logs-card .logs-filter .input,
+  #logs-card .logs-filter .btn {
+    width: 100%;
+  }
+}
+
+/* ==== 탭 ==== */
+.tabbar {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.tab {
+  padding: 10px 20px;
+  border: 2px solid #ccc;
+  background-color: #fff;
+  color: #ccc;
+  border-radius: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.tab.active {
+  background-color: #007bff;
+  color: #fff;
+  border-color: #007bff;
+}
+.tab:not(.active):hover {
+  background-color: #e0e0e0;
+  color: #000;
+}
+
+/* 승인 테이블 가독성 보강 */
+#approvals-table td,
+#approvals-table th {
+  vertical-align: middle;
+}
+#approvals-table .row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+#c-logs-table td,
+#c-logs-table th {
+  vertical-align: middle;
+}
+
+@media (max-width: 480px) {
+  /* 카드 간 여백 살짝 축소 */
+  .card {
+    margin: 14px 0;
+  }
+  /* 테이블 가독성 압축 */
+  .table-base thead th,
+  .table-base tbody td {
+    padding: 8px 10px;
+    font-size: 0.95rem;
+  }
+
+  /* 모바일에서 버튼 간격 보정 */
+  .admin-filterbar .btn {
+    margin-top: 2px;
+  }
+}

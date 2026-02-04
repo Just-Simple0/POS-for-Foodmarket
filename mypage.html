@@ -1,9 +1,9 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>POS System - My Page</title>
+    <!-- ⚡️ FOUC 방지: 초기 테마 적용 -->
     <script>
       (function () {
         try {
@@ -16,10 +16,14 @@
         } catch (e) {}
       })();
     </script>
-
+    <link rel="stylesheet" href="css/tw.css" />
+    <link rel="stylesheet" href="css/common.css" />
+    <link rel="stylesheet" href="css/mypage.css" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
     />
     <link
       rel="stylesheet"
@@ -27,336 +31,277 @@
       crossorigin
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
-    <link rel="stylesheet" href="css/tw.css" />
-    <link rel="stylesheet" href="css/tw-input.css" />
-
     <script>
       window.CF_TURNSTILE_SITEKEY = "0x4AAAAAABtE3GFMWF3_Fd4E";
     </script>
+
+    <!-- Firebase -->
     <script type="module" src="js/components/firebase-config.js"></script>
+    <!-- Page JS -->
     <script type="module" src="js/mypage.js" defer></script>
   </head>
   <body>
     <div id="header-container"></div>
 
-    <main class="main-layout !max-w-3xl">
-      <div class="mb-2">
-        <h2
-          class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight"
-        >
-          마이페이지
-        </h2>
-        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">
-          내 정보를 확인하고 계정 보안을 관리합니다.
+    <main class="mypage-container">
+      <!-- 프로필 카드 -->
+      <section class="user-card">
+        <h2>👨‍💼 정보</h2>
+
+        <p><strong>이름:</strong> <span id="user-name">-</span></p>
+        <p><strong>이메일:</strong> <span id="user-email">-</span></p>
+        <p><strong>최근 로그인:</strong> <span id="user-last-login">-</span></p>
+
+        <!-- 권한 & 관리자 뱃지 (role === 'admin'일 때만 표시) -->
+        <p>
+          <span id="admin-badge" class="admin-badge" style="display: none">
+            <i class="fas fa-crown"></i> 관리자
+          </span>
         </p>
-      </div>
 
-      <section class="card mb-6">
-        <div
-          class="flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-700/50"
-        >
-          <div class="text-center sm:text-left">
-            <div
-              class="flex items-center justify-center sm:justify-start gap-2 mb-1"
-            >
-              <i
-                id="admin-icon"
-                class="hidden fas fa-crown text-blue-600 dark:text-blue-400"
-              ></i>
-              <h3
-                id="user-name"
-                class="text-xl font-bold text-slate-900 dark:text-white"
-              >
-                -
-              </h3>
-              <span
-                id="admin-badge-text"
-                class="hidden badge badge-xs badge-weak-primary"
-                >ADMIN</span
-              >
-            </div>
-            <p
-              id="user-email"
-              class="text-slate-500 dark:text-slate-400 text-[15px] font-medium"
-            >
-              -
-            </p>
-          </div>
-
-          <button
-            id="logout-btn"
-            class="btn btn-light-weak btn-md text-rose-500 !px-4"
-          >
-            <i class="fas fa-sign-out-alt mr-1.5"></i> 로그아웃
-          </button>
-        </div>
-
-        <div>
-          <div class="field-group !mb-0">
-            <span class="field-label !mb-1">최근 로그인</span>
-            <div
-              id="user-last-login"
-              class="text-[15px] font-semibold text-slate-700 dark:text-slate-300 ml-0.5"
-            >
-              -
-            </div>
-          </div>
-        </div>
+        <button id="logout-btn" class="btn">로그아웃</button>
       </section>
 
-      <section class="card space-y-4 mb-6">
-        <div>
-          <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">
-            계정 연동
-          </h3>
-          <p class="text-sm text-slate-500">
-            소셜 계정을 연동하면 간편하게 로그인할 수 있습니다.
-          </p>
-        </div>
+      <!-- 🔗 계정 연동 (기존 섹션 유지) -->
+      <section class="federation-card">
+        <h2>🔗 계정 연동</h2>
+        <p class="fed-help">
+          이메일 계정을 기본으로 사용하고, 소셜 계정은 로그인용으로
+          <strong>연동</strong>할 수 있어요.
+        </p>
 
-        <div class="flex flex-col gap-3">
-          <div
-            class="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50"
-          >
-            <div class="flex items-center gap-4">
-              <div
-                class="w-10 h-10 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center shadow-sm text-slate-800 dark:text-white text-xl"
-              >
-                <i class="fa-brands fa-google"></i>
-              </div>
+        <div class="link-list">
+          <!-- Google -->
+          <article class="link-item" data-provider="google">
+            <div class="provider">
+              <i class="fa-brands fa-google"></i>
               <div>
-                <div
-                  class="font-bold text-slate-800 dark:text-slate-200 text-sm"
-                >
-                  Google
+                <h3>Google</h3>
+                <div class="status">
+                  <span id="status-google" class="status-badge">확인 중…</span>
                 </div>
-                <span
-                  id="status-google"
-                  class="text-xs font-medium text-slate-400"
-                  >확인 중...</span
-                >
               </div>
             </div>
-            <div class="flex gap-2">
-              <button id="link-google" class="btn btn-primary-weak btn-sm">
-                연동
+            <div class="actions">
+              <button id="link-google" class="btn primary" type="button">
+                연동하기
               </button>
               <button
                 id="unlink-google"
-                class="hidden btn btn-danger-weak btn-sm"
+                class="btn danger hidden"
+                type="button"
               >
-                해제
+                연동 해지
               </button>
             </div>
-          </div>
+          </article>
 
-          <div
-            class="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50"
-          >
-            <div class="flex items-center gap-4">
-              <div
-                class="w-10 h-10 rounded-full bg-[#FEE500] flex items-center justify-center shadow-sm text-[#3C1E1E] text-xl"
-              >
-                <i class="fa-solid fa-comment"></i>
-              </div>
+          <!-- Kakao -->
+          <article class="link-item" data-provider="kakao">
+            <div class="provider">
+              <i class="fa-solid fa-comment"></i>
               <div>
-                <div
-                  class="font-bold text-slate-800 dark:text-slate-200 text-sm"
-                >
-                  Kakao
+                <h3>Kakao</h3>
+                <div class="status">
+                  <span id="status-kakao" class="status-badge">확인 중…</span>
                 </div>
-                <span
-                  id="status-kakao"
-                  class="text-xs font-medium text-slate-400"
-                  >확인 중...</span
-                >
               </div>
             </div>
-            <div class="flex gap-2">
-              <button id="link-kakao" class="btn btn-primary-weak btn-sm">
-                연동
+            <div class="actions">
+              <button id="link-kakao" class="btn primary" type="button">
+                연동하기
               </button>
-              <button
-                id="unlink-kakao"
-                class="hidden btn btn-danger-weak btn-sm"
-              >
-                해제
+              <button id="unlink-kakao" class="btn danger hidden" type="button">
+                연동 해지
               </button>
             </div>
-          </div>
+          </article>
+
+          <!-- Naver -->
+          <article class="link-item" data-provider="naver">
+            <div class="provider">
+              <i class="fa-solid fa-n"></i>
+              <div>
+                <h3>Naver</h3>
+                <div class="status">
+                  <span id="status-naver" class="status-badge">확인 중…</span>
+                </div>
+              </div>
+            </div>
+            <div class="actions">
+              <button id="link-naver" class="btn primary" type="button">
+                연동하기
+              </button>
+              <button id="unlink-naver" class="btn danger hidden" type="button">
+                연동 해지
+              </button>
+            </div>
+          </article>
         </div>
+
+        <p class="note">
+          ※ 연동 후에는 해당 소셜 버튼으로도 로그인할 수 있습니다. 연동을
+          해지하면 로그인에 사용할 수 없습니다.
+        </p>
       </section>
 
-      <section class="card space-y-4">
-        <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200">
-          보안 설정
-        </h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <button
-            id="btn-reset-password"
-            class="btn btn-outline btn-md justify-start"
-          >
-            <i class="fas fa-key w-5 mr-1 text-slate-400"></i> 비밀번호 재설정
-          </button>
-          <button
-            id="btn-logout-others"
-            class="btn btn-outline btn-md justify-start"
-          >
-            <i class="fas fa-mobile-alt w-5 mr-1 text-slate-400"></i> 다른 기기
-            로그아웃
-          </button>
-          <button
-            id="btn-open-change-email"
-            class="btn btn-outline btn-md justify-start"
-          >
-            <i class="fas fa-envelope w-5 mr-1 text-slate-400"></i> 이메일 변경
-          </button>
-          <button
-            id="btn-open-delete-request"
-            class="btn btn-light-weak btn-md justify-start text-rose-500"
-          >
-            <i class="fas fa-user-slash w-5 mr-1"></i> 계정 삭제 요청
-          </button>
-        </div>
+      <!-- 🔐 보안 관리 -->
+      <section class="security-card">
+        <h2>🔐 보안 설정</h2>
+        <!-- ② 비밀번호 재설정 메일 -->
+        <button id="btn-reset-password" class="btn">
+          <i class="fas fa-key"></i> 비밀번호 재설정 메일
+        </button>
+        <!-- ③ 다른 기기에서 로그아웃 -->
+        <button id="btn-logout-others" class="btn">
+          <i class="fas fa-right-from-bracket"></i> 다른 기기에서 로그아웃
+        </button>
+        <!-- ④ 이메일 변경 -->
+        <button id="btn-open-change-email" class="btn">
+          <i class="fas fa-envelope"></i> 이메일 변경
+        </button>
+        <!-- ⑨ 계정 삭제 요청 -->
+        <button id="btn-open-delete-request" class="btn danger">
+          <i class="fas fa-user-slash"></i> 계정 삭제 요청
+        </button>
       </section>
-
-      <section class="card space-y-4">
-        <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200">
-          최근 로그인 기록
-          <span class="text-xs font-normal text-slate-400 ml-1"
-            >(최근 5건)</span
-          >
-        </h3>
-        <table class="table">
+      <!-- ⑥ 최근 로그인 기록 -->
+      <section class="login-history-card">
+        <h2>🕓 최근 로그인 기록</h2>
+        <table id="login-history-table" class="table-base">
           <thead>
             <tr>
               <th>일시</th>
-              <th>IP 주소</th>
-              <th>로그인 수단</th>
+              <th>IP</th>
+              <th>수단</th>
             </tr>
           </thead>
           <tbody id="login-history">
-            <tr></tr>
+            <tr>
+              <td colspan="3">Loading...</td>
+            </tr>
           </tbody>
         </table>
+        <p class="note">* 최근 5회 기록이 표시됩니다.</p>
       </section>
     </main>
 
     <div id="footer-container"></div>
 
-    <div id="modal-change-email" class="modal-overlay hidden">
+    <!-- ④ 이메일 변경 모달 -->
+    <div
+      id="modal-change-email"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="change-email-title"
+      tabindex="-1"
+    >
       <form id="form-change-email" class="modal-content">
-        <div class="modal-header">
-          <h2 class="modal-title">이메일 변경</h2>
-        </div>
-        <div class="modal-body space-y-4">
-          <div class="field-group">
-            <label class="field-label">현재 비밀번호</label>
-            <div class="field-box">
-              <input
-                type="password"
-                id="chg-current-pw"
-                required
-                class="field-input"
-                placeholder="비밀번호 입력"
-              />
-            </div>
-          </div>
-          <div class="field-group">
-            <label class="field-label">새 이메일</label>
-            <div class="field-box">
-              <input
-                type="email"
-                id="chg-new-email"
-                required
-                class="field-input"
-                placeholder="new@example.com"
-              />
-            </div>
-          </div>
-          <p
-            class="text-xs text-slate-500 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg"
-          >
-            <i class="fas fa-info-circle mr-1"></i> 보안을 위해 비밀번호
-            재인증이 필요합니다.
-          </p>
-        </div>
-        <div class="modal-footer">
+        <h2 id="change-email-title">이메일 변경</h2>
+        <label
+          >현재 비밀번호
+          <input
+            type="password"
+            id="chg-current-pw"
+            required
+            autocomplete="current-password"
+            data-initial-focus
+            class="input w-full"
+          />
+        </label>
+        <label
+          >새 이메일
+          <input
+            type="email"
+            id="chg-new-email"
+            required
+            autocomplete="email"
+            class="input w-full"
+          />
+        </label>
+        <div class="modal-buttons">
+          <button type="submit" class="btn" aria-label="이메일 변경 저장">
+            <i class="fas fa-save"></i> 변경
+          </button>
           <button
             type="button"
             id="btn-cancel-change-email"
-            class="btn btn-light btn-md flex-1"
+            class="btn btn-ghost"
+            aria-label="이메일 변경 취소"
           >
             취소
           </button>
-          <button type="submit" class="btn btn-primary btn-md flex-[2]">
-            변경하기
-          </button>
         </div>
+        <p class="hint">
+          보안을 위해 비밀번호 재인증이 필요합니다. 변경 후 재로그인될 수
+          있어요.
+        </p>
       </form>
     </div>
 
-    <div id="modal-delete-request" class="modal-overlay hidden">
+    <!-- ⑨ 계정 삭제 요청 모달 -->
+    <div
+      id="modal-delete-request"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-request-title"
+      tabindex="-1"
+    >
       <form id="form-delete-request" class="modal-content">
-        <div class="modal-header">
-          <h2 class="modal-title flex items-center gap-2">
-            <div
-              class="w-8 h-8 rounded-full bg-danger-50 dark:bg-danger-900/30 flex items-center justify-center text-danger-600 dark:text-danger-400"
-            >
-              <i class="fas fa-user-slash text-sm"></i>
-            </div>
-            계정 삭제 요청
-          </h2>
+        <h2 id="delete-request-title">계정 삭제 요청</h2>
+        <p class="danger-text">
+          바로 삭제되지 않습니다. 관리자가 검토한 후 처리됩니다.
+        </p>
+        <label
+          >사유 (선택)
+          <textarea
+            id="del-reason"
+            rows="3"
+            placeholder="예: 더 이상 서비스를 사용하지 않습니다."
+            data-initial-focus
+            class="input w-full"
+          ></textarea>
+        </label>
+        <div class="agree-row">
+          <input type="checkbox" id="del-consent" required />
+          <label class="checkbox-label">데이터 삭제 요청에 동의합니다.</label>
         </div>
-        <div class="modal-body space-y-4">
-          <div class="field-group">
-            <label class="field-label">요청 사유 (선택)</label>
-            <div class="field-box !h-auto">
-              <textarea
-                id="del-reason"
-                rows="3"
-                class="field-input py-3 resize-none"
-                placeholder="삭제 사유를 입력해주세요."
-              ></textarea>
-            </div>
-            <div
-              class="p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 text-sm rounded-xl font-medium"
-            >
-              <i class="fas fa-exclamation-triangle mr-1"></i> 관리자 승인 후
-              데이터가 영구 삭제됩니다.
-            </div>
-          </div>
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              id="del-consent"
-              class="input-toss-checkbox"
-              required
-            />
-            <span class="text-sm font-bold text-slate-700 dark:text-slate-300"
-              >위 내용에 동의합니다.</span
-            >
-          </label>
-        </div>
-        <div class="modal-footer">
+        <div class="modal-buttons">
+          <button
+            type="submit"
+            class="btn danger"
+            aria-label="계정 삭제 요청 보내기"
+          >
+            <i class="fas fa-paper-plane"></i> 요청 보내기
+          </button>
           <button
             type="button"
             id="btn-cancel-delete-request"
-            class="btn btn-light btn-md flex-1"
+            class="btn btn-ghost"
+            aria-label="계정 삭제 요청 취소"
           >
             취소
-          </button>
-          <button type="submit" class="btn btn-danger btn-md flex-[2]">
-            요청 보내기
           </button>
         </div>
       </form>
     </div>
 
+    <!-- header/footer 삽입 & toast 컨테이너 보장 -->
     <script type="module">
-      import { loadHeader, loadFooter } from "./js/components/comp.js";
+      import {
+        loadHeader,
+        loadFooter,
+        showToast,
+      } from "./js/components/comp.js";
       loadHeader("header-container");
       loadFooter("footer-container");
+      if (!document.getElementById("toast")) {
+        const el = document.createElement("div");
+        el.id = "toast";
+        document.body.appendChild(el);
+      }
     </script>
   </body>
 </html>

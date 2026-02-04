@@ -1,15 +1,473 @@
-/* index.css - 최소화된 커스텀 스타일 */
-
-/* Turnstile 중앙 정렬 보정 */
-.turnstile-wrap {
+/* ===== 배경/폰트 ===== */
+html,
+body {
+  height: 100%;
+}
+body {
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 100%;
+  background: linear-gradient(135deg, #4a90e2, #357abd);
+  font-family: "Pretendard Variable", Pretendard, -apple-system,
+    BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI",
+    "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  color: #fff;
+  margin: 0;
+}
+.hidden {
+  display: none !important;
 }
 
-/* 모달 내부 Turnstile 간격 조정 */
-.modal-content .turnstile-wrap {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
+/* ===== 로그인 카드 ===== */
+.login-container {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 3rem 4rem;
+  border-radius: 12px;
+  width: min(360px, 92vw);
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(4px);
+}
+.is-modal-open {
+  overflow: hidden;
+}
+.is-modal-open .login-container {
+  box-shadow: none !important;
+}
+.login-container h1 {
+  margin-bottom: 2rem;
+  font-weight: 800;
+  font-size: 1.9rem;
+}
+
+/* ===== 이메일 폼 (모달과 동일 룩으로 통일) ===== */
+.email-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.email-form input[type="email"],
+.email-form input[type="password"],
+.email-form input[type="text"] {
+  display: block;
+  width: 100%;
+  height: 44px; /* 모달과 동일 높이 */
+  box-sizing: border-box;
+  padding: 10px; /* 모달과 동일 패딩 */
+  font-size: 14px;
+  line-height: 1.4;
+  border: 1px solid #ccc;
+  border-radius: 6px; /* 모달과 동일 라운드 */
+  background: #fff;
+  color: #111; /* 모달과 동일 텍스트 컬러 */
+}
+
+/* 로그인 유지 체크박스 */
+.email-form input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 3px;
+  display: inline-block;
+  background: transparent;
+  accent-color: #2d80f7; /* 체크 색상 */
+}
+
+/* ===== 비밀번호 토글 (입력칸 안 오른쪽, 아이콘만) ===== */
+.pw-field {
+  position: relative;
+}
+
+/* 아이콘 자리 확보(로그인/모달 공통) */
+.pw-field input {
+  padding-right: 40px !important;
+}
+
+/* 아이콘 버튼 */
+.pw-field > .pw-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  z-index: 2; /* input 위로 */
+}
+.pw-field > .pw-toggle:hover {
+  color: #374151;
+}
+.pw-field > .pw-toggle:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.35);
+  outline-offset: 2px;
+}
+
+/* Font Awesome 아이콘 토글: 기본=eye-slash, 표시중=eye */
+.pw-toggle i {
+  font-size: 18px;
+  line-height: 1;
+}
+.pw-toggle .fa-eye {
+  display: none;
+}
+.pw-toggle .fa-eye-slash {
+  display: inline-block;
+}
+.pw-toggle[aria-pressed="true"] .fa-eye {
+  display: inline-block;
+}
+.pw-toggle[aria-pressed="true"] .fa-eye-slash {
+  display: none;
+}
+
+/* ===== Caps Lock 힌트 ===== */
+.caps-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #f59e0b;
+}
+
+/* ===== 보조 링크 ===== */
+.helper-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+.text-btn {
+  background: transparent;
+  border: none;
+  color: #e6eef9;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+}
+.text-btn:hover {
+  text-decoration: underline;
+}
+
+/* ===== 구분선 ===== */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+  color: #e6eef9;
+  opacity: 0.9;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* ===== 버튼 ===== */
+.login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background: #fff;
+  color: #444;
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
+  transition: background-color 0.2s, transform 0.05s;
+}
+.login-btn:hover {
+  background: #f0f0f0;
+}
+.login-btn:active {
+  transform: translateY(1px);
+}
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.login-btn svg {
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+}
+
+/* 로딩 스피너 */
+.spinner {
+  display: none;
+  width: 16px;
+  height: 16px;
+  margin-left: 10px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: #999;
+  border-right-color: #999;
+  animation: spin 0.8s linear infinite;
+}
+.login-btn.loading .spinner {
+  display: inline-block;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== 소셜 버튼 ===== */
+.social-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login-btn.social {
+  height: 48px;
+}
+.login-btn.social svg {
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+  flex: 0 0 20px;
+}
+.login-btn.social.google {
+  background: #fff;
+  color: #444;
+}
+.login-btn.social.kakao {
+  background: #fee500;
+  color: #000;
+}
+.login-btn.social.naver {
+  background: #03c75a;
+  color: #fff;
+}
+
+.login-error {
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+  color: #ffdedb;
+  font-weight: 600;
+  min-height: 1.2em;
+}
+.login-note {
+  opacity: 0.9;
+  font-size: 12px;
+}
+
+/* ===== Turnstile 자리 ===== */
+.turnstile-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 14px 0;
+}
+
+/* ===== 모달 ===== */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: transparent !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+.modal-content {
+  position: relative;
+  background: #fff;
+  color: #333;
+  padding: 16px 20px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+.modal-content h2 {
+  margin: 0 0 16px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #111;
+}
+.modal-content label {
+  font-weight: 600;
+}
+
+/* 모달 입력 */
+.modal-content input[type="text"],
+.modal-content input[type="email"],
+.modal-content input[type="password"] {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+  color: #111;
+  background: #fff;
+}
+#pw-strength {
+  font-size: 0.85rem;
+  margin: 6px 0 4px;
+  color: #555;
+}
+
+.agree-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 0 12px;
+  line-height: 1.45;
+}
+.agree-row input[type="checkbox"] {
+  appearance: auto;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  flex: 0 0 18px;
+  accent-color: #2d80f7;
+}
+
+#signup-error,
+#reset-error {
+  color: #d32f2f;
+  font-weight: 700;
+  min-height: 1.2em;
+}
+
+/* 모달 버튼 */
+.modal-buttons,
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+.modal-buttons button,
+.modal-actions button {
+  padding: 8px 16px;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.modal-buttons button:first-child,
+.modal-actions button:first-child {
+  background: #2d80f7;
+  color: #fff;
+}
+.modal-buttons button:last-child,
+.modal-actions button:last-child {
+  background: #ddd;
+  color: #000;
+}
+
+.blocking {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(2px);
+  display: none; /* JS로 토글 */
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.blocking .blocking-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+.spinner-lg {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: #2d80f7;
+  border-right-color: #2d80f7;
+  animation: spin 0.8s linear infinite;
+}
+
+/* 버튼 자체 스피너(텍스트 대신 중앙 스피너) */
+.button-busy {
+  position: relative;
+  pointer-events: none;
+}
+.button-busy::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-right-color: currentColor;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Toast 메시지 공통 스타일 */
+#toast {
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  background-color: #333;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 2000;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+#toast.error {
+  background-color: #ffe5e5;
+  color: #e53935;
+  font-weight: bold;
+}
+
+#toast.show.error {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* 유효성 피드백 */
+.input-invalid {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+.input-valid {
+  border-color: #22c55e !important;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15) !important;
 }
