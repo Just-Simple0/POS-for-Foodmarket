@@ -1,4 +1,4 @@
-﻿import { db, auth } from "./components/firebase-config.js";
+import { db, auth } from "./components/firebase-config.js";
 import {
   collection,
   doc,
@@ -11,7 +11,6 @@ import {
   where,
   orderBy,
   startAt,
-  startAfter,
   endAt,
   limit,
   arrayUnion,
@@ -22,12 +21,7 @@ import {
   runTransaction,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import {
-  showToast,
-  openConfirm,
-  toggleFade,
-  renderEmptyState,
-} from "./components/comp.js";
+import { showToast, openConfirm } from "./components/comp.js";
 import { getQuarterKey } from "./utils/lifelove.js";
 
 // ===== 통계용 헬퍼 & 카운터 보조 =====
@@ -51,155 +45,50 @@ function toPeriodKey(date) {
   return `${String(startY).slice(2)}-${String(endY).slice(2)}`;
 }
 
-// ===== KST 기준 날짜 키 유틸 =====
-// 브라우저/서버 런타임 타임존과 무관하게 "한국시간 기준" YYYY-MM-DD를 안정적으로 생성
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-function toKstDateParts(date) {
-  const k = new Date(date.getTime() + KST_OFFSET_MS);
-  return {
-    y: k.getUTCFullYear(),
-    m: k.getUTCMonth() + 1,
-    d: k.getUTCDate(),
-  };
-}
-function toKstDayNumber(date) {
-  const { y, m, d } = toKstDateParts(date);
-  return y * 10000 + m * 100 + d; // YYYYMMDD (KST)
-}
-function toKstDateKey(date) {
-  const { y, m, d } = toKstDateParts(date);
-  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-}
-function toKstMonthKey(date) {
-  const { y, m } = toKstDateParts(date);
-  return `${y}-${String(m).padStart(2, "0")}`; // YYYY-MM
-}
-function toKstPeriodKey(date) {
-  const { y, m } = toKstDateParts(date);
-  const startY = m >= 3 ? y : y - 1;
-  const endY = startY + 1;
-  return `${String(startY).slice(2)}-${String(endY).slice(2)}`;
-}
-
 // 방문/일일 카운터 기록 (규칙 준수: /visits는 허용 키로 '신규 생성'만, 그때만 /stats_daily +1)
 async function ensureVisitAndDailyCounter(
   db,
   customerId,
   customerName,
-  atDate,
-  items = [], // ✅ (추가) 이번 제공 전표의 품목 배열: [{id,name,category,price,quantity}, ...]
+  atDate
 ) {
-  const day = toKstDayNumber(atDate); // 예: 20250915 (KST 기준 YYYYMMDD)
+  const day = toDayNumber(atDate); // 예: 20250915 (정수)
   const dateKey = toDateKey(day); // 예: '2025-09-15'
-  const periodKey = toKstPeriodKey(atDate); // 예: '25-26' (KST)
+  const periodKey = toPeriodKey(atDate); // 예: '25-26' (프로젝트 규칙)
   const visitId = `${dateKey}_${customerId}`; // 1일 1고객 1문서
   const visitRef = doc(db, "visits", visitId);
-  const statsRef = doc(db, "stats_daily", String(day)); // 'YYYYMMDD'
 
-  // ✅ itemsTotalQty / top20 갱신을 위해 delta 계산
-  const deltasById = new Map(); // productId -> { qty, name, category }
-  let qtyDeltaTotal = 0;
-
-  if (Array.isArray(items)) {
-    for (const it of items) {
-      const pid = it?.id;
-      if (!pid) continue;
-      const q = Number(it?.quantity || 0);
-      if (!Number.isFinite(q) || q === 0) continue;
-
-      qtyDeltaTotal += q;
-
-      const prev = deltasById.get(pid) || {
-        qty: 0,
-        name: it?.name || "",
-        category: it?.category || "",
-      };
-      prev.qty += q;
-      // 이름/카테고리는 비어있으면 채워두기(최신값 우선)
-      if (!prev.name && it?.name) prev.name = it.name;
-      if (!prev.category && it?.category) prev.category = it.category;
-      deltasById.set(pid, prev);
-    }
-  }
-
+  let created = false;
   try {
-    await runTransaction(db, async (tx) => {
-      // 1) visits: 없을 때만 생성
-      const visitSnap = await tx.get(visitRef);
-      const created = !visitSnap.exists();
-
-      if (created) {
-        tx.set(visitRef, {
-          day, // ✅ 규칙 허용 키
-          dateKey, // ✅ 규칙 허용 키
-          customerId, // ✅ 규칙 허용 키
-          customerName: customerName || null, // ✅ 규칙 허용 키
-          periodKey, // ✅ 규칙 허용 키
-          createdAt: serverTimestamp(), // ✅ 규칙 허용 키
-          createdBy: auth?.currentUser?.uid || "unknown", // ✅ createdBy == request.auth.uid 필요
-        });
-      }
-
-      // 2) stats_daily: itemsTotalQty/top20는 "매 제공"마다 누적(중복 제공 포함)
-      //    uniqueVisitors는 "신규 방문 created==true"일 때만 +1
-      const statsSnap = await tx.get(statsRef);
-      const stats = statsSnap.exists() ? statsSnap.data() || {} : {};
-
-      // 기존 누적값
-      const curItemsTotalQty = Number(stats.itemsTotalQty || 0);
-      const nextItemsTotalQty = curItemsTotalQty + qtyDeltaTotal;
-
-      // itemStatsById: { [productId]: { qty, name, category } }
-      const curMap =
-        stats.itemStatsById && typeof stats.itemStatsById === "object"
-          ? { ...stats.itemStatsById }
-          : {};
-
-      // delta 반영
-      for (const [pid, d] of deltasById.entries()) {
-        const cur =
-          curMap[pid] && typeof curMap[pid] === "object" ? curMap[pid] : {};
-        const curQty = Number(cur.qty || 0);
-        const nextQty = curQty + Number(d.qty || 0);
-
-        if (!Number.isFinite(nextQty) || nextQty <= 0) {
-          delete curMap[pid];
-        } else {
-          curMap[pid] = {
-            qty: nextQty,
-            name: d.name || cur.name || "",
-            category: d.category || cur.category || "",
-          };
-        }
-      }
-
-      // topItems20 재계산
-      const topItems20 = Object.entries(curMap)
-        .map(([id, v]) => ({
-          id,
-          name: v?.name || "",
-          category: v?.category || "",
-          qty: Number(v?.qty || 0),
-        }))
-        .filter((x) => Number.isFinite(x.qty) && x.qty > 0)
-        .sort((a, b) => b.qty - a.qty)
-        .slice(0, 20);
-
-      // 저장(merge)
-      const payload = {
-        itemsTotalQty: nextItemsTotalQty,
-        itemStatsById: curMap,
-        topItems20,
-        updatedAt: serverTimestamp(), // 규칙: updatedAt == request.time
-      };
-
-      if (created) {
-        // 신규 방문일 때만 +1
-        payload.uniqueVisitors = increment(1);
-      }
-
-      tx.set(statsRef, payload, { merge: true });
+    // 1) /visits 문서: 없을 때만 'create'
+    created = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(visitRef);
+      if (snap.exists()) return false;
+      tx.set(visitRef, {
+        day, // ✅ 규칙 허용 키
+        dateKey, // ✅ 규칙 허용 키
+        customerId, // ✅ 규칙 허용 키
+        customerName: customerName || null, // ✅ 규칙 허용 키
+        periodKey, // ✅ 규칙 허용 키
+        createdAt: serverTimestamp(), // ✅ 규칙 허용 키
+        createdBy: auth?.currentUser?.uid || "unknown", // ✅ createdBy == request.auth.uid 필요
+      });
+      return true;
     });
+
+    // 2) '신규 방문'이 실제로 생성된 경우에만 /stats_daily + 1 (과집계 방지)
+    if (created) {
+      await setDoc(
+        doc(db, "stats_daily", String(day)), // 'YYYYMMDD'
+        {
+          uniqueVisitors: increment(1),
+          updatedAt: serverTimestamp(), // 규칙: updatedAt == request.time
+        },
+        { merge: true }
+      ).catch((e) =>
+        console.warn("[stats_daily] best-effort skipped:", e?.message || e)
+      );
+    }
   } catch (e) {
     console.warn("[visits/stats_daily] ensure failed:", e?.message || e);
   }
@@ -209,13 +98,13 @@ async function ensureVisitAndDailyCounter(
 const provLookupInput = document.getElementById("prov-customer-search");
 const provLookupBtn = document.getElementById("prov-lookup-btn");
 const provisionCustomerInfoDiv = document.getElementById(
-  "provision-customer-info",
+  "provision-customer-info"
 );
 // 교환 탭 전용 검색/정보
 const exLookupInput = document.getElementById("ex-customer-search");
 const exLookupBtn = document.getElementById("ex-lookup-btn");
 const exchangeCustomerInfoDiv = document.getElementById(
-  "exchange-customer-info",
+  "exchange-customer-info"
 );
 
 const productSection = document.getElementById("product-selection");
@@ -285,8 +174,8 @@ function __parseVisitorDraftRaw(raw) {
       const data = Array.isArray(val.list)
         ? val.list
         : Array.isArray(val.data)
-          ? val.data
-          : [];
+        ? val.data
+        : [];
       return {
         data,
         updatedAt,
@@ -385,7 +274,6 @@ function saveProvisionDraft() {
           birth: selectedCustomer.birth,
           address: selectedCustomer.address,
           phone: selectedCustomer.phone,
-          lastVisit: selectedCustomer.lastVisit,
           note: selectedCustomer.note,
           _lifeloveThisQuarter: !!selectedCustomer._lifeloveThisQuarter,
         }
@@ -432,66 +320,6 @@ function clearProvisionDraft() {
   } catch {}
 }
 
-async function loadExchangeAutoSave() {
-  try {
-    const raw = localStorage.getItem(getExAutoSaveKey());
-    if (!raw) return;
-    const data = JSON.parse(raw);
-
-    // 유효성 검사 (오늘 날짜 데이터인지 등) - 키에 날짜가 포함되어 있으므로 생략 가능하나 안전장치
-    if (!data.customer) return;
-
-    // 1단계 복구: 고객
-    exchangeSelectedCustomer = data.customer;
-    // UI 표시를 위해 교환 탭으로 전환된 것처럼 처리할 수도 있으나,
-    // 여기서는 데이터만 로드하고 탭 전환 시 렌더링되도록 함.
-    renderExchangeCustomerInfo();
-
-    // 고객이 있으면 히스토리 로드
-    if (exchangeSelectedCustomer.id) {
-      await loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
-      exchangeHistorySection?.classList.remove("hidden");
-    }
-
-    // 2단계 복구: 영수증
-    if (data.provision) {
-      exchangeProvision = data.provision;
-      exchangeOriginalItems = data.originalItems || [];
-      exchangeOriginalTotal = data.originalTotal || 0;
-      exchangeBuilder.classList.remove("hidden");
-    }
-
-    // 3단계 복구: 장바구니 및 스택
-    if (data.currentItems) {
-      exchangeItems = data.currentItems;
-      exUndoStack = data.undo || [];
-      exRedoStack = data.redo || [];
-      renderExchangeList(); // 여기서 자동저장이 다시 트리거되지만 데이터는 동일함
-    }
-
-    // 교환 탭 UI 활성화 (만약 현재 탭이 교환이라면)
-    const isEx =
-      document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
-    if (isEx) {
-      exchangeSection.classList.remove("hidden");
-    }
-
-    console.log(`교환 작업 자동 복구 완료 (Step ${data.step})`);
-    if (data.step >= 2) showToast("작업 중이던 교환 내역을 복구했습니다.");
-  } catch (e) {
-    console.warn("Auto-load failed:", e);
-    localStorage.removeItem(getExAutoSaveKey());
-  }
-}
-
-// 스냅샷 찍기 (변경 직전 호출)
-function saveExUndoState() {
-  exUndoStack.push(JSON.parse(JSON.stringify(exchangeItems)));
-  exRedoStack = []; // 새로운 분기 시작 시 Redo 날림
-  // 스택 변경도 자동저장 대상
-  saveExchangeAutoSave();
-}
-
 let selectedCustomer = null;
 let selectedItems = [];
 let selectedCandidate = null;
@@ -499,13 +327,10 @@ let visitorList = []; // ✅ 방문자 리스트
 const visitorListEl = document.getElementById("visitor-list");
 const visitorListSection = document.getElementById("visitor-list-section");
 
-const HOLD_PREFIX = "provision:hold:";
-
 // ── 상품: 선로딩 제거 → JIT 조회(로컬 캐시로 재조회 최소화)
 const productByBarcode = new Map(); // barcode -> {id,name,price,barcode,category}
 const productById = new Map(); // id -> product
 let nameReqSeq = 0; // 자동완성 최신 응답 가드
-let _allProductsCache = null; // 전체 상품 캐시 저장소 (클라이언트 검색용)
 
 // ✅ 분류 제한 정책 (읽기 전용): stats/categoryPolicies 문서에서 1회 로드
 //   문서 예시: { policies: { "생필품": {mode:"one_per_category",active:true}, "스낵":{mode:"one_per_price",active:true} } }
@@ -515,75 +340,10 @@ async function loadCategoryPolicies() {
     const snap = await getDoc(doc(db, "stats", "categoryPolicies"));
     const data = snap.exists() ? snap.data() : null;
     categoryPolicies = data && data.policies ? data.policies : {};
-
-    // ✅ [핵심 추가] 정책 로딩이 늦게 끝나더라도,
-    // 현재 장바구니(selectedItems)가 있으면 즉시 위반 여부를 다시 검사해서 화면에 반영함
-    if (selectedItems && selectedItems.length > 0) {
-      applyCategoryViolationHighlight();
-    }
   } catch (e) {
     console.warn("categoryPolicies load failed:", e);
     categoryPolicies = {};
   }
-}
-
-// [유틸] 롱프레스(꾹 누르기) 핸들러
-function setupLongPress(btn, action) {
-  let pressTimer = null;
-  let interval = null;
-  let isLongPress = false;
-
-  const start = (e) => {
-    // 마우스 왼쪽 클릭만 허용
-    if (e.type === "mousedown" && e.button !== 0) return;
-    // 터치 시 스크롤 등 기본 동작 방지 (선택)
-    // if (e.type === 'touchstart') e.preventDefault();
-
-    // 1. 누르자마자 1회 실행 (즉시 반응)
-    action();
-
-    isLongPress = false;
-    // 2. 500ms 이상 누르면 연속 동작 시작
-    pressTimer = setTimeout(() => {
-      isLongPress = true;
-      interval = setInterval(() => {
-        action(); // 100ms마다 반복 실행
-      }, 100);
-    }, 500);
-  };
-
-  const cancel = (e) => {
-    // 타이머 정리
-    if (pressTimer) clearTimeout(pressTimer);
-    if (interval) clearInterval(interval);
-    pressTimer = null;
-    interval = null;
-
-    // 롱프레스였다면 클릭 이벤트 전파 막기 (필요 시)
-    if (isLongPress && e) {
-      // e.preventDefault();
-    }
-  };
-
-  // 기존 이벤트 리스너 중복 방지 (선택 사항)
-  // btn.replaceWith(btn.cloneNode(true)); // 이렇게 하면 기존 리스너가 다 날아가니 주의
-
-  // 마우스/터치 이벤트 바인딩
-  btn.addEventListener("mousedown", start);
-  btn.addEventListener(
-    "touchstart",
-    (e) => {
-      // 터치 시 브라우저 메뉴 뜨는 것 방지, 그러나 스크롤은 허용해야 할 수도 있음
-      // 여기서는 preventDefault 호출 안 함 (상황에 따라 조절)
-      start(e);
-    },
-    { passive: true },
-  );
-
-  // 떼거나 벗어나면 중지
-  btn.addEventListener("mouseup", cancel);
-  btn.addEventListener("mouseleave", cancel);
-  btn.addEventListener("touchend", cancel);
 }
 
 // 🔁 동명이인 모달 키보드 내비 전역 핸들러 참조
@@ -593,7 +353,7 @@ let dupActiveIndex = -1;
 let __restoredVisitors = false;
 let __restoredProvision = false;
 
-async function tryRestoreDrafts() {
+function tryRestoreDrafts() {
   // 방문자
   const visitors = loadVisitorDraft();
   if (visitors.length && !__restoredVisitors) {
@@ -624,7 +384,6 @@ async function tryRestoreDrafts() {
     if (typeof showToast === "function")
       showToast("임시 장바구니가 복구되었습니다.");
   }
-  await loadExchangeAutoSave();
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -687,83 +446,96 @@ window.addEventListener("storage", (e) => {
   }
 });
 
-// ============================================================
-// 1. 탭 전환 및 화면 제어 로직 (Refactored)
-// ============================================================
-const tabBtns = document.querySelectorAll(".tab-item");
+// ===== 탭 전환: 제공/교환 =====
+const tabBtns = document.querySelectorAll(".tab-btn");
+const exchangePanel = document.querySelector('[data-tab-panel="exchange"]');
 const provisionPanel = document.getElementById("provision-panel");
-const exchangeSection = document.getElementById("exchange-section");
-
-// [추가됨] 교환 탭 선택 고객 변수 선언
+const provisionHideOnExchange = [
+  document.getElementById("product-selection"), // 상품 추가
+  document.getElementById("submit-section"), // 제공 등록 완료 버튼
+  document.getElementById("product-action-buttons"), // 테이블 하단 기능버튼
+  document.getElementById("visitor-list-section"), // ✅ 방문자 리스트
+  document.getElementById("provision-customer-info"), // ✅ 제공 고객정보 카드
+];
+// 교환 탭 선택 고객(제공 탭과 분리)
 let exchangeSelectedCustomer = null;
-
-// 탭 전환 함수
 function showTab(name) {
-  const isExchange = name === "exchange";
-
-  // 1. 탭 버튼 상태 업데이트 (ARIA 접근성 포함)
-  tabBtns.forEach((btn) => {
-    const isActive = btn.dataset.tab === name;
-    btn.classList.toggle("is-active", isActive);
-    btn.setAttribute("aria-selected", isActive);
-  });
-
-  // 2. 패널 토글 및 애니메이션 재실행
-  if (isExchange) {
-    provisionPanel.classList.add("hidden");
-    exchangeSection.classList.remove("hidden");
-
-    // 교환 탭 포커스 이동
+  tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  if (name === "exchange") {
+    exchangePanel?.classList.remove("hidden");
+    // ✅ 제공 패널 전체 숨김(제공 검색창 포함)
+    provisionPanel?.classList.add("hidden");
+    provisionHideOnExchange.forEach((el) => el?.classList.add("hidden"));
+    // ✅ 교환 탭에서는 섹션(검색창 포함)은 항상 보이게
+    exchangeSection?.classList.remove("hidden");
     if (exchangeSelectedCustomer) {
-      if (document.getElementById("ex-barcode-input")) {
-        document.getElementById("ex-barcode-input").focus();
-      }
+      // 선택 고객이 있으면 정보/히스토리 로드
+      loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
+      exchangeCustomerInfoDiv?.classList.remove("hidden");
+      exHistoryTable?.classList.remove("hidden");
+      exchangeHistorySection?.classList.remove("hidden");
     } else {
-      exLookupInput?.focus();
+      // 선택 고객이 없으면 정보/히스토리/빌더만 숨김
+      exchangeCustomerInfoDiv?.classList.add("hidden");
+      exchangeBuilder?.classList.add("hidden");
+      if (exHistoryTable) {
+        const tb = exHistoryTable.querySelector("tbody");
+        if (tb) tb.innerHTML = "";
+        exHistoryTable.classList.add("hidden");
+      }
+      exchangeHistorySection.classList.add("hidden");
     }
+    // 교환 탭에서는 항상 숨김
+    productActionButtons?.classList.add("hidden");
   } else {
-    exchangeSection.classList.add("hidden");
-    provisionPanel.classList.remove("hidden");
-
-    // 제공 탭 상태 복구 (방문자 리스트 등)
+    exchangePanel?.classList.add("hidden");
+    // ✅ 제공 패널 복구
+    provisionPanel?.classList.remove("hidden");
+    // ✅ 제공 등록 탭: 상태에 따라 개별적으로 표시/숨김
+    // 방문자 리스트는 항목이 있을 때만 표시
     if (visitorList && visitorList.length > 0) {
       visitorListSection?.classList.remove("hidden");
     } else {
       visitorListSection?.classList.add("hidden");
     }
-
-    // 선택된 고객이 있으면 상품 입력창 표시
+    // 선택된 고객이 있어야 상품추가/제공등록 영역 표시
     if (selectedCustomer) {
       productSection?.classList.remove("hidden");
       submitSection?.classList.remove("hidden");
-      setTimeout(() => document.getElementById("barcode-input")?.focus(), 50);
     } else {
       productSection?.classList.add("hidden");
       submitSection?.classList.add("hidden");
-      provLookupInput?.focus();
     }
+    productActionButtons?.classList.remove("hidden");
+    // 제공 탭으로 나가면 교환 섹션은 숨김 유지
+    if (exchangeSection) exchangeSection.classList.add("hidden");
+    // 교환 히스토리 섹션도 숨김
+    exchangeHistorySection?.classList.add("hidden");
+    // 제공 탭 전환 시 교환 고객정보는 숨김
+    exchangeCustomerInfoDiv?.classList.add("hidden");
+    // 제공 탭 검색창에 포커스
+    provLookupInput?.focus();
   }
-
-  // 3. 전역 조회 컨텍스트 변경
-  window.__lookupContext = name;
 }
-
-// 탭 버튼 클릭 이벤트 바인딩
-tabBtns.forEach((btn) =>
-  btn.addEventListener("click", () => showTab(btn.dataset.tab)),
+tabBtns.forEach((b) =>
+  b.addEventListener("click", () => showTab(b.dataset.tab))
 );
 
-// 엔터키 입력 시 검색 버튼 트리거
-provLookupInput?.addEventListener("keydown", (e) => {
-  if (!duplicateModal.classList.contains("hidden")) return;
-  if (e.key === "Enter") {
+provLookupInput.addEventListener("keydown", (e) => {
+  if (!duplicateModal.classList.contains("hidden") && e.key === "Enter") {
     e.preventDefault();
+    return;
+  }
+  if (e.key === "Enter") {
+    e.preventDefault(); // 폼 submit 방지
     provLookupBtn.click();
   }
 });
-
 exLookupInput?.addEventListener("keydown", (e) => {
-  if (!duplicateModal.classList.contains("hidden")) return;
+  if (!duplicateModal.classList.contains("hidden") && e.key === "Enter") {
+    e.preventDefault();
+    return;
+  }
   if (e.key === "Enter") {
     e.preventDefault();
     exLookupBtn.click();
@@ -810,144 +582,6 @@ async function searchCacheByNamePrefix(prefix, max = 20) {
     };
   });
 }
-
-// ====== 고객 캐시 자동 동기화 (Provision 전용, 초경량) ======
-// - customers.html을 한 번도 열지 않은 상태에서 provision부터 진입해도 검색이 되도록 보완
-// - 캐시가 비어있거나 오래됐을 때만(기본 24시간) 서버에서 1회 전체 동기화
-const SUPPORT_CACHE_SYNC_KEY = "support_cache_synced_at";
-const SUPPORT_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
-let __supportCacheSyncPromise = null;
-
-async function idbCountSupportCache(dbi) {
-  return await new Promise((resolve, reject) => {
-    const tx = dbi.transaction(IDB_STORE, "readonly");
-    const st = tx.objectStore(IDB_STORE);
-    const req = st.count();
-    req.onsuccess = () => resolve(req.result || 0);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function idbClearSupportCache(dbi) {
-  return await new Promise((resolve, reject) => {
-    const tx = dbi.transaction(IDB_STORE, "readwrite");
-    const st = tx.objectStore(IDB_STORE);
-    const req = st.clear();
-    req.onsuccess = () => {};
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error || new Error("idb clear failed"));
-  });
-}
-
-async function idbPutManySupportCache(dbi, items) {
-  if (!items || items.length === 0) return;
-  return await new Promise((resolve, reject) => {
-    const tx = dbi.transaction(IDB_STORE, "readwrite");
-    const st = tx.objectStore(IDB_STORE);
-    for (const it of items) st.put(it);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error || new Error("idb put failed"));
-  });
-}
-
-function pickSupportCacheShape(id, data) {
-  // ✅ provision 검색에 필요한 최소 필드 + nameLower(인덱스용) + lastVisit(최근 방문 표시용)
-  // (Firestore 문서에 nameLower가 없을 수 있으니 안전하게 보정)
-  const name = data?.name || "";
-  const nameLower = data?.nameLower || normalize(name);
-  return {
-    id,
-    name,
-    birth: data?.birth || "",
-    gender: data?.gender || "",
-    status: data?.status || "",
-    region1: data?.region1 || "",
-    address: data?.address || "",
-    phone: data?.phone || "",
-    type: data?.type || "",
-    category: data?.category || "",
-    note: data?.note || "",
-    lastVisit: data?.lastVisit || "",
-    nameLower,
-  };
-}
-
-async function syncSupportCacheFromServerOnce() {
-  const dbi = await openIDB();
-  await idbClearSupportCache(dbi);
-
-  const PAGE = 500; // Firestore 한 쿼리당 최대치 (필요시 조정)
-  let lastDoc = null;
-  let total = 0;
-
-  while (true) {
-    const base = [
-      where("status", "==", "지원"),
-      orderBy("nameLower"),
-      limit(PAGE),
-    ];
-    const qy = lastDoc
-      ? query(collection(db, "customers"), ...base, startAfter(lastDoc))
-      : query(collection(db, "customers"), ...base);
-
-    const snap = await getDocs(qy);
-    if (snap.empty) break;
-
-    const items = snap.docs.map((d) => pickSupportCacheShape(d.id, d.data()));
-    await idbPutManySupportCache(dbi, items);
-
-    total = items.length;
-    lastDoc = snap.docs[snap.docs.length - 1];
-    if (snap.size < PAGE) break;
-  }
-
-  localStorage.setItem(SUPPORT_CACHE_SYNC_KEY, String(Date.now()));
-  return total;
-}
-
-async function ensureSupportCacheFresh() {
-  if (__supportCacheSyncPromise) return __supportCacheSyncPromise;
-
-  const lastSynced = Number(localStorage.getItem(SUPPORT_CACHE_SYNC_KEY) || 0);
-  const now = Date.now();
-  const stale = !lastSynced || now - lastSynced > SUPPORT_CACHE_TTL_MS;
-
-  let dbi;
-  try {
-    dbi = await openIDB();
-  } catch (e) {
-    console.warn("openIDB failed:", e);
-    return;
-  }
-
-  let count = 0;
-  try {
-    count = await idbCountSupportCache(dbi);
-  } catch (e) {
-    console.warn("idbCountSupportCache failed:", e);
-    count = 0;
-  }
-
-  if (count > 0 && !stale) return; // ✅ 충분히 신선
-
-  __supportCacheSyncPromise = (async () => {
-    try {
-      const total = await syncSupportCacheFromServerOnce();
-      // 캐시가 비어있던 첫 동기화만 안내(원치 않으면 주석 처리)
-      if (count === 0 && total > 0 && typeof showToast === "function") {
-        showToast(`이용자 캐시 ${total}명 동기화 완료`);
-      }
-    } catch (e) {
-      console.warn("ensureSupportCacheFresh sync failed:", e);
-      // 실패해도 기존 폴백(serverSearchByNamePrefix)이 있으니 조용히 넘어감
-    } finally {
-      __supportCacheSyncPromise = null;
-    }
-  })();
-
-  return __supportCacheSyncPromise;
-}
-
 async function serverSearchByNamePrefix(prefix, max = 20) {
   const base = collection(db, "customers");
   const qy = query(
@@ -956,7 +590,7 @@ async function serverSearchByNamePrefix(prefix, max = 20) {
     orderBy("nameLower"),
     startAt(prefix),
     endAt(prefix + "\uf8ff"),
-    limit(max),
+    limit(max)
   );
   const snap = await getDocs(qy);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -965,53 +599,22 @@ async function serverSearchByNamePrefix(prefix, max = 20) {
 let __lookupContext = "provision"; // 'provision' | 'exchange'
 
 provLookupBtn.addEventListener("click", async () => {
-  const groupEl = document.getElementById("prov-lookup-group");
-  const errorEl = document.getElementById("prov-lookup-error");
+  __lookupContext = "provision";
   const raw = provLookupInput.value.trim();
-
-  // 초기화: 이전 에러 상태 제거
-  groupEl.classList.remove("is-error");
-  errorEl.classList.add("hidden");
-
-  if (!raw) {
-    groupEl.classList.add("is-error");
-    errorEl.textContent = "이름을 입력하세요.";
-    errorEl.classList.remove("hidden");
-    return;
-  }
-
+  if (!raw) return showToast("이름을 입력하세요.", true);
   try {
     const key = normalize(raw);
-    await ensureSupportCacheFresh();
     let rows = await searchCacheByNamePrefix(key, 20);
     if (!rows || rows.length === 0) {
+      // 캐시에 없을 때만 서버 hits (reads 최소화)
       rows = await serverSearchByNamePrefix(key, 20);
     }
-
-    if (!rows.length) {
-      // [수정] 토스트 대신 인풋 에러 상태 적용
-      groupEl.classList.add("is-error");
-      errorEl.textContent = "해당 이용자를 찾을 수 없습니다.";
-      errorEl.classList.remove("hidden");
-      provLookupInput.focus();
-      return;
-    }
-
-    showDuplicateSelection(rows);
+    if (!rows.length) return showToast("해당 이용자를 찾을 수 없습니다.", true);
+    showDuplicateSelection(rows); // rows: [{id,name,birth,phone,...}]
   } catch (err) {
     console.error(err);
-    groupEl.classList.add("is-error");
-    errorEl.textContent = "조회 중 오류가 발생했습니다.";
-    errorEl.classList.remove("hidden");
+    showToast("이용자 조회 중 오류 발생", true);
   }
-});
-
-// 사용자가 다시 입력을 시작하면 에러 상태 해제
-provLookupInput.addEventListener("input", () => {
-  const groupEl = document.getElementById("prov-lookup-group");
-  const errorEl = document.getElementById("prov-lookup-error");
-  groupEl.classList.remove("is-error");
-  errorEl.classList.add("hidden");
 });
 
 exLookupBtn?.addEventListener("click", async () => {
@@ -1020,7 +623,6 @@ exLookupBtn?.addEventListener("click", async () => {
   if (!raw) return showToast("이름을 입력하세요.", true);
   try {
     const key = normalize(raw);
-    await ensureSupportCacheFresh();
     let rows = await searchCacheByNamePrefix(key, 20);
     if (!rows || rows.length === 0)
       rows = await serverSearchByNamePrefix(key, 20);
@@ -1032,72 +634,27 @@ exLookupBtn?.addEventListener("click", async () => {
   }
 });
 
+// 고객 정보 렌더링 (제공 탭)
 function renderProvisionCustomerInfo() {
   if (!selectedCustomer) {
     provisionCustomerInfoDiv.innerHTML = "";
     provisionCustomerInfoDiv.classList.add("hidden");
     return;
   }
-
-  // [TDS] 배지 스타일: 정의된 badge-weak 계열을 활용하여 하드코딩된 색상값 제거
   const lifeBadge = selectedCustomer._lifeloveThisQuarter
-    ? '<span class="badge badge-weak-success badge-md font-bold px-3">이번 분기 제공됨</span>'
-    : '<span class="badge badge-weak-grey badge-md font-bold px-3">미제공</span>';
-
-  // [TDS] 카드 디자인 리팩토링: .card 클래스와 정돈된 타이포그래피 적용
+    ? '<span class="badge badge-life">이번 분기 생명사랑 제공됨</span>'
+    : '<span class="badge">이번 분기 미제공</span>';
   provisionCustomerInfoDiv.innerHTML = `
-    <div class="card p-6 md:p-8 animate-fade-in">
-      <div class="flex justify-between items-start mb-8 border-b border-slate-100 dark:border-slate-700/50 pb-6">
-        <div>
-          <div class="flex items-center gap-2.5 mb-1">
-            <span class="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-              ${selectedCustomer.name ?? "이름 없음"}
-            </span>
-            <span class="text-[15px] text-slate-400 dark:text-slate-500 font-medium">
-              (${selectedCustomer.gender ?? "-"})
-            </span>
-          </div>
-        </div>
-        <div class="shrink-0">${lifeBadge}</div>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-7 gap-x-8">
-        <div>
-          <span class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter mb-1.5">생년월일</span>
-          <span class="text-[16px] text-slate-800 dark:text-slate-200 font-bold">
-            ${selectedCustomer.birth ?? "-"}
-          </span>
-        </div>
-        <div>
-          <span class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter mb-1.5">전화번호</span>
-          <span class="text-[16px] text-slate-800 dark:text-slate-200 font-bold">
-            ${selectedCustomer.phone ?? "-"}
-          </span>
-        </div>
-        <div class="sm:col-span-2">
-          <span class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter mb-1.5">주소</span>
-          <span class="text-[16px] text-slate-800 dark:text-slate-200 font-bold break-keep leading-snug">
-            ${selectedCustomer.address ?? "-"}
-          </span>
-        </div>
-      </div>
-
-      <div class="mt-8 pt-8 border-t border-slate-100 dark:border-slate-700/50 grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div class="lg:col-span-1">
-          <span class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter mb-1.5">최근 방문</span>
-          <span class="text-[18px] text-primary font-black">
-            ${lastVisitDisplay(selectedCustomer) || "-"}
-          </span>
-        </div>
-        <div class="lg:col-span-3">
-          <span class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter mb-1.5">비고</span>
-          <div class="text-[14px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 px-4 py-3 rounded-2xl leading-relaxed border border-slate-100 dark:border-slate-700/50">
-            ${selectedCustomer.note || "등록된 특이사항이 없습니다."}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+      <strong>이용자명:</strong> ${selectedCustomer.name ?? ""}<br>
+      <strong>생년월일:</strong> ${selectedCustomer.birth ?? ""}<br>
+      <strong>주소:</strong> ${selectedCustomer.address ?? ""}<br>
+      <strong>전화번호:</strong> ${selectedCustomer.phone ?? ""}<br>
+      <strong>최근 방문일자:</strong> ${
+        lastVisitDisplay(selectedCustomer) || "-"
+      }<br>
+      <strong>생명사랑:</strong> ${lifeBadge}<br>
+      <strong>비고:</strong> ${selectedCustomer.note ?? ""}
+    `;
   provisionCustomerInfoDiv.classList.remove("hidden");
 }
 
@@ -1107,66 +664,17 @@ function renderExchangeCustomerInfo() {
     exchangeCustomerInfoDiv.classList.add("hidden");
     return;
   }
-
-  // [수정] 배지 스타일: 다크 모드 대응
   const lifeBadge = exchangeSelectedCustomer._lifeloveThisQuarter
-    ? '<span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 ring-1 ring-inset ring-emerald-600/20 dark:ring-emerald-500/30">이번 분기 제공됨</span>'
-    : '<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 ring-1 ring-inset ring-slate-500/10 dark:ring-slate-600">미제공</span>';
-
-  // [수정] 카드 및 텍스트 다크 모드 적용
+    ? '<span class="badge badge-life">이번 분기 생명사랑 제공됨</span>'
+    : '<span class="badge">이번 분기 미제공</span>';
   exchangeCustomerInfoDiv.innerHTML = `
-    <div class="card p-5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-colors duration-200">
-      <div class="flex justify-between items-start mb-4 border-b border-slate-100 dark:border-slate-700/50 pb-4">
-        <div>
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-xl font-extrabold text-slate-900 dark:text-white">${
-              exchangeSelectedCustomer.name ?? "이름 없음"
-            }</span>
-            <span class="text-sm text-slate-500 dark:text-slate-400 font-medium">(${
-              exchangeSelectedCustomer.gender ?? "-"
-            })</span>
-          </div>
-        </div>
-        <div>${lifeBadge}</div>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div>
-          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">생년월일</span>
-          <span class="text-base text-slate-800 dark:text-slate-200 font-semibold">${
-            exchangeSelectedCustomer.birth ?? "-"
-          }</span>
-        </div>
-        <div>
-          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">전화번호</span>
-          <span class="text-base text-slate-800 dark:text-slate-200 font-semibold">${
-            exchangeSelectedCustomer.phone ?? "-"
-          }</span>
-        </div>
-        <div class="sm:col-span-2">
-          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">주소</span>
-          <span class="text-base text-slate-800 dark:text-slate-200 font-semibold break-keep">${
-            exchangeSelectedCustomer.address ?? "-"
-          }</span>
-        </div>
-      </div>
-
-      <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">최근 방문</span>
-          <span class="text-base text-blue-600 dark:text-blue-400 font-bold">${
-            lastVisitDisplay(exchangeSelectedCustomer) || "-"
-          }</span>
-        </div>
-        <div>
-          <span class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">비고</span>
-          <p class="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/30 px-3 py-2 rounded-lg leading-relaxed border border-slate-100 dark:border-slate-700/50">
-            ${exchangeSelectedCustomer.note || "-"}
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
+      <strong>이용자명:</strong> ${exchangeSelectedCustomer.name ?? ""}<br>
+      <strong>생년월일:</strong> ${exchangeSelectedCustomer.birth ?? ""}<br>
+      <strong>주소:</strong> ${exchangeSelectedCustomer.address ?? ""}<br>
+      <strong>전화번호:</strong> ${exchangeSelectedCustomer.phone ?? ""}<br>
+      <strong>생명사랑:</strong> ${lifeBadge}<br>
+      <strong>비고:</strong> ${exchangeSelectedCustomer.note ?? ""}
+    `;
   exchangeCustomerInfoDiv.classList.remove("hidden");
 }
 
@@ -1243,71 +751,40 @@ function showDuplicateSelection(rows) {
 
   const items = [];
   rows.forEach((row, i) => {
-    const data = row;
+    const data = row; // {id,name,birth,phone,...});
     const li = document.createElement("li");
-
-    // [수정] 리스트 아이템 내부 텍스트 다크모드 적용
     li.innerHTML = `
-      <div class="dup-name text-slate-900 dark:text-slate-100"><strong>${
-        data.name
-      }</strong></div>
-      <div class="dup-sub text-slate-500 dark:text-slate-400">
+      <div class="dup-name"><strong>${data.name}</strong></div>
+      <div class="dup-sub">
         ${data.birth || "생년월일 없음"} | ${data.phone || "전화번호 없음"}
       </div>
     `;
 
     li.classList.add("duplicate-item");
-    li.tabIndex = -1;
-
+    li.tabIndex = -1; // 키보드 포커싱 가능
+    // 공통 선택 로직
     const selectThis = () => {
       document
         .querySelectorAll(".duplicate-item")
         .forEach((el) => el.classList.remove("selected"));
       li.classList.add("selected");
-
       document
         .querySelectorAll(".duplicate-item i")
         .forEach((icon) => icon.remove());
-
       const icon = document.createElement("i");
-      // [수정] 체크 아이콘 색상 다크모드 대응
-      icon.className =
-        "fas fa-square-check text-blue-600 dark:text-blue-400 mr-2";
+      icon.className = "fas fa-square-check";
+      icon.style.color = "#1976d2";
+      icon.style.marginRight = "8px";
       li.prepend(icon);
-
       selectedCandidate = { id: data.id, ...data };
       const infoEl = document.getElementById("selected-info");
-
-      // [수정] 상세 정보 카드 디자인: 다크모드 배경, 보더, 텍스트 전면 수정
       infoEl.innerHTML = `
-        <div class="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 mt-2 shadow-sm">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-5">
-            <div class="flex flex-col sm:col-span-2 mb-2">
-              <span class="font-bold text-slate-500 dark:text-slate-400 mb-1">주소</span>
-              <span class="text-slate-900 dark:text-slate-200 break-keep">${
-                data.address || "-"
-              }</span>
-            </div>
-            <div class="flex flex-col mb-2">
-              <span class="font-bold text-slate-500 dark:text-slate-400 mb-1">성별</span>
-              <span class="text-slate-900 dark:text-slate-200">${
-                data.gender || "-"
-              }</span>
-            </div>
-            <div class="flex flex-col mb-2">
-              <span class="font-bold text-slate-500 dark:text-slate-400 mb-1">최근 방문일자</span>
-              <span class="text-slate-900 dark:text-slate-200">${
-                lastVisitDisplay(data) || "-"
-              }</span>
-            </div>
-            <div class="flex flex-col sm:col-span-2">
-              <span class="font-bold text-slate-500 dark:text-slate-400 mb-1">비고</span>
-              <span class="text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700/50 px-2 py-1.5 rounded border border-slate-100 dark:border-slate-600/50 text-xs leading-relaxed">
-                ${data.note || "-"}
-              </span>
-            </div>
-          </div>
-        </div>
+        <div><strong>주소 :</strong> ${data.address || "없음"}</div>
+        <div><strong>성별 :</strong> ${data.gender || "없음"}</div>
+        <div><strong>최근 방문일자 :</strong> ${
+          lastVisitDisplay(data) || "-"
+        }</div>
+        <div><strong>비고 :</strong> ${data.note || "-"}</div>
       `;
       infoEl.classList.remove("hidden");
       confirmBtn.disabled = false;
@@ -1315,20 +792,22 @@ function showDuplicateSelection(rows) {
       li.focus();
     };
 
-    li.addEventListener("click", selectThis);
-    li.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") selectThis();
+    li.addEventListener("click", () => {
+      selectThis();
     });
     duplicateList.appendChild(li);
     items.push(li);
   });
-
+  // ✅ 단일/다중 모두: 첫 항목을 자동 "선택"(자동 삽입은 하지 않음)
   if (items.length > 0) {
-    items[0].click();
+    items[0].click(); // selectThis() 호출 → selectedCandidate 세팅 + confirm 활성화
+    items[0].focus(); // 키보드 내비 시작 지점
     dupActiveIndex = 0;
   }
+
   duplicateModal.classList.remove("hidden");
 
+  // ✅ 방향키/Enter/Escape 지원
   if (dupKeyHandler) {
     document.removeEventListener("keydown", dupKeyHandler, true);
   }
@@ -1371,13 +850,15 @@ document
       const snap = await getDoc(doc(db, "customers", selectedCandidate.id));
       const data = snap.exists() ? snap.data() : {};
       const now = new Date();
-      const currentMonth = toKstMonthKey(now); // YYYY-MM (KST)
-      const periodKey = toKstPeriodKey(now); // 예: 24-25 (KST)
+      const currentMonth = now.toISOString().slice(0, 7); // YYYY-MM
+      const year =
+        now.getMonth() + 1 < 3 ? now.getFullYear() - 1 : now.getFullYear();
+      const periodKey = `${String(year).slice(2)}-${String(year + 1).slice(2)}`; // 예: 24-25
       const visitArr = (data.visits && data.visits[periodKey]) || [];
       const alreadyThisMonth =
         Array.isArray(visitArr) &&
         visitArr.some(
-          (v) => typeof v === "string" && v.startsWith(currentMonth),
+          (v) => typeof v === "string" && v.startsWith(currentMonth)
         );
       // 🔁 교환 탭 여부(또는 검색 컨텍스트)
       const isExchangeActive =
@@ -1389,7 +870,6 @@ document
       const alreadyLife = !!(data.lifelove && data.lifelove[qKey]);
       const candidate = {
         ...selectedCandidate,
-        ...data,
         _lifeloveThisQuarter: alreadyLife,
       };
 
@@ -1399,7 +879,6 @@ document
         renderExchangeCustomerInfo();
         loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
         document.dispatchEvent(new Event("exchange_customer_switched"));
-        saveExchangeAutoSave();
         showToast("교환 대상자가 선택되었습니다.");
         // 이용자 선택이 끝났으므로 교환 섹션 표시
         if (exchangeSection) exchangeSection.classList.remove("hidden");
@@ -1450,7 +929,7 @@ document
 async function findProductByBarcode(code) {
   if (productByBarcode.has(code)) return productByBarcode.get(code);
   const snap = await getDocs(
-    query(collection(db, "products"), where("barcode", "==", code), limit(1)),
+    query(collection(db, "products"), where("barcode", "==", code), limit(1))
   );
   if (snap.empty) return null;
   const d = snap.docs[0];
@@ -1459,53 +938,23 @@ async function findProductByBarcode(code) {
   productById.set(p.id, p);
   return p;
 }
-
 let __nameAutoTimer = null;
-
-// [추가] 전체 상품 로드 (최초 1회만 서버 통신)
-async function ensureAllProductsLoaded() {
-  // 이미 로드되었으면 서버 요청 없이 리턴 (비용 절감 핵심)
-  if (_allProductsCache !== null) return;
-
-  try {
-    const qy = query(collection(db, "products"), orderBy("name"));
-    const snap = await getDocs(qy);
-
-    _allProductsCache = [];
-
-    snap.docs.forEach((d) => {
-      const p = { id: d.id, ...d.data() };
-      _allProductsCache.push(p);
-
-      // 기존 Map들에도 동기화하여 바코드 스캔 등 다른 기능 지원
-      productById.set(p.id, p);
-      if (p.barcode) productByBarcode.set(p.barcode, p);
-    });
-
-    console.log(`상품 캐시 로드 완료: ${_allProductsCache.length}개`);
-  } catch (err) {
-    console.error("상품 로드 실패:", err);
-    _allProductsCache = []; // 실패 시 빈 배열로 초기화
-  }
-}
-
-// [수정] 상품명 검색 (로컬 캐시 기반: 대소문자 무시, 중간 글자 허용)
-async function searchProductsByNamePrefix(keyword) {
-  // 1. 데이터가 없으면 로드
-  await ensureAllProductsLoaded();
-
-  // 2. 검색어 정규화 (소문자 변환)
-  const term = keyword.toLowerCase().trim();
-  if (!term) return [];
-
-  // 3. 자바스크립트로 필터링 (최대 10개만 반환)
-  const matches = _allProductsCache.filter((p) => {
-    const pName = (p.name || "").toLowerCase();
-    // 상품명 포함 or 바코드 포함 검색
-    return pName.includes(term) || (p.barcode && p.barcode.includes(term));
+async function searchProductsByNamePrefix(prefix) {
+  // 서버 prefix 쿼리, 상위 5개만
+  const qy = query(
+    collection(db, "products"),
+    orderBy("name"),
+    startAt(prefix),
+    endAt(prefix + "\uf8ff"),
+    limit(5)
+  );
+  const snap = await getDocs(qy);
+  return snap.docs.map((d) => {
+    const p = { id: d.id, ...d.data() };
+    productById.set(p.id, p);
+    if (p.barcode) productByBarcode.set(p.barcode, p);
+    return p;
   });
-
-  return matches.slice(0, 10);
 }
 
 let undoStack = [];
@@ -1574,21 +1023,22 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-/* =========================================
-   방문자 리스트 렌더링 (TDS 리팩토링 버전)
-   ========================================= */
+/* =========================
+   방문자 리스트 렌더/선택
+   ========================= */
 function renderVisitorList() {
   visitorListEl.innerHTML = "";
-
-  // 1. 빈 상태 처리
   if (visitorList.length === 0) {
     visitorListSection.classList.add("hidden");
+    // ✅ 리스트가 비면 localStorage도 즉시 비워 동기화(양쪽 키 모두)
     try {
       clearVisitorDraft();
     } catch {}
-
-    // 교환 탭이 아닐 경우 정보창 및 상품 섹션 초기화
-    if (document.querySelector(".tab-btn.active")?.dataset.tab !== "exchange") {
+    // ✅ 교환 탭에서는 방문자 리스트가 비어도 선택 고객을 해제하지 않음
+    const isExchangeActive =
+      document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
+    if (!isExchangeActive) {
+      // 제공 탭에서만 '비어있으면 선택 해제'
       selectedCustomer = null;
       productSection.classList.add("hidden");
       submitSection.classList.add("hidden");
@@ -1596,79 +1046,53 @@ function renderVisitorList() {
     }
     return;
   }
-
-  // 2. 탭 상태에 따른 노출 제어
+  // ✅ 교환 탭에서는 방문자 리스트 표시 금지
   const isExchangeActive =
     document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
-  visitorListSection.classList.toggle("hidden", isExchangeActive);
-
-  // 3. 리스트 아이템 생성
+  if (isExchangeActive) {
+    visitorListSection.classList.add("hidden");
+  } else {
+    visitorListSection.classList.remove("hidden");
+  }
   visitorList.forEach((v) => {
     const hasHold = localStorage.getItem(HOLD_PREFIX + v.id);
-    const isActive = selectedCustomer?.id === v.id;
     const li = document.createElement("li");
-
-    // [수정] 패딩을 p-4로 줄이고, 최소 높이를 min-h-[160px] 정도로 컴팩트하게 조정
     li.className =
-      "visitor-item group flex flex-col items-center justify-center p-4 py-5 text-center min-h-[160px] relative";
-    if (isActive) li.classList.add("active");
-
-    // 보류 배지 (크기를 줄여 우측 상단에 고정)
+      "visitor-item" +
+      (selectedCustomer?.id === v.id ? " active" : "") +
+      (hasHold ? "has-hold" : "");
     const holdBadge = hasHold
-      ? `<span class="badge badge-weak-warning badge-xs absolute top-3 right-3">
-        <i class="fas fa-pause-circle pr-1"></i> 보류중
-        </span>`
+      ? `<i class="fas fa-bookmark hold-badge" style="font-size:11px;" title="보류 있음" aria-label="보류 있음"></i>`
       : "";
-
-    // 버튼 구성 (btn-sm을 사용하여 세로 부피 감소)
-    let actionBtnHTML = isActive
-      ? `<button class="deselect-btn btn btn-dark-weak btn-sm btn-full px-5" data-id="${v.id}">선택 해제</button>`
-      : `<button class="select btn btn-primary-weak btn-sm btn-full px-8" data-id="${v.id}">선택</button>`;
-
     li.innerHTML = `
-    ${holdBadge}
-    
-    <div class="text-xl font-black text-slate-900 dark:text-white mb-1 tracking-tight">
-      ${v.name}
-    </div>
-
-    <div class="text-[13px] text-slate-400 dark:text-slate-500 font-medium mb-4 flex items-center justify-center gap-1.5">
-      <span>${v.birth || "0000.00.00"}</span>
-      <span class="text-slate-200 dark:text-slate-700">|</span>
-      <span class="truncate max-w-[120px]">${v.phone || "연락처 없음"}</span>
-    </div>
-
-    <div class="flex items-center justify-center gap-2 w-full">
-      ${actionBtnHTML}
-      <button class="remove btn btn-danger-weak btn-sm !w-8 !h-8 !p-0 rounded-xl" data-id="${
-        v.id
-      }">
-        <i class="fas fa-times text-xs"></i>
-      </button>
-    </div>
-  `;
-
+      <div class="meta">
+        <div class="name">${v.name} ${holdBadge}</div>
+        <div class="sub">${v.birth || ""} ${
+      v.phone ? " | " + v.phone : ""
+    }</div>
+      </div>
+      <div class="actions">
+        <button class="select btn btn-outline" data-id="${v.id}">선택</button>
+        <button class="remove btn btn--danger" data-id="${v.id}">삭제</button>
+      </div>
+    `;
     visitorListEl.appendChild(li);
   });
-
+  // ✅ 렌더 후 현재 리스트를 localStorage에 즉시 반영(멀티탭 안전 저장)
   try {
     saveVisitorDraft(visitorList);
   } catch {}
 }
 
 visitorListEl?.addEventListener("click", async (e) => {
-  const actionEl = e.target.closest("[data-id]");
-  const id = actionEl?.dataset?.id;
+  const id = e.target.dataset.id;
   if (!id) return;
   const idx = visitorList.findIndex((v) => v.id === id);
   if (idx === -1) return;
 
-  // 1. 삭제 버튼 (기존 로직 유지)
-  if (e.target.classList.contains("remove") || e.target.closest(".remove")) {
-    const targetId =
-      e.target.dataset.id || e.target.closest(".remove").dataset.id;
-
-    if (selectedCustomer?.id === targetId && selectedItems.length > 0) {
+  if (e.target.classList.contains("remove")) {
+    // 선택 중인 고객을 제거하려 하면 경고
+    if (selectedCustomer?.id === id && selectedItems.length > 0) {
       const ok = await openConfirm({
         title: "선택 해제",
         message: "현재 장바구니가 있습니다. 이 방문자를 리스트에서 제거할까요?",
@@ -1678,56 +1102,20 @@ visitorListEl?.addEventListener("click", async (e) => {
       });
       if (!ok) return;
     }
-    if (selectedCustomer?.id === targetId) {
-      // 선택된 사람 삭제 시 선택 해제 로직 수행
+    if (selectedCustomer?.id === id) {
       selectedCustomer = null;
       selectedItems = [];
       renderSelectedList();
       clearProvisionDraft();
-      productSection.classList.add("hidden");
-      submitSection.classList.add("hidden");
-      renderProvisionCustomerInfo();
     }
-    localStorage.removeItem(HOLD_PREFIX + targetId);
-
-    visitorList = visitorList.filter((v) => v.id !== targetId);
+    visitorList.splice(idx, 1);
     renderVisitorList();
     saveVisitorDraft(visitorList);
     return;
   }
 
-  // [추가] 2. 선택 해제 버튼 클릭 시
-  if (
-    e.target.classList.contains("deselect-btn") ||
-    e.target.closest(".deselect-btn")
-  ) {
-    // 장바구니가 있으면 경고 (선택 사항)
-    if (selectedItems.length > 0) {
-      const ok = await openConfirm({
-        title: "선택 해제",
-        message:
-          "작성 중인 장바구니가 있습니다. 선택을 해제하시겠습니까? (내용은 유지됩니다)",
-        confirmText: "해제",
-        cancelText: "취소",
-      });
-      if (!ok) return;
-    }
-
-    // 선택 해제 수행
-    selectedCustomer = null;
-    // (선택사항) 장바구니를 비울지, 유지할지 결정. 여기선 UI만 숨김(Draft 유지)
-    // selectedItems = []; // 비우고 싶으면 주석 해제
-
-    productSection.classList.add("hidden");
-    submitSection.classList.add("hidden");
-    renderProvisionCustomerInfo(); // 정보 카드 숨김
-    renderVisitorList(); // 버튼 상태 갱신 (다시 '선택'으로)
-    clearProvisionDraft();
-    return;
-  }
-
-  // 3. 선택 버튼 클릭 (기존 로직 + UI 업데이트)
-  if (e.target.classList.contains("select") || e.target.closest(".select")) {
+  if (e.target.classList.contains("select")) {
+    // 고객 전환 시, 기존 장바구니 보류 안내
     if (
       selectedCustomer &&
       selectedItems.length > 0 &&
@@ -1744,20 +1132,21 @@ visitorListEl?.addEventListener("click", async (e) => {
       if (!ok) return;
     }
     selectedCustomer = visitorList[idx];
-
+    // ✅ 교환 탭에서는 상품/제공 영역을 노출하지 않음
     const _ex =
       document.querySelector(".tab-btn.active")?.dataset.tab === "exchange";
     if (!_ex) {
+      // 제공 탭에서만 보이도록 유지
       productSection.classList.remove("hidden");
       submitSection.classList.remove("hidden");
     }
     renderProvisionCustomerInfo();
-
+    // 방문자 전환 시 기본은 빈 장바구니
     selectedItems = [];
     undoStack = [];
     redoStack = [];
-    lifeloveCheckbox.checked = false;
-
+    lifeloveCheckbox.checked = false; // lifelove도 초기화
+    // 🔍 선택한 방문자에 보류 데이터가 있으면, 불러올지 물어본 뒤 자동 적용
     try {
       const holdRaw = localStorage.getItem(HOLD_PREFIX + selectedCustomer.id);
       if (holdRaw) {
@@ -1768,9 +1157,7 @@ visitorListEl?.addEventListener("click", async (e) => {
           confirmText: "불러오기",
           cancelText: "새로 시작",
         });
-
         if (okLoad) {
-          // 1. 불러오기 선택 시
           try {
             const parsed = JSON.parse(holdRaw);
             if (Array.isArray(parsed)) {
@@ -1778,18 +1165,13 @@ visitorListEl?.addEventListener("click", async (e) => {
               showToast("보류 장바구니를 불러왔습니다.");
             }
           } catch {}
-        } else {
-          // 2. [추가] 새로 시작 선택 시 -> 기존 보류 데이터 삭제
-          localStorage.removeItem(HOLD_PREFIX + selectedCustomer.id);
-          showToast("보류 데이터를 삭제하고 새로 시작합니다.");
         }
       }
     } catch {}
-
     renderSelectedList();
-    renderVisitorList(); // Active 상태 갱신
+    renderVisitorList(); // active 표시 갱신
     saveProvisionDraft();
-
+    // ✅ 제공 탭에서 고객을 선택하면 바코드 입력창에 자동 포커스
     if (!_ex && typeof barcodeInput !== "undefined" && barcodeInput) {
       try {
         barcodeInput.focus();
@@ -1797,6 +1179,7 @@ visitorListEl?.addEventListener("click", async (e) => {
     }
     document.dispatchEvent(new Event("provision_customer_switched"));
 
+    // ✅ 선택 직후 화면 하단(상품 영역 아래)으로 부드럽게 스크롤
     setTimeout(() => scrollToSubmitSection(), 10);
   }
 });
@@ -1888,7 +1271,7 @@ addProductBtn.addEventListener("click", async () => {
   try {
     // 1) 바코드 우선 경로
     if (code) {
-      if (!isValidEAN13(code)) {
+      if (!isValidEAN13(code)){
         barcodeInput.value = "";
         barcodeInput.focus();
         return showToast("유효한 바코드가 아닙니다.", true);
@@ -1913,7 +1296,7 @@ addProductBtn.addEventListener("click", async () => {
     const rows = await searchProductsByNamePrefix(nameKey);
     const picked =
       rows.find(
-        (p) => (p.name || "").toLowerCase() === nameKey.toLowerCase(),
+        (p) => (p.name || "").toLowerCase() === nameKey.toLowerCase()
       ) || rows[0];
     if (!picked) return showToast("해당 상품을 찾을 수 없습니다.", true);
     addToSelected(picked, q);
@@ -1958,24 +1341,26 @@ function renderAutocomplete(matches) {
     autocompleteList.classList.add("hidden");
     return;
   }
+
   matches.forEach((product) => {
     const div = document.createElement("div");
-    // [수정] 다크모드 대응: 텍스트(흰색), 배경(어두운 슬레이트), 호버(어두운 파랑/회색), 보더
-    div.className =
-      "px-4 py-3 text-sm text-slate-700 dark:text-slate-200 font-medium cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-none flex justify-between items-center";
-
-    // 가격 텍스트 색상 조정
-    div.innerHTML = `<span>${product.name}</span> <span class="text-xs text-slate-400 dark:text-slate-500 font-normal">${product.price}p</span>`;
-
+    div.textContent = `${product.name}`;
     div.addEventListener("click", () => {
       nameInput.value = product.name;
-      quantityInput.focus();
+      quantityInput.focus(); // 이름 → 수량 → Enter로 추가
       autocompleteList.classList.add("hidden");
     });
     autocompleteList.appendChild(div);
   });
+
   autocompleteList.classList.remove("hidden");
 }
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".product-input-area")) {
+    autocompleteList.classList.add("hidden");
+  }
+});
 
 // ===== 공통 유틸: 담기, EAN-13, 클린업 =====
 function addToSelected(prod, qty) {
@@ -2082,9 +1467,6 @@ qcSaveBtn?.addEventListener("click", async () => {
     const prod = { id: ref.id, name, category, price, barcode };
     productById.set(prod.id, prod);
     if (barcode) productByBarcode.set(barcode, prod);
-    if (_allProductsCache) {
-      _allProductsCache.push(prod);
-    }
     addToSelected(prod, parseInt(quantityInput.value) || 1); // 장바구니에도 바로 추가
     showToast("상품이 등록되었습니다.");
     closeQuickCreateModal();
@@ -2117,10 +1499,10 @@ function checkCategoryViolations(items, policies) {
       pol.mode === "one_per_category"
         ? "category"
         : pol.mode === "one_per_price"
-          ? "price"
-          : pol.mode === "price"
-            ? "price"
-            : "category";
+        ? "price"
+        : pol.mode === "price"
+        ? "price"
+        : "category";
     const limit =
       Number.isFinite(pol.limit) && pol.limit >= 1 ? Math.floor(pol.limit) : 1;
     if (mode === "category") {
@@ -2142,10 +1524,9 @@ function checkCategoryViolations(items, policies) {
 
 function applyCategoryViolationHighlight() {
   const vios = checkCategoryViolations(selectedItems, categoryPolicies);
-  const violating = new Set(); // key: violating item ID
-
-  // 1. 위반된 상품 ID 수집
+  const violating = new Set(); // key: `${id}` of violating rows
   if (vios.length) {
+    // 어떤 아이템이 위반에 해당하는지 계산
     for (const v of vios) {
       selectedItems.forEach((it) => {
         if ((it.category || "") !== v.category) return;
@@ -2157,136 +1538,53 @@ function applyCategoryViolationHighlight() {
       });
     }
   }
-
-  // 2. 테이블 행(tr)에 스타일 클래스 적용
+  // 테이블 행에 표시
   [...selectedTableBody.children].forEach((tr) => {
     const id = tr.dataset.id;
-    if (violating.has(id)) {
-      tr.classList.add("limit-violation");
-    } else {
-      tr.classList.remove("limit-violation");
-    }
+    tr.classList.toggle("limit-violation", violating.has(id));
   });
-
-  // 3. [복구] 하단 경고 뱃지 표시/숨김 제어
-  const limitWarnEl = document.getElementById("limit-warning");
-  if (limitWarnEl) {
-    // toggleFade는 comp.js에 있는 유틸 함수 (없으면 classList 제어로 대체됨)
-    if (typeof toggleFade === "function") {
-      toggleFade(limitWarnEl, vios.length > 0);
-    } else {
-      // fallback
-      if (vios.length > 0) limitWarnEl.classList.remove("hidden");
-      else limitWarnEl.classList.add("hidden");
-    }
-  }
 }
 
-/* =========================================
-   상품 목록 렌더링 (TDS Numeric Spinner 적용)
-   ========================================= */
 function renderSelectedList() {
   selectedTableBody.innerHTML = "";
 
-  // 1. 빈 상태(Empty State) - TDS 스타일
-  if (selectedItems.length === 0) {
-    renderEmptyState(
-      selectedTableBody,
-      "장바구니가 비어있습니다",
-      "fa-basket-shopping",
-      "바코드를 스캔하거나 상품명을 검색하세요",
-    );
-
-    totalPointsEl.textContent = "0";
-    if (warningEl) toggleFade(warningEl, false);
-    saveProvisionDraft();
-    return;
-  }
-
-  // 2. 상품 목록 렌더링
   selectedItems.forEach((item, idx) => {
     const tr = document.createElement("tr");
     const totalPrice = item.quantity * item.price;
 
-    // [중요] 부분 업데이트를 위해 ID 부여: row-{idx}
-    tr.id = `row-${idx}`;
-    // [TDS] 행 스타일
-    tr.className =
-      "hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-all border-b border-slate-100 dark:border-slate-700/50 last:border-0 group";
-
     tr.innerHTML = `
-      <td class="py-4 px-5">
-        <div class="flex flex-col">
-          <span class="font-bold text-slate-800 dark:text-slate-100">${
-            item.name
-          }</span>
-          <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium uppercase mt-0.5">${
-            item.category || "미분류"
-          }</span>
+      <td>${item.name}</td>
+      <td>
+        <div class="quantity-wrapper">
+        <button class="decrease-btn btn-outline small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
+        <input type="number" name="quantity-${idx}" min="1" max="30" value="${item.quantity}" data-idx="${idx}" class="quantity-input input w-16 text-center" />
+        <button class="increase-btn btn-outline small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
         </div>
       </td>
-      <td class="py-4 px-5 text-center">
-        <div class="numeric-spinner mx-auto">
-          <button class="spinner-btn decrease-btn" data-idx="${idx}" ${
-            item.quantity <= 1 ? "disabled" : ""
-          }>
-            <i class="fas fa-minus text-sm pointer-events-none"></i>
-          </button>
-          
-          <div class="spinner-value-box">
-            <input type="number" 
-                   id="qty-${idx}" 
-                   value="${item.quantity}" 
-                   data-idx="${idx}" 
-                   class="spinner-input quantity-input" 
-                   readonly />
-          </div>
-          
-          <button class="spinner-btn increase-btn" data-idx="${idx}" ${
-            item.quantity >= 30 ? "disabled" : ""
-          }>
-            <i class="fas fa-plus text-sm pointer-events-none"></i>
-          </button>
-        </div>
-      </td>
-      <td class="py-4 px-5 text-center text-slate-500 dark:text-slate-400 font-bold text-[15px]">${
-        item.price
-      }</td>
-      <td class="py-4 px-5 text-center">
-        <span id="total-${idx}" class="text-slate-900 dark:text-white font-black text-lg tracking-tight">${totalPrice.toLocaleString()}</span>
-      </td>
-      <td class="py-4 px-5 text-center">
-        <button class="remove-btn btn btn-danger-weak !w-9 !h-9 !p-0 rounded-xl transition-opacity shadow-sm" data-idx="${idx}" title="삭제">
-          <i class="fas fa-trash-alt text-sm pointer-events-none"></i>
-        </button>
+      <td>${item.price}</td>
+      <td>${totalPrice}</td>
+      <td>
+        <button class="remove-btn btn btn--danger" data-idx="${idx}" aria-label="상품 삭제"><i class="fas fa-trash"></i></button>
       </td>
     `;
 
-    // 데이터 속성 바인딩
+    // 행 데이터 세팅(제한 검사용)
     tr.dataset.id = item.id;
     tr.dataset.category = item.category || "";
     tr.dataset.price = String(item.price ?? "");
     selectedTableBody.appendChild(tr);
-
-    // [핵심] 롱프레스 이벤트 연결 (렌더링 직후 개별 바인딩)
-    // 주의: setupLongPress는 위에서 정의한 유틸 함수여야 함
-    const decBtn = tr.querySelector(".decrease-btn");
-    const incBtn = tr.querySelector(".increase-btn");
-
-    if (decBtn && incBtn) {
-      // 클로저로 idx 캡처하여 전달
-      setupLongPress(decBtn, () => changeQuantity(idx, -1));
-      setupLongPress(incBtn, () => changeQuantity(idx, 1));
-    }
   });
 
-  // 전체 합계 계산 (UI 갱신 포함)
-  updateTotalUIonly();
+  // 합계 업데이트
+  calculateTotal();
+  // 제한 검사/강조
   applyCategoryViolationHighlight();
+  // ✅ 렌더 후 상태 저장(수량/합계 변경 반영)
   saveProvisionDraft();
 
+  // ▶ 방금 '추가'된 경우에만 submit-section으로 스크롤
   if (__scrollAfterAdd) {
-    setTimeout(() => scrollToSubmitSection(), 50);
+    setTimeout(() => scrollToSubmitSection(), 0);
     __scrollAfterAdd = false;
   }
 }
@@ -2306,29 +1604,30 @@ document.querySelector("#selected-table tbody").addEventListener(
       }
     }
   },
-  true,
+  true
 ); // ← true로 설정해야 '이벤트 캡처링'이 동작해서 위임 가능
 
 selectedTableBody.addEventListener("click", (e) => {
-  // 아이콘을 눌러도 버튼을 찾도록 closest 사용
-  const btn = e.target.closest("button");
-  if (!btn) return;
+  const idx = e.target.dataset.idx;
 
-  const idx = btn.dataset.idx;
-
-  // 1. 삭제 버튼 (remove-btn)
-  if (btn.classList.contains("remove-btn")) {
-    // Undo 스택 저장
-    undoStack.push(JSON.parse(JSON.stringify(selectedItems)));
-    redoStack = [];
-
-    selectedItems.splice(Number(idx), 1);
-    renderSelectedList(); // 삭제는 리스트가 줄어드니 전체 렌더링 필요
-    showToast("상품이 삭제되었습니다.");
-    return;
+  // 수량 증가
+  if (e.target.classList.contains("increase-btn")) {
+    selectedItems[idx].quantity = Math.min(selectedItems[idx].quantity + 1, 30);
+    renderSelectedList();
   }
 
-  // (증가/감소 버튼은 setupLongPress가 직접 이벤트를 걸었으므로 여기서 처리 안 함)
+  // 수량 감소
+  if (e.target.classList.contains("decrease-btn")) {
+    selectedItems[idx].quantity = Math.max(selectedItems[idx].quantity - 1, 1);
+    renderSelectedList();
+  }
+
+  // 삭제
+  if (e.target.closest(".remove-btn")) {
+    const removeIdx = Number(e.target.closest(".remove-btn").dataset.idx);
+    selectedItems.splice(removeIdx, 1);
+    renderSelectedList();
+  }
 });
 
 selectedTableBody.addEventListener("change", (e) => {
@@ -2345,24 +1644,25 @@ selectedTableBody.addEventListener("change", (e) => {
   }
 });
 
-// 합계 계산 함수 (toggleFade 적용)
 function calculateTotal() {
   const total = selectedItems.reduce(
     (acc, item) => acc + item.quantity * item.price,
-    0,
+    0
   );
 
-  if (totalPointsEl) totalPointsEl.textContent = total.toLocaleString();
+  totalPointsEl.textContent = total;
 
-  // [수정] 30포인트 초과 시 fade-in, 이하일 때 fade-out
-  if (warningEl) {
-    toggleFade(warningEl, total > 30);
+  if (total > 30) {
+    warningEl.classList.remove("hidden");
+  } else {
+    warningEl.classList.add("hidden");
   }
 }
 
 /* =========================
    보류: localStorage 저장/불러오기
    ========================= */
+const HOLD_PREFIX = "provision:hold:";
 const holdSaveBtn = document.getElementById("hold-save-btn");
 const holdLoadBtn = document.getElementById("hold-load-btn");
 
@@ -2370,7 +1670,7 @@ holdSaveBtn?.addEventListener("click", () => {
   if (!selectedCustomer) return showToast("먼저 방문자를 선택하세요.", true);
   localStorage.setItem(
     HOLD_PREFIX + selectedCustomer.id,
-    JSON.stringify(selectedItems),
+    JSON.stringify(selectedItems)
   );
   // ✅ 보류 시: 장바구니/입력 초기화 + 계산/제출 UI 숨김 + 고객정보도 숨김 + 방문자 선택 해제
   selectedItems = [];
@@ -2413,7 +1713,7 @@ submitBtn.addEventListener("click", async () => {
 
   const total = selectedItems.reduce(
     (acc, item) => acc + item.quantity * item.price,
-    0,
+    0
   );
   if (total > 30) return showToast("포인트가 초과되었습니다.", true);
 
@@ -2425,8 +1725,10 @@ submitBtn.addEventListener("click", async () => {
   }
 
   const now = new Date();
-  const periodKey = toKstPeriodKey(now); // 예: 24-25 (KST)
-  const visitDate = toKstDateKey(now); // YYYY-MM-DD (KST)
+  const year =
+    now.getMonth() + 1 < 3 ? now.getFullYear() - 1 : now.getFullYear();
+  const periodKey = `${String(year).slice(2)}-${String(year + 1).slice(2)}`; // 예: 24-25
+  const visitDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
   const quarterKey = getQuarterKey(now);
   const lifelove = lifeloveCheckbox.checked;
 
@@ -2450,7 +1752,7 @@ submitBtn.addEventListener("click", async () => {
       .map((v) =>
         v.mode === "price"
           ? `<b>• ${v.category} - 가격 ${v.price}은(는) ${v.limit}개까지 가능합니다.</b>`
-          : `<b>• ${v.category} - 이 분류는 총 ${v.limit}개까지 가능합니다.</b>`,
+          : `<b>• ${v.category} - 이 분류는 총 ${v.limit}개까지 가능합니다.</b>`
       )
       .join("<br>");
     const ok = await openConfirm({
@@ -2501,8 +1803,7 @@ submitBtn.addEventListener("click", async () => {
       db,
       processedCustomerID,
       processedCustomerName,
-      new Date(),
-      selectedItems,
+      new Date()
     );
 
     if (processedCustomerID) {
@@ -2564,7 +1865,7 @@ lifeloveCheckbox?.addEventListener("change", () => {
 
 // DOM
 const exchangeHistoryTbody = document.querySelector(
-  "#exchange-history-table tbody",
+  "#exchange-history-table tbody"
 );
 const exchangeBuilder = document.getElementById("exchange-builder");
 const exBarcode = document.getElementById("ex-barcode-input");
@@ -2577,9 +1878,11 @@ const exNewEl = document.getElementById("ex-new-total");
 const exWarnEl = document.getElementById("ex-warning");
 const exSubmitBtn = document.getElementById("exchange-submit-btn");
 const exHistoryTable = document.getElementById("exchange-history-table");
+// 교환 섹션(검색 아래, 히스토리+빌더를 감싸는 컨테이너)
+const exchangeSection = document.getElementById("exchange-section");
 // 교환 히스토리 섹션(표 래퍼)
 const exchangeHistorySection = document.getElementById(
-  "exchange-history-section",
+  "exchange-history-section"
 );
 
 // === 교환 입력 자동완성 ===
@@ -2593,7 +1896,7 @@ if (!exAutocompleteList && exName) {
   exAutocompleteList.id = "ex-autocomplete-list";
   exAutocompleteList.className = "autocomplete-list";
   (exName.parentElement || exchangeBuilder || document.body).appendChild(
-    exAutocompleteList,
+    exAutocompleteList
   );
 }
 
@@ -2620,27 +1923,16 @@ exName?.addEventListener("input", async () => {
 function renderExAutocomplete(matches) {
   if (!exAutocompleteList) return;
   exAutocompleteList.innerHTML = "";
-
   if (!matches || matches.length === 0) {
     exAutocompleteList.classList.add("hidden");
     return;
   }
-
   matches.forEach((product) => {
     const div = document.createElement("div");
-    // [수정] 다크모드 대응: 배경, 텍스트, 호버, 보더
-    div.className =
-      "px-4 py-3 text-sm text-slate-700 dark:text-slate-200 font-medium cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-none flex justify-between items-center";
-
-    div.innerHTML = `<span>${
-      product.name
-    }</span> <span class="text-xs text-slate-400 dark:text-slate-500 font-normal">${
-      product.price || 0
-    }p</span>`;
-
+    div.textContent = `${product.name}`;
     div.addEventListener("click", () => {
       exName.value = product.name;
-      exQty?.focus();
+      exQty?.focus(); // 이름 선택 후 수량으로 자연스러운 포커스 이동
       exAutocompleteList.classList.add("hidden");
     });
     exAutocompleteList.appendChild(div);
@@ -2660,17 +1952,6 @@ let exchangeOriginalItems = [];
 let exchangeOriginalTotal = 0;
 let exchangeProvision = null; // { id, data }
 
-// 교환 탭 Undo/Redo 및 자동저장용 변수
-let exUndoStack = [];
-let exRedoStack = [];
-const EXCHANGE_AUTOSAVE_PREFIX = "fm.exchange.autosave";
-
-function getExAutoSaveKey() {
-  const uid = (auth.currentUser && auth.currentUser.uid) || "local";
-  // 날짜별로 격리 (오늘 작업분만 유효)
-  return `${EXCHANGE_AUTOSAVE_PREFIX}:${uid}:${ymdLocal()}`;
-}
-
 async function loadRecentProvisionsForCustomer(customerId) {
   if (!customerId || !exchangeHistoryTbody) return;
   // 최근 50일
@@ -2679,7 +1960,7 @@ async function loadRecentProvisionsForCustomer(customerId) {
     collection(db, "provisions"),
     where("customerId", "==", customerId),
     where("timestamp", ">=", fiftyAgo),
-    orderBy("timestamp", "asc"), // 인덱스: [customerId ASC, timestamp ASC] 권장
+    orderBy("timestamp", "asc") // 인덱스: [customerId ASC, timestamp ASC] 권장
   );
   const snap = await getDocs(qy);
   const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -2688,59 +1969,36 @@ async function loadRecentProvisionsForCustomer(customerId) {
 
 function renderExchangeHistory(rows) {
   exchangeHistoryTbody.innerHTML = "";
+  exchangeHistoryTbody.innerHTML = "";
+  // 고객 선택 후에는 섹션/표를 항상 노출 (없으면 안내문 표시)
   exchangeHistorySection?.classList.remove("hidden");
   exHistoryTable?.classList.remove("hidden");
-
-  // [수정] 내역 없음(Empty State) 디자인 개선
-  // [수정] Empty State 중앙화
   if (!rows.length) {
-    renderEmptyState(
-      exchangeHistoryTbody,
-      "최근 50일 내 제공 내역이 없습니다.",
-      "fa-history",
-    );
+    exchangeHistoryTbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#666;">최근 50일 내 제공내역이 없습니다.</td></tr>`;
     exchangeBuilder.classList.add("hidden");
     return;
   }
-
   rows.forEach((r) => {
     const ts = r.timestamp?.toDate
       ? r.timestamp.toDate()
       : new Date(r.timestamp);
     const when = ts
-      ? `${ts.getFullYear()}.${String(ts.getMonth() + 1).padStart(
+      ? `${ts.getFullYear()}-${String(ts.getMonth() + 1).padStart(
           2,
-          "0",
-        )}.${String(ts.getDate()).padStart(2, "0")} ${String(
-          ts.getHours(),
+          "0"
+        )}-${String(ts.getDate()).padStart(2, "0")} ${String(
+          ts.getHours()
         ).padStart(2, "0")}:${String(ts.getMinutes()).padStart(2, "0")}`
       : "-";
-
     const tr = document.createElement("tr");
-    // [수정] 테이블 행 다크모드 대응 (Hover, Border, Text)
-    tr.className =
-      "hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors border-b border-slate-100 dark:border-slate-700/50 last:border-0";
-
     tr.innerHTML = `
-      <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-400">${when}</td>
-      <td class="py-3 px-4 text-center text-sm font-bold text-slate-700 dark:text-slate-200">${
-        r.items?.length || 0
-      }건</td>
-      <td class="py-3 px-4 text-center text-sm font-bold text-blue-600 dark:text-blue-400">${
-        r.total ?? 0
-      }p</td>
-      <td class="py-3 px-4 text-center text-xs">
-        ${
-          r.lifelove
-            ? '<span class="px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold">생명사랑</span>'
-            : '<span class="text-slate-300 dark:text-slate-600">-</span>'
-        }
-      </td>
-      <td class="py-3 px-4 text-center">
-        <button class="ex-pick btn btn-primary-weak h-7 px-3 text-xs rounded-md" data-id="${
-          r.id
-        }">선택</button>
-      </td>
+      <td>${when}</td>
+      <td>${r.items?.length || 0}건</td>
+      <td>${r.total ?? 0}</td>
+      <td>${r.lifelove ? "생명사랑" : "-"}</td>
+      <td><button class="ex-pick btn btn-outline" data-id="${
+        r.id
+      }">선택</button></td>
     `;
     exchangeHistoryTbody.appendChild(tr);
   });
@@ -2766,92 +2024,53 @@ exchangeHistoryTbody?.addEventListener("click", async (e) => {
   renderExchangeList();
   exchangeBuilder.classList.remove("hidden");
   showToast("교환 편집을 시작합니다.");
-
-  // 명시적 저장
-  saveExchangeAutoSave();
 });
 
-/* =========================================
-   교환 리스트 렌더링 (TDS Spinner & Long Press 적용)
-   ========================================= */
+// 교환 리스트 렌더
 function renderExchangeList() {
   exTableBody.innerHTML = "";
-
-  // 1. 빈 상태 처리
-  if (exchangeItems.length === 0) {
-    renderEmptyState(
-      exTableBody,
-      "교환할 상품이 없습니다",
-      "fa-right-left",
-      "위 내역에서 선택하거나 상품을 추가하세요",
-    );
-
-    // 빈 상태일 때도 합계 UI 갱신 (0원 처리 및 경고 끄기)
-    updateExchangeTotalUI();
-    return;
-  }
-
-  // 2. 리스트 렌더링
   exchangeItems.forEach((item, idx) => {
     const tr = document.createElement("tr");
     const totalPrice = (item.quantity || 0) * (item.price || 0);
-
-    tr.className =
-      "hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-all border-b border-slate-100 dark:border-slate-700/50 last:border-0 group";
-
     tr.innerHTML = `
-      <td class="py-4 px-5">
-        <div class="flex flex-col">
-          <span class="font-bold text-slate-800 dark:text-slate-100">${item.name}</span>
-          <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium uppercase mt-0.5">${item.category || "미분류"}</span>
+      <td>${item.name}</td>
+      <td>
+        <div class="quantity-wrapper">
+          <button class="ex-dec btn-outline small-btn" data-idx="${idx}" aria-label="수량 감소">−</button>
+          <input type="number" class="quantity-input input w-16 text-center"
+                min="1" max="30" value="${
+                  item.quantity || 1
+                }" data-idx="${idx}" />
+          <button class="ex-inc btn-outline small-btn" data-idx="${idx}" aria-label="수량 증가">+</button>
         </div>
       </td>
-      <td class="py-4 px-5 text-center">
-        <div class="numeric-spinner mx-auto">
-          <button class="spinner-btn ex-dec" data-idx="${idx}" ${item.quantity <= 1 ? "disabled" : ""}>
-            <i class="fas fa-minus text-sm pointer-events-none"></i>
-          </button>
-          
-          <div class="spinner-value-box">
-            <input type="number" class="spinner-input" value="${item.quantity || 1}" readonly />
-          </div>
-          
-          <button class="spinner-btn ex-inc" data-idx="${idx}" ${item.quantity >= 30 ? "disabled" : ""}>
-            <i class="fas fa-plus text-sm pointer-events-none"></i>
-          </button>
-        </div>
-      </td>
-      <td class="py-4 px-5 text-center text-slate-500 dark:text-slate-400 font-bold text-[15px]">${item.price || 0}</td>
-      <td class="py-4 px-5 text-center">
-        <span class="text-slate-900 dark:text-white font-black text-lg tracking-tight">${totalPrice.toLocaleString()}</span>
-      </td>
-      <td class="py-4 px-5 text-center">
-        <button class="ex-del btn btn-danger-weak !w-9 !h-9 !p-0 rounded-xl transition-opacity shadow-sm" data-idx="${idx}" title="삭제">
-          <i class="fas fa-trash-alt text-sm pointer-events-none"></i>
-        </button>
-      </td>
+      <td>${item.price || 0}</td>
+      <td>${totalPrice}</td>
+      <td><button class="ex-del btn btn--danger " data-idx="${idx}" aria-label="항목 삭제">
+        <i class="fas fa-trash"></i>
+      </button></td>
     `;
-
-    // 데이터 바인딩
     tr.dataset.id = item.id;
     tr.dataset.category = item.category || "";
     tr.dataset.price = String(item.price ?? "");
     exTableBody.appendChild(tr);
-
-    // 롱프레스 이벤트
-    const decBtn = tr.querySelector(".ex-dec");
-    const incBtn = tr.querySelector(".ex-inc");
-    if (decBtn && incBtn) {
-      setupLongPress(decBtn, () => changeExchangeQuantity(idx, -1));
-      setupLongPress(incBtn, () => changeExchangeQuantity(idx, 1));
-    }
   });
+  // 합계/경고
+  const newTotal = exchangeItems.reduce(
+    (a, b) => a + (b.quantity || 0) * (b.price || 0),
+    0
+  );
+  exOriginalEl.textContent = exchangeOriginalTotal;
+  exNewEl.textContent = newTotal;
 
-  // [핵심] 별도 계산 로직을 제거하고 통합 함수 호출 (빈 뱃지 문제 해결)
-  updateExchangeTotalUI();
+  if (newTotal > exchangeOriginalTotal || newTotal > 30) {
+    exWarnEl.classList.remove("hidden");
+  } else {
+    exWarnEl.classList.add("hidden");
+  }
 
+  // 제한 강조
   applyCategoryViolationHighlightFor(exchangeItems, exTableBody);
-  saveExchangeAutoSave();
 }
 
 function applyCategoryViolationHighlightFor(items, tbody) {
@@ -2876,99 +2095,6 @@ function applyCategoryViolationHighlightFor(items, tbody) {
   });
 }
 
-/* =========================================
-   [교환 전용] 수량 변경 로직 (DOM 보존형)
-   ========================================= */
-
-// 1. 수량 변경 핸들러
-function changeExchangeQuantity(idx, change) {
-  const index = Number(idx);
-  const item = exchangeItems[index];
-  if (!item) return;
-
-  const newQty = (item.quantity || 0) + change;
-  // 범위 체크 (1~30)
-  if (newQty < 1 || newQty > 30) return;
-
-  // 데이터 업데이트
-  saveExUndoState(); // 변경 전 스냅샷 (필요 시 디바운싱 고려)
-  item.quantity = newQty;
-
-  // [UI 업데이트] 전체 렌더링 대신, 해당 줄만 업데이트
-  updateExchangeRowUI(index);
-}
-
-// 2. 부분 업데이트 함수
-function updateExchangeRowUI(idx) {
-  const item = exchangeItems[idx];
-  if (!item) return;
-
-  const tr = exTableBody.children[idx];
-  if (!tr) return;
-
-  // 1. 수량 인풋 업데이트
-  const qtyInput = tr.querySelector(".spinner-input");
-  if (qtyInput) qtyInput.value = item.quantity;
-
-  // 2. 소계 업데이트
-  const totalTd = tr.children[3];
-  if (totalTd) {
-    const span = totalTd.querySelector("span");
-    if (span)
-      span.textContent = (
-        (item.quantity || 0) * (item.price || 0)
-      ).toLocaleString();
-  }
-
-  // 3. 버튼 상태 업데이트
-  const decBtn = tr.querySelector(".ex-dec");
-  const incBtn = tr.querySelector(".ex-inc");
-  if (decBtn) decBtn.disabled = item.quantity <= 1;
-  if (incBtn) incBtn.disabled = item.quantity >= 30;
-
-  // 4. 합계 재계산
-  updateExchangeTotalUI();
-
-  // ✅ [추가] 수량 변경 시 제한 위반 여부(빨간줄) 즉시 재검사 및 반영
-  applyCategoryViolationHighlightFor(exchangeItems, exTableBody);
-
-  saveExchangeAutoSave();
-}
-
-// 3. 합계 UI 업데이트 함수
-function updateExchangeTotalUI() {
-  const newTotal = exchangeItems.reduce(
-    (a, b) => a + (b.quantity || 0) * (b.price || 0),
-    0,
-  );
-
-  if (exOriginalEl)
-    exOriginalEl.textContent = exchangeOriginalTotal.toLocaleString();
-  if (exNewEl) exNewEl.textContent = newTotal.toLocaleString();
-
-  // 경고창 제어
-  let showWarn = false;
-  let warnMsg = "";
-
-  if (newTotal > 30) {
-    showWarn = true;
-    warnMsg = `<i class="fas fa-circle-exclamation mr-1.5"></i> 교환 불가 / 30P 초과`;
-  } else if (newTotal < exchangeOriginalTotal) {
-    showWarn = true;
-    warnMsg = `<i class="fas fa-arrow-trend-down mr-1.5"></i> 교환 불가 / 기존 합계 미달`;
-  }
-
-  if (exWarnEl) {
-    // [핵심] 경고를 보여줄 때만 텍스트를 업데이트합니다.
-    // 숨길 때는 텍스트를 그대로 두어야 fade-out 애니메이션이 자연스럽게 보입니다.
-    if (showWarn) {
-      const badge = exWarnEl.querySelector(".badge");
-      if (badge) badge.innerHTML = warnMsg;
-    }
-    toggleFade(exWarnEl, showWarn);
-  }
-}
-
 // 교환 입력(추가)
 exAddBtn?.addEventListener("click", async () => {
   const q = parseInt(exQty.value) || 1;
@@ -2991,7 +2117,7 @@ exAddBtn?.addEventListener("click", async () => {
     const rows = await searchProductsByNamePrefix(nameKey);
     const picked =
       rows.find(
-        (p) => (p.name || "").toLowerCase() === nameKey.toLowerCase(),
+        (p) => (p.name || "").toLowerCase() === nameKey.toLowerCase()
       ) || rows[0];
     if (!picked) return showToast("해당 상품을 찾을 수 없습니다.", true);
     exchangeAdd(picked, q);
@@ -3002,8 +2128,6 @@ exAddBtn?.addEventListener("click", async () => {
   }
 });
 function exchangeAdd(prod, qty) {
-  saveExUndoState(); // 변경 전 스냅샷
-
   const ex = exchangeItems.find((it) => it.id === prod.id);
   if (ex) ex.quantity = Math.min((ex.quantity || 0) + qty, 30);
   else
@@ -3025,22 +2149,27 @@ function exchangeCleanup() {
 
 // 교환 테이블 조작
 exTableBody?.addEventListener("click", (e) => {
-  const btn = e.target.closest("button");
-  if (!btn) return;
-
-  const idx = btn.dataset.idx;
-
-  // 삭제 버튼 (ex-del)
-  if (btn.classList.contains("ex-del")) {
-    saveExUndoState();
+  const idx = e.target.dataset.idx || e.target.closest("button")?.dataset.idx;
+  if (idx == null) return;
+  if (e.target.classList.contains("ex-inc")) {
+    exchangeItems[idx].quantity = Math.min(
+      (exchangeItems[idx].quantity || 1) + 1,
+      30
+    );
+    renderExchangeList();
+  } else if (e.target.classList.contains("ex-dec")) {
+    exchangeItems[idx].quantity = Math.max(
+      (exchangeItems[idx].quantity || 1) - 1,
+      1
+    );
+    renderExchangeList();
+  } else if (e.target.closest(".ex-del")) {
     exchangeItems.splice(Number(idx), 1);
     renderExchangeList();
-    return;
   }
 });
 exTableBody?.addEventListener("change", (e) => {
   if (!e.target.classList.contains("quantity-input")) return;
-  saveExUndoState();
   const idx = e.target.dataset.idx;
   let val = parseInt(e.target.value, 10);
   if (!Number.isFinite(val) || val < 1) val = 1;
@@ -3079,180 +2208,37 @@ exSubmitBtn?.addEventListener("click", async () => {
 
   const newTotal = exchangeItems.reduce(
     (a, b) => a + (b.quantity || 0) * (b.price || 0),
-    0,
+    0
   );
-
-  // 1. 30점 초과 차단
-  if (newTotal > 30) {
-    return showToast("총 포인트는 30점을 초과할 수 없습니다.", true);
-  }
-
-  // 2. 기존 합계 미달 차단
-  if (newTotal < exchangeOriginalTotal) {
+  if (newTotal > 30) return showToast("포인트 초과(최대 30)", true);
+  if (newTotal > exchangeOriginalTotal)
     return showToast(
-      `최소 ${exchangeOriginalTotal}점 이상이어야 합니다. (기존 합계 미달)`,
-      true,
+      "교환 합계는 기존 합계 이내로만 가능합니다(환불 없음).",
+      true
     );
-  }
 
-  // Confirm 메시지
   const ok = await openConfirm({
     title: "교환 확정",
-    message: `기존 합계 ${exchangeOriginalTotal}p → 교환 합계 ${newTotal}p<br>
-              <span class="text-xs text-slate-500">(차액 ${
-                newTotal - exchangeOriginalTotal
-              }p 추가 사용)</span><br>
-              교환을 진행하시겠습니까?`,
+    message: `기존 합계 ${exchangeOriginalTotal} → 교환 합계 ${newTotal}\n환불은 없습니다. 진행할까요?`,
     confirmText: "교환",
     cancelText: "취소",
   });
   if (!ok) return;
 
-  // ✅ delta 계산: (교환 후) - (교환 전)
-  const buildQtyMap = (arr) => {
-    const m = new Map(); // pid -> { qty, name, category }
-    (Array.isArray(arr) ? arr : []).forEach((it) => {
-      const pid = it?.id;
-      if (!pid) return;
-
-      const q = Number(it?.quantity || 0);
-      if (!Number.isFinite(q) || q === 0) return;
-
-      const prev = m.get(pid) || {
-        qty: 0,
-        name: it?.name || "",
-        category: it?.category || "",
-      };
-      prev.qty += q;
-      if (!prev.name && it?.name) prev.name = it.name;
-      if (!prev.category && it?.category) prev.category = it.category;
-      m.set(pid, prev);
-    });
-    return m;
-  };
-
-  const oldMap = buildQtyMap(exchangeOriginalItems);
-  const newMap = buildQtyMap(exchangeItems);
-
-  const deltaMap = new Map(); // pid -> { qty, name, category }
-  let qtyDeltaTotal = 0;
-
-  const keys = new Set([...oldMap.keys(), ...newMap.keys()]);
-  keys.forEach((pid) => {
-    const o = oldMap.get(pid) || { qty: 0, name: "", category: "" };
-    const n = newMap.get(pid) || { qty: 0, name: "", category: "" };
-    const d = Number(n.qty || 0) - Number(o.qty || 0);
-    if (!Number.isFinite(d) || d === 0) return;
-
-    qtyDeltaTotal += d;
-    deltaMap.set(pid, {
-      qty: d,
-      name: n.name || o.name || "",
-      category: n.category || o.category || "",
-    });
-  });
-
   try {
-    const provRef = doc(db, "provisions", exchangeProvision.id);
-
-    // 이 전표가 기록된 날짜(통계 반영 기준)
-    const ts = exchangeProvision.timestamp;
-    const atDate = ts?.toDate ? ts.toDate() : new Date();
-    const dayNum = toDayNumber(atDate);
-    const statsRef = doc(db, "stats_daily", String(dayNum));
-
-    await runTransaction(db, async (tx) => {
-      // 1) 전표 교환 반영
-      tx.update(provRef, {
-        items: exchangeItems,
-        total: newTotal,
-        updatedAt: serverTimestamp(),
-        exchangeLog: arrayUnion({
-          at: Timestamp.now(),
-          by: auth.currentUser?.email || null,
-          from: exchangeOriginalItems,
-          to: exchangeItems,
-        }),
-      });
-
-      // 2) ✅ stats_daily delta 반영 (itemsTotalQty/top20)
-      //    qtyDeltaTotal이 0이어도 품목 구성 변화가 있을 수 있으니 deltaMap 기준으로 처리
-      if (deltaMap.size > 0) {
-        const statsSnap = await tx.get(statsRef);
-        const stats = statsSnap.exists() ? statsSnap.data() || {} : {};
-
-        // itemsTotalQty
-        const curItemsTotalQty = Number(stats.itemsTotalQty || 0);
-        let nextItemsTotalQty = curItemsTotalQty + qtyDeltaTotal;
-        if (!Number.isFinite(nextItemsTotalQty))
-          nextItemsTotalQty = curItemsTotalQty;
-        if (nextItemsTotalQty < 0) nextItemsTotalQty = 0;
-
-        // itemStatsById
-        let curMap = {};
-        if (stats.itemStatsById && typeof stats.itemStatsById === "object") {
-          curMap = { ...stats.itemStatsById };
-        } else if (Array.isArray(stats.topItems20)) {
-          // legacy best-effort (구버전 stats_daily 대비)
-          curMap = {};
-          for (const x of stats.topItems20) {
-            if (!x?.id) continue;
-            curMap[x.id] = {
-              qty: Number(x.qty || 0),
-              name: x.name || "",
-              category: x.category || "",
-            };
-          }
-        }
-
-        for (const [pid, d] of deltaMap.entries()) {
-          const cur =
-            curMap[pid] && typeof curMap[pid] === "object" ? curMap[pid] : {};
-          const curQty = Number(cur.qty || 0);
-          const nextQty = curQty + Number(d.qty || 0);
-
-          if (!Number.isFinite(nextQty) || nextQty <= 0) {
-            delete curMap[pid];
-          } else {
-            curMap[pid] = {
-              qty: nextQty,
-              name: d.name || cur.name || "",
-              category: d.category || cur.category || "",
-            };
-          }
-        }
-
-        const topItems20 = Object.entries(curMap)
-          .map(([id, v]) => ({
-            id,
-            name: v?.name || "",
-            category: v?.category || "",
-            qty: Number(v?.qty || 0),
-          }))
-          .filter((x) => Number.isFinite(x.qty) && x.qty > 0)
-          .sort((a, b) => b.qty - a.qty)
-          .slice(0, 20);
-
-        tx.set(
-          statsRef,
-          {
-            itemsTotalQty: nextItemsTotalQty,
-            itemStatsById: curMap,
-            topItems20,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
-      }
+    await updateDoc(doc(db, "provisions", exchangeProvision.id), {
+      items: exchangeItems,
+      total: newTotal,
+      updatedAt: serverTimestamp(),
+      exchangeLog: arrayUnion({
+        at: Timestamp.now(),
+        by: auth.currentUser?.email || null,
+        from: exchangeOriginalItems,
+        to: exchangeItems,
+      }),
     });
-
     showToast("교환이 완료되었습니다.");
     resetExchangeUI();
-
-    localStorage.removeItem(getExAutoSaveKey());
-    exUndoStack = []; // 스택도 비움
-    exRedoStack = [];
-
     exchangeSelectedCustomer = null;
     renderExchangeCustomerInfo(); // 교환 고객정보 숨김
     if (exLookupInput) exLookupInput.value = "";
@@ -3270,196 +2256,3 @@ document.addEventListener("exchange_customer_switched", () => {
   if (isEx && exchangeSelectedCustomer)
     loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
 });
-
-// ============================================================
-// 🔄 교환 탭 스마트 자동 저장 (Auto-Save) & 복구
-// ============================================================
-
-function saveExchangeAutoSave() {
-  try {
-    const payload = {
-      v: 1,
-      updatedAt: Date.now(),
-      step: 0,
-      customer: exchangeSelectedCustomer, // 1단계: 고객 정보
-      provision: exchangeProvision, // 2단계: 원본 영수증
-      originalItems: exchangeOriginalItems,
-      originalTotal: exchangeOriginalTotal,
-      currentItems: exchangeItems, // 3단계: 작업 중인 장바구니
-      undo: exUndoStack,
-      redo: exRedoStack,
-    };
-
-    // 단계 판별
-    if (exchangeItems.length > 0 || (exUndoStack && exUndoStack.length > 0)) {
-      payload.step = 3; // 물품 수정 중
-    } else if (exchangeProvision) {
-      payload.step = 2; // 내역 선택 완료
-    } else if (exchangeSelectedCustomer) {
-      payload.step = 1; // 고객만 선택됨
-    } else {
-      // 저장할 내용 없음 -> 삭제
-      localStorage.removeItem(getExAutoSaveKey());
-      return;
-    }
-
-    localStorage.setItem(getExAutoSaveKey(), JSON.stringify(payload));
-  } catch (e) {
-    console.warn("Auto-save failed:", e);
-  }
-}
-
-// ============================================================
-// 7. 교환 탭 하단 기능 버튼 (Undo, Redo, Reset, Clear)
-// ============================================================
-
-// 1. 되돌리기 (Undo)
-document.getElementById("ex-undo-btn")?.addEventListener("click", () => {
-  if (exUndoStack.length === 0)
-    return showToast("되돌릴 작업이 없습니다.", true);
-
-  // 현재 상태를 Redo로 보냄 (스냅샷 X, 그냥 이동)
-  exRedoStack.push(JSON.parse(JSON.stringify(exchangeItems)));
-
-  exchangeItems = exUndoStack.pop();
-  renderExchangeList();
-});
-
-// 2. 다시 실행 (Redo)
-document.getElementById("ex-redo-btn")?.addEventListener("click", () => {
-  if (exRedoStack.length === 0)
-    return showToast("다시 실행할 작업이 없습니다.", true);
-
-  // 현재 상태를 Undo로 보냄
-  exUndoStack.push(JSON.parse(JSON.stringify(exchangeItems)));
-
-  exchangeItems = exRedoStack.pop();
-  renderExchangeList();
-});
-
-// 3. 원래대로 (Reset Initial)
-document
-  .getElementById("ex-reset-initial-btn")
-  ?.addEventListener("click", async () => {
-    if (!exchangeProvision) return showToast("선택된 내역이 없습니다.", true);
-
-    const ok = await openConfirm({
-      title: "초기화",
-      message: "처음 불러온 상태로 되돌리시겠습니까?",
-      confirmText: "되돌리기",
-      cancelText: "취소",
-      variant: "warn",
-    });
-
-    if (ok) {
-      saveExUndoState(); // 이 행위도 Undo 가능하도록 저장
-      // 원본 깊은 복사로 복구
-      exchangeItems = JSON.parse(JSON.stringify(exchangeOriginalItems));
-      renderExchangeList();
-      showToast("초기 상태로 복구되었습니다.");
-    }
-  });
-
-// 4. 전체 비우기 (Clear All) - 고객 선택부터 다시
-document
-  .getElementById("ex-clear-all-btn")
-  ?.addEventListener("click", async () => {
-    const ok = await openConfirm({
-      title: "전체 비우기",
-      message: "교환 작업을 완전히 종료하고 초기화하시겠습니까?",
-      confirmText: "비우기",
-      cancelText: "취소",
-      variant: "warn",
-    });
-
-    if (ok) {
-      // 1. 메모리 초기화
-      resetExchangeUI();
-      exchangeSelectedCustomer = null;
-      renderExchangeCustomerInfo();
-
-      // 2. 스택 초기화
-      exUndoStack = [];
-      exRedoStack = [];
-
-      // 3. 자동 저장 데이터 삭제 (가장 중요)
-      localStorage.removeItem(getExAutoSaveKey());
-
-      // 4. 검색창 초기화
-      if (exLookupInput) exLookupInput.value = "";
-
-      showToast("모든 내역이 초기화되었습니다.");
-    }
-  });
-
-// [추가] 교환 완료 시(submit 성공 후)에도 자동저장 삭제
-// exSubmitBtn 클릭 리스너의 성공 블록 안에 아래 코드 추가 필요:
-// localStorage.removeItem(getExAutoSaveKey());
-
-// === [로직] 수량 변경 처리 (DOM 파괴 없이 값만 갱신) ===
-function changeQuantity(idx, change) {
-  const index = Number(idx);
-  const item = selectedItems[index];
-  if (!item) return;
-
-  const newQty = item.quantity + change;
-
-  // 범위 체크 (1~30)
-  if (newQty < 1 || newQty > 30) return;
-
-  // [Undo] 스택 저장은 '연속 동작' 중에는 너무 많이 쌓일 수 있으므로
-  // 롱프레스 시작 시점에만 저장하는 고도화가 필요하지만,
-  // 여기서는 간단히 값이 변할 때마다 저장하거나 생략 (선택 사항)
-  // undoStack.push(...)
-
-  // 데이터 업데이트
-  item.quantity = newQty;
-
-  // [UI 업데이트] 전체 렌더링 대신, 해당 줄만 업데이트 (애니메이션/포커스 유지)
-  updateRowUI(index);
-}
-
-// 특정 행 UI만 부분 업데이트
-function updateRowUI(idx) {
-  const item = selectedItems[idx];
-  if (!item) return;
-
-  // 1. 수량 인풋 값 변경
-  const qtyInput = document.getElementById(`qty-${idx}`);
-  if (qtyInput) qtyInput.value = item.quantity;
-
-  // 2. 해당 행 소계(Total) 텍스트 변경
-  const totalSpan = document.getElementById(`total-${idx}`);
-  if (totalSpan) {
-    totalSpan.textContent = (item.quantity * item.price).toLocaleString();
-  }
-
-  // 3. 버튼 활성/비활성 상태 갱신 (최소/최대값 도달 시)
-  const row = document.getElementById(`row-${idx}`);
-  if (row) {
-    const decBtn = row.querySelector(".decrease-btn");
-    const incBtn = row.querySelector(".increase-btn");
-    if (decBtn) decBtn.disabled = item.quantity <= 1;
-    if (incBtn) incBtn.disabled = item.quantity >= 30;
-  }
-
-  // 4. 전체 합계 재계산 및 드래프트 저장
-  updateTotalUIonly();
-  applyCategoryViolationHighlight(); // ✅ [추가] 수량 변경 시에도 즉시 위반 여부 검사
-  saveProvisionDraft();
-}
-
-// 전체 합계만 다시 계산해서 하단바 갱신 (toggleFade 적용)
-function updateTotalUIonly() {
-  const total = selectedItems.reduce(
-    (acc, item) => acc + item.quantity * item.price,
-    0,
-  );
-
-  if (totalPointsEl) totalPointsEl.textContent = total.toLocaleString();
-
-  // [수정] 직접 classList 제어 대신 toggleFade 사용
-  if (warningEl) {
-    toggleFade(warningEl, total > 30);
-  }
-}

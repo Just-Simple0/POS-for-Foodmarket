@@ -1,15 +1,38 @@
-<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>POS System - Dashboard</title>
-    <!-- Chart.js 삽입 -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- 공통 parts 삽입 -->
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      as="style"
+      crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
+    />
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment/min/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"
+    />
+
     <link rel="stylesheet" href="css/tw.css" />
-    <link rel="stylesheet" href="css/common.css" />
-    <!-- ⚡️ FOUC 방지: 초기 테마 적용 -->
+    <link rel="stylesheet" href="css/tw-input.css" />
+
+    <script>
+      window.CF_TURNSTILE_SITEKEY = "0x4AAAAAABtE3GFMWF3_Fd4E";
+    </script>
+    <script type="module" src="js/components/firebase-config.js"></script>
+    <script type="module" src="js/dashboard.js" defer></script>
     <script>
       (function () {
         try {
@@ -22,171 +45,259 @@
         } catch (e) {}
       })();
     </script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
-    />
-    <link
-      rel="stylesheet"
-      as="style"
-      crossorigin
-      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
-    />
-    <script>
-      window.CF_TURNSTILE_SITEKEY = "0x4AAAAAABtE3GFMWF3_Fd4E";
-    </script>
-    <!-- firebase parts 삽입 -->
-    <script type="module" src="js/components/firebase-config.js"></script>
-    <!-- 개별 css, js 삽입 -->
-    <link rel="stylesheet" href="css/dashboard.css" />
-    <script type="module" src="js/dashboard.js" defer></script>
   </head>
+
   <body>
     <div id="header-container"></div>
-    <main>
-      <div
-        class="card card--clickable"
-        id="visit-card"
-        tabindex="0"
-        aria-label="이용 고객 수 상세 보기"
-      >
-        <h2><i class="fas fa-user-group"></i> 이용 고객 수</h2>
-        <div class="today-visit-info">
-          <span id="visit-count">-명</span>
-          <div>전일 대비</div>
-          <span id="visit-change">-명 (-%)</span>
-          <canvas id="visit-chart" height="150"></canvas>
+
+    <main class="main-layout">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <div
+          class="card flex flex-col group cursor-pointer"
+          id="visit-card"
+          tabindex="0"
+        >
+          <div class="flex items-center gap-3 mb-6">
+            <div
+              class="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary"
+            >
+              <i class="fas fa-user-group text-lg"></i>
+            </div>
+            <h2 class="text-[17px] font-bold text-slate-900 dark:text-white">
+              이용 고객 수
+            </h2>
+          </div>
+          <div class="mb-2">
+            <span
+              id="visit-count"
+              class="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight"
+              >-명</span
+            >
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-[13px] font-medium text-slate-500"
+                >전일 대비</span
+              >
+              <span id="visit-change" class="text-[13px] font-bold">-</span>
+            </div>
+          </div>
+          <div class="mt-auto h-[160px] w-full">
+            <canvas id="visit-chart"></canvas>
+          </div>
         </div>
-      </div>
 
-      <div
-        class="card card--clickable"
-        id="item-card"
-        tabindex="0"
-        aria-label="오늘 제공된 물품 수 상세 보기"
-      >
-        <h2><i class="fas fa-boxes-stacked"></i> 오늘 제공된 물품 수</h2>
-        <div class="today-item-info">
-          <span id="item-total">총 -개</span>
-          <div>전일 대비</div>
-          <div id="item-change">-개 (-%)</div>
-          <ul id="top-items-list"></ul>
+        <div
+          class="card flex flex-col group cursor-pointer"
+          id="item-card"
+          tabindex="0"
+        >
+          <div class="flex items-center gap-3 mb-6">
+            <div
+              class="flex items-center justify-center w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400"
+            >
+              <i class="fas fa-boxes-stacked text-lg"></i>
+            </div>
+            <h2 class="text-[17px] font-bold text-slate-900 dark:text-white">
+              오늘 제공된 물품
+            </h2>
+          </div>
+          <div class="mb-6">
+            <span
+              id="item-total"
+              class="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight"
+              >총 -개</span
+            >
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-[13px] font-medium text-slate-500"
+                >전일 대비</span
+              >
+              <div id="item-change" class="text-[13px] font-bold">-</div>
+            </div>
+          </div>
+          <div class="mt-auto">
+            <ul id="top-items-list" class="space-y-2"></ul>
+          </div>
         </div>
-      </div>
 
-      <div
-        class="card card--clickable"
-        id="recent-product-card"
-        tabindex="0"
-        aria-label="등록/수정된 상품 상세 보기"
-      >
-        <h2><i class="fas fa-clock-rotate-left"></i> 등록/수정된 상품</h2>
-        <ul id="recent-products-list" class="simple-list"></ul>
-      </div>
+        <div
+          class="card flex flex-col group cursor-pointer"
+          id="recent-product-card"
+          tabindex="0"
+        >
+          <div class="flex items-center gap-3 mb-6">
+            <div
+              class="flex items-center justify-center w-10 h-10 rounded-xl bg-green-500/10 text-green-600 dark:text-green-400"
+            >
+              <i class="fas fa-clock-rotate-left text-lg"></i>
+            </div>
+            <h2 class="text-[17px] font-bold text-slate-900 dark:text-white">
+              최근 상품 내역
+            </h2>
+          </div>
+          <ul
+            id="recent-products-list"
+            class="flex flex-col gap-2 overflow-y-auto max-h-[280px]"
+          ></ul>
+        </div>
 
-      <div
-        class="card card--clickable"
-        id="expiry-base-card"
-        tabindex="0"
-        aria-label="임박 기준일 안내 상세 보기"
-      >
-        <h2><i class="fas fa-calendar-xmark"></i> 임박 기준일 안내</h2>
-        <div class="expiry-info">
-          <span>TODAY</span>
-          <div id="today-date">-</div>
-          <span>제과류 / 음료수</span>
-          <div id="expiry-snack-drink" class="expiry-date">-</div>
-          <span>식료품 / 생필품</span>
-          <div id="expiry-food-daily" class="expiry-date">-</div>
+        <div
+          class="card flex flex-col group cursor-pointer"
+          id="expiry-base-card"
+          tabindex="0"
+        >
+          <div class="flex items-center gap-3 mb-6">
+            <div
+              class="flex items-center justify-center w-10 h-10 rounded-xl bg-danger/10 text-danger"
+            >
+              <i class="fas fa-calendar-xmark text-lg"></i>
+            </div>
+            <h2 class="text-[17px] font-bold text-slate-900 dark:text-white">
+              임박 기준일
+            </h2>
+          </div>
+          <div class="space-y-5">
+            <div>
+              <span
+                class="text-xs font-bold text-slate-400 uppercase tracking-widest"
+                >Today</span
+              >
+              <div
+                id="today-date"
+                class="text-xl font-bold text-slate-800 dark:text-white mt-1"
+              >
+                -
+              </div>
+            </div>
+            <div class="h-px bg-slate-100 dark:bg-slate-800"></div>
+            <div class="space-y-4">
+              <div>
+                <span class="block text-sm font-bold text-slate-500 mb-1.5"
+                  >제과류 / 음료수</span
+                >
+                <span
+                  id="expiry-snack-drink"
+                  class="badge badge-lg badge-weak-danger"
+                  >-</span
+                >
+              </div>
+              <div>
+                <span class="block text-sm font-bold text-slate-500 mb-1.5"
+                  >식료품 / 생필품</span
+                >
+                <span
+                  id="expiry-food-daily"
+                  class="badge badge-lg badge-weak-danger"
+                  >-</span
+                >
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </main>
 
-    <!-- 날짜 계산기 모달: 공통 모달 구조 기반 -->
-    <div
-      id="expiry-modal"
-      class="modal hidden modal--expiry"
-      aria-hidden="true"
-    >
-      <div
-        class="modal-content"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="expiry-modal-title"
-      >
-        <div class="modal-header">
-          <h3 id="expiry-modal-title">
-            <i class="fas fa-calendar-day" aria-hidden="true"></i>
+    <div id="expiry-modal" class="modal-overlay hidden">
+      <div class="modal-content max-w-md">
+        <div class="p-8 pb-0 text-center">
+          <h4
+            class="text-[20px] font-bold text-slate-900 dark:text-white leading-tight"
+          >
             날짜 계산기
-          </h3>
+          </h4>
+          <p class="text-sm text-slate-500 mt-2">
+            기준 날짜를 선택하여 경과일을 계산합니다.
+          </p>
         </div>
-
-        <div class="modal-body">
-          <!-- 기준일 + 빠른 선택 -->
-          <div class="expiry-row">
-            <label for="expiry-base-date" class="expiry-label">기준 날짜</label>
-            <div class="expiry-input-wrap">
-              <i class="fas fa-calendar-alt" aria-hidden="true"></i>
-              <input type="date" id="expiry-base-date" />
+        <div class="p-8 space-y-6">
+          <div class="field-group">
+            <label class="field-label">기준 날짜</label>
+            <div class="flex gap-2">
+              <div class="field-box flex-1">
+                <i class="fas fa-calendar-alt ml-4 text-slate-400"></i>
+                <input
+                  type="text"
+                  id="expiry-base-date"
+                  class="field-input font-sans !pl-2"
+                  readonly
+                />
+              </div>
               <button
-                type="button"
                 id="expiry-today-btn"
-                class="btn btn-secondary btn-pill"
+                class="btn btn-md btn-primary-weak whitespace-nowrap px-6"
               >
                 오늘
               </button>
             </div>
           </div>
-
-          <!-- 기본 두 기준: 항상 표시 -->
-          <div class="expiry-grid">
-            <div class="expiry-card">
-              <div class="expiry-card__title">제과/음료 (+20일)</div>
-              <div class="expiry-card__value" id="expiry-20">-</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div
+              class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700"
+            >
+              <p class="text-[11px] font-bold text-primary mb-1 uppercase">
+                제과/음료 (+20일)
+              </p>
+              <div
+                id="expiry-20"
+                class="text-[17px] font-bold text-slate-900 dark:text-white"
+              >
+                -
+              </div>
             </div>
-            <div class="expiry-card">
-              <div class="expiry-card__title">식료품/생필품 (+30일)</div>
-              <div class="expiry-card__value" id="expiry-30">-</div>
+
+            <div
+              class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700"
+            >
+              <p class="text-[11px] font-bold text-purple-500 mb-1 uppercase">
+                식료/생필 (+30일)
+              </p>
+              <div
+                id="expiry-30"
+                class="text-[17px] font-bold text-slate-900 dark:text-white"
+              >
+                -
+              </div>
             </div>
           </div>
 
-          <!-- 사용자 지정: 접었다 펼치기 -->
-          <details id="expiry-custom-details" class="expiry-details">
-            <summary class="expiry-summary">
-              <i class="fas fa-sliders-h" aria-hidden="true"></i> 사용자
-              지정(+N일) 계산
+          <details
+            class="group bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700"
+          >
+            <summary
+              class="flex items-center justify-between p-4 cursor-pointer list-none font-bold text-slate-700 dark:text-slate-300"
+            >
+              <span class="text-[14px]">사용자 지정 계산</span>
+              <i
+                class="fas fa-chevron-down text-xs transition-transform group-open:rotate-180"
+              ></i>
             </summary>
-            <div class="expiry-row">
-              <label for="expiry-custom-days" class="expiry-label"
-                >추가 일수</label
-              >
-              <div class="expiry-input-wrap expiry-input-wrap--no-icon">
-                <input
-                  type="number"
-                  id="expiry-custom-days"
-                  placeholder="예: 14"
-                  min="0"
-                />
+            <div class="p-4 pt-0">
+              <div class="flex gap-2">
+                <div class="field-box flex-1 mb-0">
+                  <input
+                    type="number"
+                    id="expiry-custom-days"
+                    class="field-input"
+                    placeholder="일수 입력"
+                  />
+                </div>
                 <button
-                  type="button"
                   id="expiry-calc-btn"
-                  class="btn btn-primary"
+                  class="btn btn-md btn-primary px-6"
                 >
                   계산
                 </button>
               </div>
-            </div>
-            <div class="expiry-result">
-              <div class="expiry-result__label">사용자 지정 결과</div>
-              <div class="expiry-result__value" id="expiry-custom-result">
-                -
-              </div>
+              <div
+                id="expiry-custom-result"
+                class="mt-4 text-center text-lg font-bold text-primary"
+              ></div>
             </div>
           </details>
         </div>
-
-        <div class="modal-footer modal-button">
-          <button type="button" id="expiry-modal-close" class="btn">
+        <div class="p-6 pt-0 flex gap-3">
+          <button
+            id="expiry-modal-close"
+            class="btn btn-md btn-light flex-1 !rounded-2xl"
+          >
             닫기
           </button>
         </div>
@@ -194,8 +305,6 @@
     </div>
 
     <div id="footer-container"></div>
-
-    <!-- header footer 삽입 -->
     <script type="module">
       import { loadHeader, loadFooter } from "./js/components/comp.js";
       loadHeader("header-container");
