@@ -19,12 +19,21 @@ import {
 
 import { logEvent } from "../components/comp.js";
 
-// ===== Provision/Visit Key Helpers (same rule as provision.js) =====
+// ===== Provision/Visit Key Helpers (force KST, same rule as provision.js) =====
+// 런타임(브라우저/서버)의 타임존과 무관하게 "한국시간(KST)" 기준으로 날짜키를 생성한다.
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+function toKstDateParts(date) {
+  const k = new Date(date.getTime() + KST_OFFSET_MS);
+  return {
+    y: k.getUTCFullYear(),
+    m: k.getUTCMonth() + 1,
+    d: k.getUTCDate(),
+  };
+}
 function toDayNumber(d) {
-  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  return (
-    base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate()
-  );
+  // ✅ 강제 KST 기준 YYYYMMDD
+  const { y, m, d: day } = toKstDateParts(d);
+  return y * 10000 + m * 100 + day;
 }
 function toDateKey(dayNum) {
   const y = Math.floor(dayNum / 10000);
@@ -33,8 +42,7 @@ function toDateKey(dayNum) {
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 function toPeriodKey(date) {
-  const y = date.getFullYear();
-  const m = date.getMonth() + 1;
+  const { y, m } = toKstDateParts(date);
   const startY = m >= 3 ? y : y - 1;
   const endY = startY + 1;
   return `${String(startY).slice(2)}-${String(endY).slice(2)}`;

@@ -51,6 +51,36 @@ function toPeriodKey(date) {
   return `${String(startY).slice(2)}-${String(endY).slice(2)}`;
 }
 
+// ===== KST 기준 날짜 키 유틸 =====
+// 브라우저/서버 런타임 타임존과 무관하게 "한국시간 기준" YYYY-MM-DD를 안정적으로 생성
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+function toKstDateParts(date) {
+  const k = new Date(date.getTime() + KST_OFFSET_MS);
+  return {
+    y: k.getUTCFullYear(),
+    m: k.getUTCMonth() + 1,
+    d: k.getUTCDate(),
+  };
+}
+function toKstDayNumber(date) {
+  const { y, m, d } = toKstDateParts(date);
+  return y * 10000 + m * 100 + d; // YYYYMMDD (KST)
+}
+function toKstDateKey(date) {
+  const { y, m, d } = toKstDateParts(date);
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+function toKstMonthKey(date) {
+  const { y, m } = toKstDateParts(date);
+  return `${y}-${String(m).padStart(2, "0")}`; // YYYY-MM
+}
+function toKstPeriodKey(date) {
+  const { y, m } = toKstDateParts(date);
+  const startY = m >= 3 ? y : y - 1;
+  const endY = startY + 1;
+  return `${String(startY).slice(2)}-${String(endY).slice(2)}`;
+}
+
 // 방문/일일 카운터 기록 (규칙 준수: /visits는 허용 키로 '신규 생성'만, 그때만 /stats_daily +1)
 async function ensureVisitAndDailyCounter(
   db,
@@ -59,9 +89,9 @@ async function ensureVisitAndDailyCounter(
   atDate,
   items = [], // ✅ (추가) 이번 제공 전표의 품목 배열: [{id,name,category,price,quantity}, ...]
 ) {
-  const day = toDayNumber(atDate); // 예: 20250915 (정수)
+  const day = toKstDayNumber(atDate); // 예: 20250915 (KST 기준 YYYYMMDD)
   const dateKey = toDateKey(day); // 예: '2025-09-15'
-  const periodKey = toPeriodKey(atDate); // 예: '25-26'
+  const periodKey = toKstPeriodKey(atDate); // 예: '25-26' (KST)
   const visitId = `${dateKey}_${customerId}`; // 1일 1고객 1문서
   const visitRef = doc(db, "visits", visitId);
   const statsRef = doc(db, "stats_daily", String(day)); // 'YYYYMMDD'
@@ -1341,10 +1371,8 @@ document
       const snap = await getDoc(doc(db, "customers", selectedCandidate.id));
       const data = snap.exists() ? snap.data() : {};
       const now = new Date();
-      const currentMonth = now.toISOString().slice(0, 7); // YYYY-MM
-      const year =
-        now.getMonth() + 1 < 3 ? now.getFullYear() - 1 : now.getFullYear();
-      const periodKey = `${String(year).slice(2)}-${String(year + 1).slice(2)}`; // 예: 24-25
+      const currentMonth = toKstMonthKey(now); // YYYY-MM (KST)
+      const periodKey = toKstPeriodKey(now); // 예: 24-25 (KST)
       const visitArr = (data.visits && data.visits[periodKey]) || [];
       const alreadyThisMonth =
         Array.isArray(visitArr) &&
@@ -2397,10 +2425,8 @@ submitBtn.addEventListener("click", async () => {
   }
 
   const now = new Date();
-  const year =
-    now.getMonth() + 1 < 3 ? now.getFullYear() - 1 : now.getFullYear();
-  const periodKey = `${String(year).slice(2)}-${String(year + 1).slice(2)}`; // 예: 24-25
-  const visitDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  const periodKey = toKstPeriodKey(now); // 예: 24-25 (KST)
+  const visitDate = toKstDateKey(now); // YYYY-MM-DD (KST)
   const quarterKey = getQuarterKey(now);
   const lifelove = lifeloveCheckbox.checked;
 
@@ -2751,7 +2777,7 @@ exchangeHistoryTbody?.addEventListener("click", async (e) => {
 function renderExchangeList() {
   exTableBody.innerHTML = "";
 
-  // 1. 빈 상태 (Empty State) - TDS 스타일
+  // 1. 빈 상태 처리
   if (exchangeItems.length === 0) {
     renderEmptyState(
       exTableBody,
@@ -2760,58 +2786,42 @@ function renderExchangeList() {
       "위 내역에서 선택하거나 상품을 추가하세요",
     );
 
-    // 합계 초기화 (기존 로직 유지)
-    if (exOriginalEl)
-      exOriginalEl.textContent = exchangeOriginalTotal.toLocaleString();
-    if (exNewEl) exNewEl.textContent = "0";
-    if (exWarnEl) toggleFade(exWarnEl, false);
+    // 빈 상태일 때도 합계 UI 갱신 (0원 처리 및 경고 끄기)
+    updateExchangeTotalUI();
     return;
   }
 
-  // 2. 교환 목록 렌더링
+  // 2. 리스트 렌더링
   exchangeItems.forEach((item, idx) => {
     const tr = document.createElement("tr");
     const totalPrice = (item.quantity || 0) * (item.price || 0);
 
-    // [TDS] 행 스타일
     tr.className =
       "hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-all border-b border-slate-100 dark:border-slate-700/50 last:border-0 group";
 
     tr.innerHTML = `
       <td class="py-4 px-5">
         <div class="flex flex-col">
-          <span class="font-bold text-slate-800 dark:text-slate-100">${
-            item.name
-          }</span>
-          <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium uppercase mt-0.5">${
-            item.category || "미분류"
-          }</span>
+          <span class="font-bold text-slate-800 dark:text-slate-100">${item.name}</span>
+          <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium uppercase mt-0.5">${item.category || "미분류"}</span>
         </div>
       </td>
       <td class="py-4 px-5 text-center">
         <div class="numeric-spinner mx-auto">
-          <button class="spinner-btn ex-dec" data-idx="${idx}" ${
-            item.quantity <= 1 ? "disabled" : ""
-          }>
+          <button class="spinner-btn ex-dec" data-idx="${idx}" ${item.quantity <= 1 ? "disabled" : ""}>
             <i class="fas fa-minus text-sm pointer-events-none"></i>
           </button>
           
           <div class="spinner-value-box">
-            <input type="number" class="spinner-input" value="${
-              item.quantity || 1
-            }" readonly />
+            <input type="number" class="spinner-input" value="${item.quantity || 1}" readonly />
           </div>
           
-          <button class="spinner-btn ex-inc" data-idx="${idx}" ${
-            item.quantity >= 30 ? "disabled" : ""
-          }>
+          <button class="spinner-btn ex-inc" data-idx="${idx}" ${item.quantity >= 30 ? "disabled" : ""}>
             <i class="fas fa-plus text-sm pointer-events-none"></i>
           </button>
         </div>
       </td>
-      <td class="py-4 px-5 text-center text-slate-500 dark:text-slate-400 font-bold text-[15px]">${
-        item.price || 0
-      }</td>
+      <td class="py-4 px-5 text-center text-slate-500 dark:text-slate-400 font-bold text-[15px]">${item.price || 0}</td>
       <td class="py-4 px-5 text-center">
         <span class="text-slate-900 dark:text-white font-black text-lg tracking-tight">${totalPrice.toLocaleString()}</span>
       </td>
@@ -2822,38 +2832,23 @@ function renderExchangeList() {
       </td>
     `;
 
-    // 데이터 속성 바인딩
+    // 데이터 바인딩
     tr.dataset.id = item.id;
     tr.dataset.category = item.category || "";
     tr.dataset.price = String(item.price ?? "");
     exTableBody.appendChild(tr);
 
-    // [핵심] 롱프레스 이벤트 연결 (교환 전용 로직 사용)
+    // 롱프레스 이벤트
     const decBtn = tr.querySelector(".ex-dec");
     const incBtn = tr.querySelector(".ex-inc");
-
     if (decBtn && incBtn) {
-      // 이제 전체 렌더링을 유발하지 않으므로 버튼이 사라지지 않아 이벤트가 안전함
       setupLongPress(decBtn, () => changeExchangeQuantity(idx, -1));
       setupLongPress(incBtn, () => changeExchangeQuantity(idx, 1));
     }
   });
 
-  // 합계 계산 및 경고창 제어
-  const newTotal = exchangeItems.reduce(
-    (a, b) => a + (b.quantity || 0) * (b.price || 0),
-    0,
-  );
-
-  if (exOriginalEl)
-    exOriginalEl.textContent = exchangeOriginalTotal.toLocaleString();
-  if (exNewEl) exNewEl.textContent = newTotal.toLocaleString();
-
-  // 경고창: 교환 합계가 원본보다 크거나 30을 넘으면 경고
-  const showWarn = newTotal > exchangeOriginalTotal || newTotal > 30;
-  if (exWarnEl) {
-    toggleFade(exWarnEl, showWarn);
-  }
+  // [핵심] 별도 계산 로직을 제거하고 통합 함수 호출 (빈 뱃지 문제 해결)
+  updateExchangeTotalUI();
 
   applyCategoryViolationHighlightFor(exchangeItems, exTableBody);
   saveExchangeAutoSave();
@@ -2908,16 +2903,15 @@ function updateExchangeRowUI(idx) {
   const item = exchangeItems[idx];
   if (!item) return;
 
-  const tr = exTableBody.children[idx]; // 또는 document.getElementById 등 사용 가능
+  const tr = exTableBody.children[idx];
   if (!tr) return;
 
-  // 수량 인풋 업데이트
+  // 1. 수량 인풋 업데이트
   const qtyInput = tr.querySelector(".spinner-input");
   if (qtyInput) qtyInput.value = item.quantity;
 
-  // 소계 업데이트
-  // (제공 탭과 달리 ID가 없을 수 있으므로 querySelector 사용)
-  const totalTd = tr.children[3]; // 4번째 컬럼(소계)
+  // 2. 소계 업데이트
+  const totalTd = tr.children[3];
   if (totalTd) {
     const span = totalTd.querySelector("span");
     if (span)
@@ -2926,14 +2920,18 @@ function updateExchangeRowUI(idx) {
       ).toLocaleString();
   }
 
-  // 버튼 상태 (Disabled) 업데이트
+  // 3. 버튼 상태 업데이트
   const decBtn = tr.querySelector(".ex-dec");
   const incBtn = tr.querySelector(".ex-inc");
   if (decBtn) decBtn.disabled = item.quantity <= 1;
   if (incBtn) incBtn.disabled = item.quantity >= 30;
 
-  // 합계 재계산
+  // 4. 합계 재계산
   updateExchangeTotalUI();
+
+  // ✅ [추가] 수량 변경 시 제한 위반 여부(빨간줄) 즉시 재검사 및 반영
+  applyCategoryViolationHighlightFor(exchangeItems, exTableBody);
+
   saveExchangeAutoSave();
 }
 
@@ -2949,8 +2947,24 @@ function updateExchangeTotalUI() {
   if (exNewEl) exNewEl.textContent = newTotal.toLocaleString();
 
   // 경고창 제어
-  const showWarn = newTotal > exchangeOriginalTotal || newTotal > 30;
+  let showWarn = false;
+  let warnMsg = "";
+
+  if (newTotal > 30) {
+    showWarn = true;
+    warnMsg = `<i class="fas fa-circle-exclamation mr-1.5"></i> 교환 불가 / 30P 초과`;
+  } else if (newTotal < exchangeOriginalTotal) {
+    showWarn = true;
+    warnMsg = `<i class="fas fa-arrow-trend-down mr-1.5"></i> 교환 불가 / 기존 합계 미달`;
+  }
+
   if (exWarnEl) {
+    // [핵심] 경고를 보여줄 때만 텍스트를 업데이트합니다.
+    // 숨길 때는 텍스트를 그대로 두어야 fade-out 애니메이션이 자연스럽게 보입니다.
+    if (showWarn) {
+      const badge = exWarnEl.querySelector(".badge");
+      if (badge) badge.innerHTML = warnMsg;
+    }
     toggleFade(exWarnEl, showWarn);
   }
 }
@@ -3067,16 +3081,28 @@ exSubmitBtn?.addEventListener("click", async () => {
     (a, b) => a + (b.quantity || 0) * (b.price || 0),
     0,
   );
-  if (newTotal > 30) return showToast("포인트 초과(최대 30)", true);
-  if (newTotal > exchangeOriginalTotal)
+
+  // 1. 30점 초과 차단
+  if (newTotal > 30) {
+    return showToast("총 포인트는 30점을 초과할 수 없습니다.", true);
+  }
+
+  // 2. 기존 합계 미달 차단
+  if (newTotal < exchangeOriginalTotal) {
     return showToast(
-      "교환 합계는 기존 합계 이내로만 가능합니다(환불 없음).",
+      `최소 ${exchangeOriginalTotal}점 이상이어야 합니다. (기존 합계 미달)`,
       true,
     );
+  }
 
+  // Confirm 메시지
   const ok = await openConfirm({
     title: "교환 확정",
-    message: `기존 합계 ${exchangeOriginalTotal}p → 교환 합계 ${newTotal}p\n환불은 없습니다. 진행할까요?`,
+    message: `기존 합계 ${exchangeOriginalTotal}p → 교환 합계 ${newTotal}p<br>
+              <span class="text-xs text-slate-500">(차액 ${
+                newTotal - exchangeOriginalTotal
+              }p 추가 사용)</span><br>
+              교환을 진행하시겠습니까?`,
     confirmText: "교환",
     cancelText: "취소",
   });
