@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TDS Full Components Master Gallery</title>
+
+    <link
+      rel="stylesheet"
+      as="style"
+      crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <link rel="stylesheet" href="css/tw.css" />
+    <link rel="stylesheet" href="css/tw-input.css" />
+  </head>
+
+  <body
+    class="bg-grey-100 dark:bg-slate-900 transition-colors duration-200 p-6 sm:p-12"
+  >
+    <main class="max-w-6xl mx-auto space-y-16">
+      <h1 class="text-4xl font-black text-slate-900 dark:text-white">
+        TDS Component Master
+      </h1>
+
+      <section class="space-y-8">
+        <h2
+          class="text-2xl font-bold text-slate-900 dark:text-white border-l-4 border-primary pl-4"
+        >
+          1. Buttons
+        </h2>
+
+        <div class="card space-y-10">
+          <div>
+            <h3
+              class="text-xs font-bold text-primary mb-4 uppercase tracking-widest"
+            >
+              Size Variations
+            </h3>
+            <div class="flex flex-wrap items-end gap-4">
+              <button class="btn btn-primary btn-lg">Large (56px)</button>
+              <button class="btn btn-primary btn-md">Medium (48px)</button>
+              <button class="btn btn-primary btn-sm">Small (32px)</button>
+              <button class="btn btn-primary btn-xs">Extra Small (26px)</button>
+            </div>
+          </div>
+
+          <div>
+            <h3
+              class="text-xs font-bold text-primary mb-4 uppercase tracking-widest"
+            >
+              Solid / Fill Colors
+            </h3>
+            <div class="flex flex-wrap gap-4">
+              <button class="btn btn-md btn-primary">btn-primary</button>
+              <button class="btn btn-md btn-danger">btn-danger</button>
+              <button class="btn btn-md btn-dark">btn-dark</button>
+              <button class="btn btn-md btn-light">btn-light</button>
+            </div>
+          </div>
+
+          <div>
+            <h3
+              class="text-xs font-bold text-primary mb-4 uppercase tracking-widest"
+            >
+              Weak / Tonal Colors
+            </h3>
+            <div class="flex flex-wrap gap-4">
+              <button class="btn btn-md btn-primary-weak">
+                btn-primary-weak
+              </button>
+              <button class="btn btn-md btn-danger-weak">
+                btn-danger-weak
+              </button>
+              <button class="btn btn-md btn-dark-weak">btn-dark-weak</button>
+              <button class="btn btn-md btn-light-weak">btn-light-weak</button>
+            </div>
+          </div>
+
+          <div>
+            <h3
+              class="text-xs font-bold text-primary mb-4 uppercase tracking-widest"
+            >
+              Ghost & Outline
+            </h3>
+            <div class="flex flex-wrap gap-4">
+              <button class="btn btn-md btn-ghost">btn-ghost</button>
+              <button class="btn btn-md btn-outline">btn-outline</button>
+            </div>
+          </div>
+
+          <div>
+            <h3
+              class="text-xs font-bold text-primary mb-4 uppercase tracking-widest"
+            >
+              Button States
+            </h3>
+            <div class="flex flex-wrap gap-4">
+              <button class="btn btn-md btn-primary">
+                <i class="fas fa-save mr-2"></i>Icon Attached
+              </button>
+              <button class="btn btn-md btn-primary" disabled>
+                Disabled State
+              </button>
+              <button class="btn btn-md btn-primary btn-full">
+                Full Width Button (btn-full)
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-6">
+        <h2
+          class="text-2xl font-bold text-slate-900 dark:text-white border-l-4 border-primary pl-4"
+        >
+          2. TextFields (Box Style)
+        </h2>
+        <div class="card space-y-8">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="field-group">
+              <label class="field-label">Default Text Field</label>
+              <div class="field-box">
+                <input
+                  type="text"
+                  class="field-input"
+                  placeholder="이름을 입력하세요"
+                />
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">With Suffix Component</label>
+              <div class="field-box">
+                <input type="number" class="field-input" placeholder="0" />
+                <span class="field-suffix font-bold">포인트</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="field-group is-error">
+              <label class="field-label">Error State</label>
+              <div class="field-box">
+                <input type="text" class="field-input" value="잘못된 바코드" />
+                <div class="field-right">
+                  <i class="fas fa-exclamation-circle text-danger mr-2"></i>
+                </div>
+              </div>
+              <p class="field-error-text">13자리 숫자를 입력해 주세요.</p>
+            </div>
+            <div class="field-group is-disabled">
+              <label class="field-label">Disabled State</label>
+              <div class="field-box">
+                <div class="field-prefix"><i class="fas fa-lock"></i></div>
+                <input
+                  type="text"
+                  class="field-input"
+                  value="수정할 수 없음"
+                  disabled
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-6">
+        <h2
+          class="text-2xl font-bold text-slate-900 dark:text-white border-l-4 border-primary pl-4"
+        >
+          3. Checkbox & Radio
+        </h2>
+        <div class="card flex flex-wrap gap-16">
+          <div class="space-y-6">
+            <h3
+              class="text-xs font-bold text-primary uppercase tracking-widest text-center"
+            >
+              Checkbox
+            </h3>
+            <div class="flex flex-col gap-4">
+              <label class="flex items-center gap-3 cursor-pointer group">
+                <input type="checkbox" class="input-toss-checkbox" checked />
+                <span
+                  class="font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors"
+                  >Checked</span
+                >
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer group">
+                <input type="checkbox" class="input-toss-checkbox" />
+                <span
+                  class="font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors"
+                  >Unchecked</span
+                >
+              </label>
+            </div>
+          </div>
+          <div class="space-y-6">
+            <h3
+              class="text-xs font-bold text-primary uppercase tracking-widest text-center"
+            >
+              Radio Group
+            </h3>
+            <div class="flex flex-col gap-4">
+              <label class="flex items-center gap-3 cursor-pointer group">
+                <input
+                  type="radio"
+                  name="master-r1"
+                  class="input-toss-radio"
+                  checked
+                />
+                <span
+                  class="font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors"
+                  >Option Alpha</span
+                >
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer group">
+                <input type="radio" name="master-r1" class="input-toss-radio" />
+                <span
+                  class="font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors"
+                  >Option Beta</span
+                >
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-6">
+        <h2
+          class="text-2xl font-bold text-slate-900 dark:text-white border-l-4 border-primary pl-4"
+        >
+          4. Card & Table (TDS List Concept)
+        </h2>
+        <div class="card">
+          <div class="flex justify-between items-center mb-8">
+            <h3 class="!mb-0 text-xl font-black text-slate-900 dark:text-white">
+              최근 거래 기록
+            </h3>
+            <div class="flex gap-2">
+              <button class="btn btn-sm btn-primary-weak">필터</button>
+              <button class="btn btn-sm btn-outline">내보내기</button>
+            </div>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th class="w-16 text-center">No.</th>
+                <th>상품 내역</th>
+                <th class="text-center">상태</th>
+                <th class="text-right">결제 금액</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="text-center text-slate-400">1</td>
+                <td>
+                  <div class="font-bold text-slate-900 dark:text-white">
+                    농심 컵라면 외 2건
+                  </div>
+                  <div class="text-xs text-slate-500">2026.01.13 14:30</div>
+                </td>
+                <td class="text-center"><span class="badge">완료</span></td>
+                <td class="text-right font-black text-primary text-lg">
+                  4,500원
+                </td>
+              </tr>
+              <tr>
+                <td class="text-center text-slate-400">2</td>
+                <td>
+                  <div class="font-bold text-slate-900 dark:text-white">
+                    코카콜라 500ml
+                  </div>
+                  <div class="text-xs text-slate-500">2026.01.13 14:15</div>
+                </td>
+                <td class="text-center">
+                  <span class="badge bg-danger-50 text-danger dark:bg-danger/10"
+                    >취소</span
+                  >
+                </td>
+                <td class="text-right font-black text-primary text-lg">
+                  2,000원
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="space-y-6">
+        <h2
+          class="text-2xl font-bold text-slate-900 dark:text-white border-l-4 border-primary pl-4"
+        >
+          5. Tabs (Segmented Control)
+        </h2>
+
+        <div class="card space-y-8">
+          <div>
+            <h3
+              class="text-xs font-bold text-primary mb-4 uppercase tracking-widest"
+            >
+              Icon + Text Tabs
+            </h3>
+            <div class="tabs-segmented">
+              <div class="tab-item is-active">
+                <i class="fas fa-th-large"></i>
+                <span>대시보드</span>
+              </div>
+              <div class="tab-item">
+                <i class="fas fa-list"></i>
+                <span>목록보기</span>
+              </div>
+              <div class="tab-item">
+                <i class="fas fa-chart-line"></i>
+                <span>통계정보</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3
+              class="text-xs font-bold text-primary mb-4 uppercase tracking-widest"
+            >
+              Full Width Tabs
+            </h3>
+            <div class="tabs-segmented-full">
+              <div class="tab-item is-active">일간</div>
+              <div class="tab-item">주간</div>
+              <div class="tab-item">월간</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-6">
+        <h2
+          class="text-2xl font-bold text-slate-900 dark:text-white border-l-4 border-primary pl-4"
+        >
+          6. Badges
+        </h2>
+
+        <div class="card space-y-10">
+          <div>
+            <h3
+              class="text-xs font-bold text-primary mb-4 uppercase tracking-widest"
+            >
+              Size Variants
+            </h3>
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="badge badge-xs badge-fill-primary">xsmall</span>
+              <span class="badge badge-sm badge-fill-primary">small</span>
+              <span class="badge badge-md badge-fill-primary">medium</span>
+              <span class="badge badge-lg badge-fill-primary">large</span>
+            </div>
+          </div>
+
+          <div>
+            <h3
+              class="text-xs font-bold text-primary mb-4 uppercase tracking-widest"
+            >
+              Variant: Fill (Strong)
+            </h3>
+            <div class="flex flex-wrap gap-3">
+              <span class="badge badge-md badge-fill-primary">Primary</span>
+              <span class="badge badge-md badge-fill-danger">Danger</span>
+              <span class="badge badge-md badge-fill-success">Success</span>
+              <span class="badge badge-md badge-fill-warning">Warning</span>
+              <span class="badge badge-md badge-fill-grey">Grey</span>
+            </div>
+          </div>
+
+          <div>
+            <h3
+              class="text-xs font-bold text-primary mb-4 uppercase tracking-widest"
+            >
+              Variant: Weak (Soft)
+            </h3>
+            <div class="flex flex-wrap gap-3">
+              <span class="badge badge-md badge-weak-primary">Primary</span>
+              <span class="badge badge-md badge-weak-danger">Danger</span>
+              <span class="badge badge-md badge-weak-success">Success</span>
+              <span class="badge badge-md badge-weak-warning">Warning</span>
+              <span class="badge badge-md badge-weak-grey">Grey</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-6">
+        <h2
+          class="text-2xl font-bold text-slate-900 dark:text-white border-l-4 border-primary pl-4"
+        >
+          7. Modal Animation Test
+        </h2>
+
+        <div class="card p-10 flex flex-col items-center justify-center gap-4">
+          <p class="text-slate-500 text-sm mb-2">
+            아래 버튼을 클릭하여 애니메이션을 확인하세요.
+          </p>
+          <div class="flex gap-3">
+            <button class="btn btn-md btn-dark" onclick="openTdsModal()">
+              기본 모달 열기
+            </button>
+            <button
+              class="btn btn-md btn-danger-weak"
+              onclick="openDeleteModal()"
+            >
+              경고 모달 열기
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-6">
+        <h2
+          class="text-2xl font-bold text-slate-900 dark:text-white border-l-4 border-primary pl-4"
+        >
+          8. Autocomplete & Lists
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="field-group relative">
+            <label class="field-label">자동완성 검색 (Autocomplete)</label>
+            <div class="field-box">
+              <input type="text" class="field-input" value="농심" />
+            </div>
+            <div class="autocomplete-list">
+              <div class="is-hovered">농심 신라면 컵</div>
+              <div>농심 새우깡</div>
+              <div>농심 짜파게티</div>
+              <div>농심 안성탕면</div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <h3
+              class="text-xs font-bold text-primary uppercase tracking-widest"
+            >
+              List Item States
+            </h3>
+            <ul class="visitor-list list-none p-0 space-y-2">
+              <li class="active">
+                <span class="font-bold">선택된 방문자</span>
+                <span class="badge badge-sm badge-fill-primary">Active</span>
+              </li>
+              <li>
+                <span class="font-bold">일반 방문자</span>
+                <span class="text-slate-400 text-sm">14:00 방문</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-6">
+        <h2
+          class="text-2xl font-bold text-slate-900 dark:text-white border-l-4 border-primary pl-4"
+        >
+          9. Toast Messages
+        </h2>
+
+        <div class="card p-10 flex flex-wrap gap-4 justify-center">
+          <button class="btn btn-md btn-dark" onclick="showToast('success')">
+            성공 토스트 보기
+          </button>
+          <button class="btn btn-md btn-danger" onclick="showToast('error')">
+            에러 토스트 보기
+          </button>
+        </div>
+      </section>
+
+      <div id="tds-toast-container" class="toast-container"></div>
+
+      <section class="space-y-6">
+        <h2
+          class="text-2xl font-bold text-slate-900 dark:text-white border-l-4 border-primary pl-4"
+        >
+          10. Loading Overlay
+        </h2>
+
+        <div class="card p-10 flex flex-col items-center justify-center">
+          <button class="btn btn-md btn-primary" onclick="toggleLoading()">
+            로딩 시작 (3초)
+          </button>
+        </div>
+      </section>
+
+      <div id="tds-loading" class="loading-overlay">
+        <div class="loading-box">
+          <div class="tds-spinner"></div>
+          <p class="loading-text">잠시만 기다려 주세요</p>
+        </div>
+      </div>
+    </main>
+
+    <div id="tds-modal-container" class="modal-overlay hidden">
+      <div id="tds-modal-content" class="modal-content">
+        <div class="p-8 pb-0 text-center">
+          <h4
+            id="modal-title"
+            class="text-[20px] font-bold text-slate-900 dark:text-white leading-tight"
+          >
+            설정 변경
+          </h4>
+        </div>
+
+        <div
+          id="modal-body"
+          class="p-8 text-center text-[15px] text-slate-600 dark:text-slate-400 leading-relaxed"
+        >
+          변경사항을 저장하시겠습니까? 저장 후에는 즉시 화면에 반영됩니다.
+        </div>
+
+        <div class="p-6 pt-0 flex gap-3">
+          <button
+            class="btn btn-md btn-light-weak flex-1 !rounded-2xl"
+            onclick="closeTdsModal()"
+          >
+            취소
+          </button>
+          <button
+            id="modal-confirm-btn"
+            class="btn btn-md btn-primary flex-1 !rounded-2xl"
+            onclick="closeTdsModal()"
+          >
+            저장하기
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const container = document.getElementById("tds-modal-container");
+      const content = document.getElementById("tds-modal-content");
+      const title = document.getElementById("modal-title");
+      const body = document.getElementById("modal-body");
+      const confirmBtn = document.getElementById("modal-confirm-btn");
+
+      // 1. 기본 모달 열기
+      function openTdsModal() {
+        title.innerText = "설정 변경";
+        body.innerText =
+          "변경사항을 저장하시겠습니까? 저장 후에는 즉시 화면에 반영됩니다.";
+        confirmBtn.className = "btn btn-md btn-primary flex-1";
+        confirmBtn.innerText = "저장하기";
+
+        showModal();
+      }
+
+      // 2. 위험/삭제 모달 열기
+      function openDeleteModal() {
+        title.innerText = "정말 삭제할까요?";
+        body.innerText =
+          "삭제된 데이터는 복구할 수 없습니다. 신중하게 결정해 주세요.";
+        confirmBtn.className = "btn btn-md btn-danger flex-1";
+        confirmBtn.innerText = "삭제하기";
+
+        showModal();
+      }
+
+      function showModal() {
+        container.classList.remove("hidden");
+        // 애니메이션이 매번 초기화되도록 처리
+        content.style.animation = "none";
+        content.offsetHeight; /* reflow */
+        content.style.animation = null;
+      }
+
+      function closeTdsModal() {
+        container.classList.add("hidden");
+      }
+
+      // 배경 클릭 시 닫기
+      container.addEventListener("click", (e) => {
+        if (e.target === container) closeTdsModal();
+      });
+    </script>
+    <script>
+      function showToast(type) {
+        const container = document.getElementById("tds-toast-container");
+        const toast = document.createElement("div");
+
+        toast.className = `toast-panel ${
+          type === "success" ? "toast-success" : "toast-error"
+        }`;
+
+        const icon =
+          type === "success" ? "fa-check-circle" : "fa-circle-exclamation";
+        const message =
+          type === "success"
+            ? `성공 알림 (${new Date().getSeconds()}초)`
+            : `에러 알림 (${new Date().getSeconds()}초)`;
+
+        toast.innerHTML = `
+          <i class="fas ${icon}"></i>
+            <span>${message}</span>
+          `;
+
+        // [개선] 새로운 알림을 맨 위에 추가 (역순 배치)
+        container.prepend(toast);
+
+        // 유지 시간 및 제거 로직
+        setTimeout(() => {
+          // 1. 애니메이션 클래스 추가 (높이 감소 포함)
+          toast.classList.add("toast-out");
+
+          // 2. 애니메이션 완료 후 DOM 제거
+          setTimeout(() => {
+            toast.remove();
+          }, 400);
+        }, 3000);
+      }
+    </script>
+
+    <script>
+      function toggleLoading() {
+        const loading = document.getElementById("tds-loading");
+        loading.classList.add("is-active");
+
+        // 3초 후 자동으로 꺼짐 테스트
+        setTimeout(() => {
+          loading.classList.remove("is-active");
+        }, 3000);
+      }
+    </script>
+  </body>
+</html>
