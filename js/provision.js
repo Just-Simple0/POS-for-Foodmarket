@@ -1924,14 +1924,6 @@ addProductBtn.addEventListener("click", async () => {
   }
 });
 
-quantityInput.addEventListener("input", () => {
-  let val = parseInt(quantityInput.value, 10);
-  if (val > 30) {
-    quantityInput.value = 30;
-    showToast("수량은 최대 30까지만 입력할 수 있습니다.");
-  }
-});
-
 // ✅ 자동완성은 '상품명' 입력에서만 동작(숫자 13자리=바코드면 자동완성 숨김)
 nameInput.addEventListener("input", async () => {
   const keyword = nameInput.value.trim();
@@ -1983,7 +1975,7 @@ function addToSelected(prod, qty) {
   redoStack = [];
   const ex = selectedItems.find((it) => it.id === prod.id);
   if (ex) {
-    ex.quantity = Math.min(ex.quantity + qty, 30);
+    ex.quantity = ex.quantity + qty;
     showToast(`${prod.name}의 수량이 ${qty}개 증가했습니다.`);
   } else {
     selectedItems.push({
@@ -2239,12 +2231,10 @@ function renderSelectedList() {
                    value="${item.quantity}" 
                    data-idx="${idx}" 
                    class="spinner-input quantity-input" 
-                   readonly />
+                    />
           </div>
           
-          <button class="spinner-btn increase-btn" data-idx="${idx}" ${
-            item.quantity >= 30 ? "disabled" : ""
-          }>
+          <button class="spinner-btn increase-btn" data-idx="${idx}">
             <i class="fas fa-plus text-sm pointer-events-none"></i>
           </button>
         </div>
@@ -2300,9 +2290,6 @@ document.querySelector("#selected-table tbody").addEventListener(
       if (isNaN(val) || val < 1) {
         e.target.value = 1;
         showToast("수량은 1 이상이어야 합니다.");
-      } else if (val > 30) {
-        e.target.value = 30;
-        showToast("수량은 최대 30까지만 가능합니다.");
       }
     }
   },
@@ -2338,7 +2325,7 @@ selectedTableBody.addEventListener("change", (e) => {
 
     const idx = e.target.dataset.idx;
     const val = parseInt(e.target.value);
-    if (val >= 1 && val <= 30) {
+    if (val >= 1) {
       selectedItems[idx].quantity = val;
       renderSelectedList();
     }
@@ -2813,10 +2800,10 @@ function renderExchangeList() {
           </button>
           
           <div class="spinner-value-box">
-            <input type="number" class="spinner-input" value="${item.quantity || 1}" readonly />
+            <input type="number" class="spinner-input" value="${item.quantity || 1}"  />
           </div>
           
-          <button class="spinner-btn ex-inc" data-idx="${idx}" ${item.quantity >= 30 ? "disabled" : ""}>
+          <button class="spinner-btn ex-inc" data-idx="${idx}">
             <i class="fas fa-plus text-sm pointer-events-none"></i>
           </button>
         </div>
@@ -2888,7 +2875,7 @@ function changeExchangeQuantity(idx, change) {
 
   const newQty = (item.quantity || 0) + change;
   // 범위 체크 (1~30)
-  if (newQty < 1 || newQty > 30) return;
+  if (newQty < 1) return;
 
   // 데이터 업데이트
   saveExUndoState(); // 변경 전 스냅샷 (필요 시 디바운싱 고려)
@@ -2924,7 +2911,7 @@ function updateExchangeRowUI(idx) {
   const decBtn = tr.querySelector(".ex-dec");
   const incBtn = tr.querySelector(".ex-inc");
   if (decBtn) decBtn.disabled = item.quantity <= 1;
-  if (incBtn) incBtn.disabled = item.quantity >= 30;
+  if (incBtn) incBtn.disabled = false;
 
   // 4. 합계 재계산
   updateExchangeTotalUI();
@@ -3005,7 +2992,7 @@ function exchangeAdd(prod, qty) {
   saveExUndoState(); // 변경 전 스냅샷
 
   const ex = exchangeItems.find((it) => it.id === prod.id);
-  if (ex) ex.quantity = Math.min((ex.quantity || 0) + qty, 30);
+  if (ex) ex.quantity = (ex.quantity || 0) + qty;
   else
     exchangeItems.push({
       id: prod.id,
@@ -3044,7 +3031,6 @@ exTableBody?.addEventListener("change", (e) => {
   const idx = e.target.dataset.idx;
   let val = parseInt(e.target.value, 10);
   if (!Number.isFinite(val) || val < 1) val = 1;
-  if (val > 30) val = 30;
   exchangeItems[idx].quantity = val;
   renderExchangeList();
 });
@@ -3405,7 +3391,7 @@ function changeQuantity(idx, change) {
   const newQty = item.quantity + change;
 
   // 범위 체크 (1~30)
-  if (newQty < 1 || newQty > 30) return;
+  if (newQty < 1) return;
 
   // [Undo] 스택 저장은 '연속 동작' 중에는 너무 많이 쌓일 수 있으므로
   // 롱프레스 시작 시점에만 저장하는 고도화가 필요하지만,
@@ -3434,13 +3420,13 @@ function updateRowUI(idx) {
     totalSpan.textContent = (item.quantity * item.price).toLocaleString();
   }
 
-  // 3. 버튼 활성/비활성 상태 갱신 (최소/최대값 도달 시)
+  // 3. 버튼 활성/비활성 상태 갱신 (최소값 도달 시)
   const row = document.getElementById(`row-${idx}`);
   if (row) {
     const decBtn = row.querySelector(".decrease-btn");
     const incBtn = row.querySelector(".increase-btn");
     if (decBtn) decBtn.disabled = item.quantity <= 1;
-    if (incBtn) incBtn.disabled = item.quantity >= 30;
+    if (incBtn) incBtn.disabled = false;
   }
 
   // 4. 전체 합계 재계산 및 드래프트 저장
