@@ -782,6 +782,39 @@ ui.rSubmit?.addEventListener("click", async () => {
   }
 });
 
+/* ===== [추가] 약관 및 개인정보 모달 제어 ===== */
+const termsModal = document.getElementById("terms-modal");
+const privacyModal = document.getElementById("privacy-modal");
+
+// 1. 이용 약관 열기
+document.getElementById("btn-show-terms")?.addEventListener("click", (e) => {
+  e.preventDefault(); // 라벨 클릭으로 인한 체크박스 토글 방지
+  toggleModal(termsModal, true);
+});
+
+// 2. 개인정보 처리방침 열기
+document.getElementById("btn-show-privacy")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  toggleModal(privacyModal, true);
+});
+
+// 3. 닫기 버튼 연결
+["terms", "privacy"].forEach((type) => {
+  const modal = document.getElementById(`${type}-modal`);
+  const closeIcon = document.getElementById(`${type}-close-icon`);
+  const okBtn = document.getElementById(`${type}-ok-btn`);
+
+  const close = () => toggleModal(modal, false);
+
+  closeIcon?.addEventListener("click", close);
+  okBtn?.addEventListener("click", close);
+
+  // 배경 클릭 시 닫기
+  modal?.addEventListener("click", (e) => {
+    if (e.target === modal) close();
+  });
+});
+
 /* ===== Social Login ===== */
 function goSocial(provider, btn) {
   // [UX 개선] 클릭 즉시 로딩 상태 표시 (페이지 이동 전 딜레이 동안 피드백)
