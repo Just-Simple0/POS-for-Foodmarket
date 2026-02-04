@@ -1,18 +1,19 @@
 export function getQuarterKey(date = new Date()) {
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
-
   let quarter;
-  if (month >= 1 && month <= 3) {
+  let qYear = year;
+  if (month >= 3 && month <= 5) {
     quarter = 1;
-  } else if (month >= 4 && month <= 6) {
+  } else if (month >= 6 && month <= 8) {
     quarter = 2;
-  } else if (month >= 7 && month <= 9) {
+  } else if (month >= 9 && month <= 11) {
     quarter = 3;
   } else {
     quarter = 4;
+    qYear = year - 1;
   }
-  return `${year}-Q${quarter}`;
+  return `${qYear}-Q${quarter}`;
 }
 
 export function filterProvisionsByQuarter(list, quarterKey) {

@@ -97,8 +97,8 @@ service cloud.firestore {
       // 최초 생성: 승인 사용자, 필드 화이트리스트, createdBy는 본인
       allow create: if isMember()
                     && request.resource.data.keys().hasOnly(
-                        ["day","dateKey","customerId","customerName","periodKey","createdAt","createdBy"]
-                      )
+                         ["day","dateKey","customerId","customerName","periodKey","createdAt","createdBy"]
+                       )
                     && request.resource.data.createdBy == request.auth.uid;
       // 업데이트: 식별키/작성자는 불변
       allow update: if isMember()
@@ -117,24 +117,12 @@ service cloud.firestore {
     // 안전장치: 문서 id = YYYYMMDD, 필드 화이트리스트, updatedAt은 서버시간
     allow create: if isMember()
                   && id.matches('^\\d{8}$')
-                  && request.resource.data.keys().hasOnly([
-                    "uniqueVisitors",
-                    "itemsTotalQty",
-                    "itemStatsById",
-                    "topItems20",
-                    "updatedAt"
-                  ])
+                  && request.resource.data.keys().hasOnly(["uniqueVisitors","updatedAt"])
                   && request.resource.data.updatedAt is timestamp;
     allow update: if isMember()
                   && id.matches('^\\d{8}$')
                   && request.resource.data.diff(resource.data)
-                        .changedKeys().hasOnly([
-                          "uniqueVisitors",
-                          "itemsTotalQty",
-                          "itemStatsById",
-                          "topItems20",
-                          "updatedAt"
-                        ])
+                        .changedKeys().hasOnly(["uniqueVisitors","updatedAt"])
                   && request.resource.data.updatedAt is timestamp;
   }
 
