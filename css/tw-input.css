@@ -6,6 +6,16 @@
    1. Base Styles & Animations
    ========================================= */
 @layer base {
+  :root {
+    /* z-index hierarchy (policy)
+       dropdown < header < modal < toast < loading (top) */
+    --z-dropdown: 5000;
+    --z-header: 6000;
+    --z-modal: 7000;
+    --z-toast: 8000; /* ✅ toast above modal */
+    --z-loading: 9000; /* ✅ top-most */
+  }
+
   * {
     margin: 0;
     padding: 0;
@@ -58,6 +68,7 @@
   input[type="number"] {
     -moz-appearance: textfield;
   }
+
 }
 
 @keyframes fadeIn {
@@ -626,7 +637,8 @@
 
   /* [1] 모달 오버레이 */
   .modal-overlay {
-    @apply fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-[2px];
+    @apply fixed top-0 left-0 right-0 bottom-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-[2px];
+    z-index: var(--z-modal);
     animation: fadeIn 0.3s ease-out forwards;
   }
 
@@ -717,7 +729,8 @@
   /* [1] Autocomplete List (Dropdown) */
   .autocomplete-list {
     /* shadow-lifted로 깊이감 강조, py-2로 상하 여백 확보 */
-    @apply absolute top-[calc(100%+8px)] left-0 w-full bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700 rounded-2xl shadow-lifted max-h-[300px] overflow-y-auto z-[1500] py-2;
+    @apply absolute top-[calc(100%+8px)] left-0 w-full bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700 rounded-2xl shadow-lifted max-h-[300px] overflow-y-auto py-2;
+    z-index: var(--z-dropdown);
   }
 
   .autocomplete-list div {
@@ -766,7 +779,8 @@
      ========================================= */
   /* [1] 토스트 컨테이너 */
   .toast-container {
-    @apply fixed top-8 left-1/2 -translate-x-1/2 z-[2000] flex flex-col gap-3 w-full max-w-[calc(100%-40px)] sm:max-w-[420px];
+    @apply fixed top-8 left-1/2 -translate-x-1/2 flex flex-col gap-3 w-full max-w-[calc(100%-40px)] sm:max-w-[420px];
+    z-index: var(--z-toast);
     /* 항목이 추가/삭제될 때 내부 레이아웃이 부드럽게 변하도록 transition 추가 */
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
@@ -813,7 +827,8 @@
      ========================================= */
   /* [1] 로딩 오버레이: 배경은 모달과 동일한 깊이감 유지 */
   .loading-overlay {
-    @apply fixed inset-0 z-[9999] flex items-center justify-center bg-white/70 dark:bg-slate-900/80 backdrop-blur-md transition-all duration-300 opacity-0 pointer-events-none;
+    @apply fixed inset-0 flex items-center justify-center bg-white/70 dark:bg-slate-900/80 backdrop-blur-md transition-all duration-300 opacity-0 pointer-events-none;
+    z-index: var(--z-loading);
   }
 
   .loading-overlay.is-active {

@@ -125,37 +125,6 @@ module.exports = {
   ],
   theme: {
     extend: {
-      colors: {
-        /* === TDS 느낌 팔레트 === */
-        primary: {
-          DEFAULT: "#0064FF",
-          dark: "#0050CC",
-          light: "#3380FF",
-        },
-        /* 밝은 배경/보더용 중립 */
-        neutral: {
-          50: "#F9FBFD",
-          100: "#EFF3F8",
-          300: "#C2C7D3",
-          500: "#7E88A2",
-          700: "#2D3548",
-        },
-        /* 텍스트 전용 명시 */
-        text: {
-          primary: "#1A1C23",
-        },
-        /* 상태색 */
-        success: "#30C17D",
-        danger: "#FF3B30",
-        warning: "#FFAA00",
-      },
-      borderRadius: {
-        xl: "0.75rem",
-        "2xl": "1rem",
-      },
-      boxShadow: {
-        card: "0 1px 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.08)",
-      },
       fontFamily: {
         sans: [
           "Pretendard Variable",
@@ -175,7 +144,6 @@ module.exports = {
           "sans-serif",
         ],
       },
-      // 2. Override & Extend Colors
       colors: {
         // [Override] 기존 Tailwind 컬러를 TDS 컬러로 덮어쓰기
         slate: tdsColors.grey,
@@ -212,6 +180,14 @@ module.exports = {
           ...tdsColors.orange,
         },
 
+        // [Text] 텍스트 전용 토큰 (선택이지만 실무에서 매우 유용)
+        text: {
+          strong: tdsColors.grey[900],
+          normal: tdsColors.grey[800],
+          weak: tdsColors.grey[700],
+          disabled: tdsColors.grey[500],
+        },
+
         // [Backgrounds] 배경 전용 토큰
         background: "#FFFFFF",
         surface: tdsColors.grey[100], // #F2F4F6
@@ -228,8 +204,8 @@ module.exports = {
           "red-light": "rgba(251, 136, 144, 0.15)",
         },
       },
-      // ... (boxShadow, borderRadius 등은 그대로 유지)
       boxShadow: {
+        card: "0 1px 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.08)",
         soft: "0 10px 30px rgba(0, 0, 0, 0.04)",
         lifted: "0 16px 40px rgba(0, 0, 0, 0.08)",
         floating: "0 20px 60px rgba(0, 0, 0, 0.12)",
@@ -259,6 +235,17 @@ module.exports = {
     "bg-blue-600",
     "text-green-600",
     "bg-orange-50",
+
+    // (선택) 상태색 동적 클래스 대비 (JS로 className 조합 시 purge 방지)
+    "bg-success-50",
+    "text-success-700",
+    "border-success-300",
+    "bg-danger-50",
+    "text-danger-700",
+    "border-danger-300",
+    "bg-warning-50",
+    "text-warning-700",
+    "border-warning-300",
   ],
   plugins: [],
 };

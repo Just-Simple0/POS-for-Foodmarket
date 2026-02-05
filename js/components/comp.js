@@ -143,7 +143,7 @@ export function loadHeader(containerID = null) {
   const initialIconClass = isDark ? "fa-sun" : "fa-moon";
 
   const headerHTML = `
-    <header class="sticky top-0 z-[900] w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-all duration-200">
+    <header class="sticky top-0 z-[6000] w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-all duration-200">
       <div class="max-w-[1920px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between gap-4">
         
         <div class="flex items-center gap-8 h-full">
@@ -248,12 +248,14 @@ export function loadHeader(containerID = null) {
         nameEl.title = user.email;
       }
       checkAdminRole(user);
-      document
-        .getElementById("logout-btn-header")
-        ?.addEventListener("click", async () => {
+      const logoutBtn = document.getElementById("logout-btn-header");
+      if (logoutBtn) {
+        // ✅ 중복 바인딩 방지: addEventListener 대신 onclick 덮어쓰기
+        logoutBtn.onclick = async () => {
           await signOut(auth);
           window.location.href = "index.html";
-        });
+        };
+      }
     }
   });
 }
@@ -286,10 +288,11 @@ async function checkAdminRole(user) {
 // ---------------- Footer (TDS 리팩토링) ----------------
 export function loadFooter(containerID = null) {
   if (document.getElementById("app-footer")) return;
+  const year = new Date().getFullYear();
   const footerHTML = `
     <footer id="app-footer" class="mt-auto py-8 px-8 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 text-slate-400 text-xs text-center font-medium">
       <div class="max-w-[1920px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
-        <div>&copy; 2025 POS System by JustSimple. All rights reserved.</div>
+        <div>&copy; ${year} POS System by JustSimple. All rights reserved.</div>
         <div>문의 : <a href="mailto:ktw021030@gmail.com" class="text-slate-500 hover:text-primary underline">ktw021030@gmail.com</a></div>
       </div>
     </footer>
@@ -331,13 +334,35 @@ export function hideLoading() {
   document.body.removeAttribute("data-loading");
 }
 
-export async function withLoading(task, text) {
+const DEFAULT_MIN_LOADING_MS = 2000;
+
+export async function withLoading(task, text, opts = {}) {
+  const minMs =
+    typeof opts?.minMs === "number" ? Math.max(0, opts.minMs) : DEFAULT_MIN_LOADING_MS;
+
+  const startedAt = Date.now();
   showLoading(text);
+
+  let result;
+  let error;
+
   try {
-    return await task();
-  } finally {
-    hideLoading();
+    result = await task();
+  } catch (e) {
+    error = e;
   }
+
+  // ✅ 깜빡임 방지: 최소 노출 시간 유지
+  const elapsed = Date.now() - startedAt;
+  const remaining = minMs - elapsed;
+  if (remaining > 0) {
+    await new Promise((r) => setTimeout(r, remaining));
+  }
+
+  hideLoading();
+
+  if (error) throw error;
+  return result;
 }
 
 export function setBusy(el, busy = true) {
@@ -606,6 +631,10 @@ export async function getTurnstileToken(action = "secure_action") {
     if (!ready || !window.turnstile) return null;
     const sitekey = window.CF_TURNSTILE_SITEKEY;
     if (!sitekey || sitekey === "auto") return null;
+
+    // ✅ single-flight: 동시에 여러 호출이 겹치면 1번만 렌더
+    if (__turnstileTokenInFlight) return await __turnstileTokenInFlight;
+
     let host = document.getElementById("cf-turnstile-host");
     if (!host) {
       host = document.createElement("div");
@@ -613,17 +642,121 @@ export async function getTurnstileToken(action = "secure_action") {
       host.className = "fixed top-[-9999px] left-[-9999px]";
       document.body.appendChild(host);
     }
-    return await new Promise((resolve) =>
-      window.turnstile.render(host, {
-        sitekey,
-        action,
-        callback: (token) => resolve(token),
-        "error-callback": () => resolve(null),
-      }),
-    );
+    // ✅ 이전 렌더 잔재 제거 (안전)
+    host.innerHTML = "";
+
+    __turnstileTokenInFlight = new Promise((resolve) => {
+      let widgetId = null;
+      let done = false;
+
+      const finish = (val) => {
+        if (done) return;
+        done = true;
+        try {
+          if (widgetId) window.turnstile.remove(widgetId);
+        } catch {}
+        // host 내용도 정리해서 다음 호출 안정화
+        try {
+          host.innerHTML = "";
+        } catch {}
+        resolve(val);
+      };
+
+      // ✅ 영원히 pending 방지: 15초 타임아웃
+      const t = setTimeout(() => finish(null), 15000);
+
+      try {
+        widgetId = window.turnstile.render(host, {
+          sitekey,
+          action,
+          callback: (token) => {
+            clearTimeout(t);
+            finish(token);
+          },
+          "error-callback": () => {
+            clearTimeout(t);
+            finish(null);
+          },
+        });
+      } catch {
+        clearTimeout(t);
+        finish(null);
+      }
+    }).finally(() => {
+      __turnstileTokenInFlight = null;
+    });
+
+    return await __turnstileTokenInFlight;
   } catch {
     return null;
   }
+}
+
+// ---------------- Modal A11y helpers ----------------
+function getFocusableEls(root) {
+  return Array.from(
+    root.querySelectorAll(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((el) => el.offsetParent !== null);
+}
+
+function attachModalA11y(overlay, { onEsc } = {}) {
+  const dialog =
+    overlay.querySelector(".modal-content") || overlay.firstElementChild;
+  if (dialog) {
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    if (!dialog.hasAttribute("tabindex")) dialog.setAttribute("tabindex", "-1");
+  }
+
+  const prevActive = document.activeElement;
+
+  // 열릴 때 포커스 이동
+  setTimeout(() => {
+    const focusables = getFocusableEls(overlay);
+    if (focusables[0]) focusables[0].focus();
+    else dialog?.focus?.();
+  }, 0);
+
+  const onKeyDown = (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onEsc?.();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const focusables = getFocusableEls(overlay);
+    if (focusables.length === 0) {
+      e.preventDefault();
+      dialog?.focus?.();
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey) {
+      if (active === first || !overlay.contains(active)) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  };
+
+  overlay.addEventListener("keydown", onKeyDown);
+
+  // 닫힐 때 포커스 복귀용 cleanup 반환
+  return () => {
+    overlay.removeEventListener("keydown", onKeyDown);
+    try {
+      prevActive?.focus?.();
+    } catch {}
+  };
 }
 
 export async function openCaptchaModal(opts = {}) {
@@ -661,11 +794,15 @@ export async function openCaptchaModal(opts = {}) {
 
   return await new Promise((resolve) => {
     let widgetId = null;
+    const detachA11y = attachModalA11y(overlay, { onEsc: () => cleanup(null) });
     const cleanup = (val) => {
       if (widgetId)
         try {
           window.turnstile.remove(widgetId);
         } catch {}
+      try {
+        detachA11y?.();
+      } catch {}
       overlay.remove();
       resolve(val);
     };
@@ -763,10 +900,17 @@ export function openAlert(opts = {}) {
   const overlay = createModalBase(title, message, footer);
   document.body.appendChild(overlay);
   return new Promise((resolve) => {
+    const detachA11y = attachModalA11y(overlay, { onEsc: () => close() });
+    const close = () => {
+      try {
+        detachA11y?.();
+      } catch {}
+      overlay.remove();
+      resolve();
+    };
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay || e.target.closest('[data-act="confirm"]')) {
-        overlay.remove();
-        resolve();
+        close();
       }
     });
   });
