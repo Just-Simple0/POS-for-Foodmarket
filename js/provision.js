@@ -507,6 +507,52 @@ const productById = new Map(); // id -> product
 let nameReqSeq = 0; // 자동완성 최신 응답 가드
 let _allProductsCache = null; // 전체 상품 캐시 저장소 (클라이언트 검색용)
 
+// ===== 상품 캐시(영속) : IndexedDB + localStorage =====
+const PRODUCT_IDB_NAME = "pos_products";
+const PRODUCT_IDB_STORE = "products_cache";
+const PRODUCT_CACHE_SYNC_KEY = "products_cache_synced_at";
+const PRODUCT_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h (원하면 조정)
+
+function openProductIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PRODUCT_IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(PRODUCT_IDB_STORE)) {
+        db.createObjectStore(PRODUCT_IDB_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbReadAllProducts() {
+  const dbi = await openProductIDB();
+  return await new Promise((resolve, reject) => {
+    const tx = dbi.transaction(PRODUCT_IDB_STORE, "readonly");
+    const st = tx.objectStore(PRODUCT_IDB_STORE);
+    const req = st.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbWriteAllProducts(products) {
+  const dbi = await openProductIDB();
+  return await new Promise((resolve, reject) => {
+    const tx = dbi.transaction(PRODUCT_IDB_STORE, "readwrite");
+    const st = tx.objectStore(PRODUCT_IDB_STORE);
+    // 전체 덮어쓰기: clear 후 put
+    const clearReq = st.clear();
+    clearReq.onsuccess = () => {
+      for (const p of products) st.put(p);
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("idb write failed"));
+  });
+}
+
 // ✅ 분류 제한 정책 (읽기 전용): stats/categoryPolicies 문서에서 1회 로드
 //   문서 예시: { policies: { "생필품": {mode:"one_per_category",active:true}, "스낵":{mode:"one_per_price",active:true} } }
 let categoryPolicies = {}; // { [category]: {mode:'one_per_category'|'one_per_price', active:boolean} }
@@ -601,7 +647,7 @@ async function tryRestoreDrafts() {
     renderVisitorList();
     __restoredVisitors = true;
     if (typeof showToast === "function")
-      showToast(`방문자 ${visitorList.length}명 복구됨`);
+      showToast(`방문자 ${visitorList.length}명이 복구되었습니다.`);
   }
   // 제공
   const prov = loadProvisionDraft();
@@ -896,7 +942,7 @@ async function syncSupportCacheFromServerOnce() {
     const items = snap.docs.map((d) => pickSupportCacheShape(d.id, d.data()));
     await idbPutManySupportCache(dbi, items);
 
-    total = items.length;
+    total += items.length;
     lastDoc = snap.docs[snap.docs.length - 1];
     if (snap.size < PAGE) break;
   }
@@ -1468,6 +1514,24 @@ async function ensureAllProductsLoaded() {
   if (_allProductsCache !== null) return;
 
   try {
+    // 1) IndexedDB 캐시 우선 로드 (TTL 이내면 서버 스킵)
+    const lastSynced = Number(localStorage.getItem(PRODUCT_CACHE_SYNC_KEY) || 0);
+    const fresh = lastSynced && Date.now() - lastSynced < PRODUCT_CACHE_TTL_MS;
+    if (fresh) {
+      const cached = await idbReadAllProducts();
+      if (cached && cached.length > 0) {
+        _allProductsCache = cached;
+        // Map 동기화
+        cached.forEach((p) => {
+          productById.set(p.id, p);
+          if (p.barcode) productByBarcode.set(p.barcode, p);
+        });
+        console.log(`상품 캐시(IDB) 로드: ${cached.length}개`);
+        return;
+      }
+    }
+
+    // 2) 서버에서 전체 로드 (필수불가결 요구사항 유지)
     const qy = query(collection(db, "products"), orderBy("name"));
     const snap = await getDocs(qy);
 
@@ -1483,6 +1547,14 @@ async function ensureAllProductsLoaded() {
     });
 
     console.log(`상품 캐시 로드 완료: ${_allProductsCache.length}개`);
+
+    // 3) 영속 저장
+    try {
+      await idbWriteAllProducts(_allProductsCache);
+      localStorage.setItem(PRODUCT_CACHE_SYNC_KEY, String(Date.now()));
+    } catch (e) {
+      console.warn("상품 캐시(IDB) 저장 실패:", e);
+    }
   } catch (err) {
     console.error("상품 로드 실패:", err);
     _allProductsCache = []; // 실패 시 빈 배열로 초기화
@@ -2191,6 +2263,14 @@ function renderSelectedList() {
 
     totalPointsEl.textContent = "0";
     if (warningEl) toggleFade(warningEl, false);
+
+    // ✅ 구매 제한 초과 뱃지도 확실히 숨김 (빈 상태에서는 applyCategoryViolationHighlight가 호출되지 않음)
+    const limitWarnEl = document.getElementById("limit-warning");
+    if (limitWarnEl) {
+      if (typeof toggleFade === "function") toggleFade(limitWarnEl, false);
+      else limitWarnEl.classList.add("hidden");
+    }
+
     saveProvisionDraft();
     return;
   }
@@ -2524,10 +2604,6 @@ function resetForm({ resetVisitors = false } = {}) {
   selectedItems = [];
   if (resetVisitors) {
     visitorList = [];
-    renderVisitorList();
-    clearVisitorDraft();
-  } else {
-    renderVisitorList();
   }
   renderVisitorList();
   renderSelectedList();
@@ -2562,6 +2638,7 @@ const exTableBody = document.querySelector("#exchange-table tbody");
 const exOriginalEl = document.getElementById("ex-original-total");
 const exNewEl = document.getElementById("ex-new-total");
 const exWarnEl = document.getElementById("ex-warning");
+const exLimitWarnEl = document.getElementById("ex-limit-warning");
 const exSubmitBtn = document.getElementById("exchange-submit-btn");
 const exHistoryTable = document.getElementById("exchange-history-table");
 // 교환 히스토리 섹션(표 래퍼)
@@ -2775,6 +2852,12 @@ function renderExchangeList() {
 
     // 빈 상태일 때도 합계 UI 갱신 (0원 처리 및 경고 끄기)
     updateExchangeTotalUI();
+    // ✅ 제한 뱃지도 확실히 숨김 처리
+    applyCategoryViolationHighlightFor(
+      exchangeItems,
+      exTableBody,
+      exLimitWarnEl,
+    );
     return;
   }
 
@@ -2800,7 +2883,10 @@ function renderExchangeList() {
           </button>
           
           <div class="spinner-value-box">
-            <input type="number" class="spinner-input" value="${item.quantity || 1}"  />
+            <input type="number"
+                  class="spinner-input quantity-input"
+                  data-idx="${idx}"
+                  value="${item.quantity || 1}" />
           </div>
           
           <button class="spinner-btn ex-inc" data-idx="${idx}">
@@ -2837,11 +2923,11 @@ function renderExchangeList() {
   // [핵심] 별도 계산 로직을 제거하고 통합 함수 호출 (빈 뱃지 문제 해결)
   updateExchangeTotalUI();
 
-  applyCategoryViolationHighlightFor(exchangeItems, exTableBody);
+  applyCategoryViolationHighlightFor(exchangeItems, exTableBody, exLimitWarnEl);
   saveExchangeAutoSave();
 }
 
-function applyCategoryViolationHighlightFor(items, tbody) {
+function applyCategoryViolationHighlightFor(items, tbody, warnEl) {
   // 기존 함수를 재사용하되 대상 tbody만 교체
   const vios = checkCategoryViolations(items, categoryPolicies);
   const violating = new Set();
@@ -2861,6 +2947,15 @@ function applyCategoryViolationHighlightFor(items, tbody) {
     const id = tr.dataset.id;
     tr.classList.toggle("limit-violation", violating.has(id));
   });
+
+  // ✅ [추가] 하단 "구매 제한 초과" 뱃지 토글
+  if (warnEl) {
+    if (typeof toggleFade === "function") {
+      toggleFade(warnEl, vios.length > 0);
+    } else {
+      warnEl.classList.toggle("hidden", !(vios.length > 0));
+    }
+  }
 }
 
 /* =========================================
@@ -2878,7 +2973,13 @@ function changeExchangeQuantity(idx, change) {
   if (newQty < 1) return;
 
   // 데이터 업데이트
-  saveExUndoState(); // 변경 전 스냅샷 (필요 시 디바운싱 고려)
+  // ✅ 롱프레스 반복에서도 "버스트당 1회"만 Undo 저장
+  if (!window.__exQtyUndoGate) window.__exQtyUndoGate = new Map(); // idx -> lastTs
+  const gate = window.__exQtyUndoGate;
+  const now = Date.now();
+  const last = gate.get(index) || 0;
+  if (now - last > 350) saveExUndoState();
+  gate.set(index, now);
   item.quantity = newQty;
 
   // [UI 업데이트] 전체 렌더링 대신, 해당 줄만 업데이트
@@ -2917,7 +3018,7 @@ function updateExchangeRowUI(idx) {
   updateExchangeTotalUI();
 
   // ✅ [추가] 수량 변경 시 제한 위반 여부(빨간줄) 즉시 재검사 및 반영
-  applyCategoryViolationHighlightFor(exchangeItems, exTableBody);
+  applyCategoryViolationHighlightFor(exchangeItems, exTableBody, exLimitWarnEl);
 
   saveExchangeAutoSave();
 }
@@ -3034,6 +3135,16 @@ exTableBody?.addEventListener("change", (e) => {
   exchangeItems[idx].quantity = val;
   renderExchangeList();
 });
+// ✅ 교환 수량 blur 보정(입력 중 실수 방지)
+exTableBody?.addEventListener(
+  "blur",
+  (e) => {
+    if (!e.target.classList.contains("quantity-input")) return;
+    let v = parseInt(e.target.value, 10);
+    if (!Number.isFinite(v) || v < 1) e.target.value = 1;
+  },
+  true,
+);
 
 // 교환 제출
 function resetExchangeUI() {
@@ -3393,10 +3504,17 @@ function changeQuantity(idx, change) {
   // 범위 체크 (1~30)
   if (newQty < 1) return;
 
-  // [Undo] 스택 저장은 '연속 동작' 중에는 너무 많이 쌓일 수 있으므로
-  // 롱프레스 시작 시점에만 저장하는 고도화가 필요하지만,
-  // 여기서는 간단히 값이 변할 때마다 저장하거나 생략 (선택 사항)
-  // undoStack.push(...)
+  // ✅ [Undo/Redo] 롱프레스(100ms 반복)에서도 "버스트당 1회"만 스냅샷 저장
+  // - start()가 즉시 1회 + 이후 반복 호출되므로, 시간 간격으로 그룹화한다.
+  if (!window.__qtyUndoGate) window.__qtyUndoGate = new Map(); // idx -> lastTs
+  const gate = window.__qtyUndoGate;
+  const now = Date.now();
+  const last = gate.get(index) || 0;
+  if (now - last > 350) {
+    undoStack.push(JSON.parse(JSON.stringify(selectedItems)));
+    redoStack = [];
+  }
+  gate.set(index, now);
 
   // 데이터 업데이트
   item.quantity = newQty;

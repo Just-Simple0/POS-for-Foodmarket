@@ -305,24 +305,25 @@
             id="submit-section"
             class="hidden flex flex-col sm:flex-row items-center justify-end gap-4 pt-4 animate-fade-in"
           >
-            <label
-              for="lifelove-checkbox"
-              class="flex items-center gap-3 cursor-pointer bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-6 py-4 rounded-3xl hover:border-primary transition-all group shadow-sm"
+            <div
+              class="flex items-center gap-3 bg-white dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/50 px-5 py-3.5 rounded-2xl shadow-sm"
             >
               <input
                 type="checkbox"
                 id="lifelove-checkbox"
-                class="w-6 h-6 rounded-lg text-primary focus:ring-primary/20 border-slate-300 transition-all"
+                class="input-toss"
               />
-              <span
-                class="text-[15px] font-bold text-slate-700 dark:text-slate-200 group-hover:text-primary transition-colors"
-                >생명사랑 제공</span
+              <label
+                for="lifelove-checkbox"
+                class="text-[15px] font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none"
               >
-            </label>
+                생명사랑 제공
+              </label>
+            </div>
 
             <button
               id="submit-btn"
-              class="btn btn-primary h-[60px] px-10 text-lg rounded-3xl shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all"
+              class="btn btn-primary h-[60px] px-10 text-lg rounded-3xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
             >
               <i class="fas fa-check-circle mr-2 text-xl"></i>
               <span class="font-black">제공 등록 완료</span>
@@ -641,6 +642,13 @@
                   >
                     <i class="fas fa-circle-exclamation mr-1"></i> 환불 불가 /
                     30p 초과
+                  </span>
+                </div>
+                <div id="ex-limit-warning" class="hidden animate-fade-in">
+                  <span
+                    class="badge badge-fill-danger badge-lg shadow-sm animate-pulse"
+                  >
+                    <i class="fas fa-hand-paper mr-1.5"></i> 구매 제한 초과
                   </span>
                 </div>
               </div>
