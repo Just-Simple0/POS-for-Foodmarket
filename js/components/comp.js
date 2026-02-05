@@ -143,7 +143,7 @@ export function loadHeader(containerID = null) {
   const initialIconClass = isDark ? "fa-sun" : "fa-moon";
 
   const headerHTML = `
-    <header class="sticky top-0 z-[6000] w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-all duration-200">
+    <header class="sticky top-0 z-[6000] w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-all duration-300">
       <div class="max-w-[1920px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between gap-4">
         
         <div class="flex items-center gap-8 h-full">
@@ -290,7 +290,7 @@ export function loadFooter(containerID = null) {
   if (document.getElementById("app-footer")) return;
   const year = new Date().getFullYear();
   const footerHTML = `
-    <footer id="app-footer" class="mt-auto py-8 px-8 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 text-slate-400 text-xs text-center font-medium">
+    <footer id="app-footer" class="mt-auto py-8 px-8 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 text-slate-400 text-xs text-center font-medium transition-colors duration-300">
       <div class="max-w-[1920px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
         <div>&copy; ${year} POS System by JustSimple. All rights reserved.</div>
         <div>문의 : <a href="mailto:ktw021030@gmail.com" class="text-slate-500 hover:text-primary underline">ktw021030@gmail.com</a></div>
