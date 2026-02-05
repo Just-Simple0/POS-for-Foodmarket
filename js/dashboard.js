@@ -16,6 +16,15 @@ import {
   makeWidgetSkeleton,
 } from "./components/comp.js";
 
+// Chart.js instance holder (avoid duplicate chart creation)
+let __visitChart = null;
+
+// same convention as comp.js (not exported)
+const API_BASE =
+  location.hostname === "localhost" || location.hostname === "127.0.0.1"
+    ? "http://localhost:3000"
+    : "https://foodmarket-pos.onrender.com";
+
 // 로컬(KST) 기준 날짜 키: 'YYYY-MM-DD'
 function dateKeyLocal(d) {
   const y = d.getFullYear();
@@ -23,13 +32,52 @@ function dateKeyLocal(d) {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-
 // 로컬(KST) 기준 날짜 숫자키: 'YYYYMMDD'
 function dateKey8Local(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}${m}${day}`;
+}
+
+function isWeekend(d) {
+  const day = d.getDay(); // 0=Sun .. 6=Sat
+  return day === 0 || day === 6;
+}
+
+async function fetchHolidaySetForYear(year) {
+  try {
+    const r = await fetch(`${API_BASE}/api/utils/holidays?year=${year}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!r.ok) throw new Error(`holidays_http_${r.status}`);
+    const data = await r.json();
+    const arr = Array.isArray(data?.holidays) ? data.holidays : [];
+    const set = new Set(arr.map((x) => String(x)));
+
+    // ✅ 근로자의 날(5/1) 추가 휴무
+    set.add(`${year}0501`);
+    return set;
+  } catch (e) {
+    console.warn("[dashboard] holidays fetch failed:", e?.message || e);
+    // 최소 동작 보장: 근로자의 날만이라도 추가
+    const set = new Set([`${year}0501`]);
+    return set;
+  }
+}
+
+function recentBusinessDates(count, holidaySet) {
+  // 최근 count 영업일(주말/공휴일 제외) Date 배열 (오래된 -> 최신)
+  const out = [];
+  const cur = new Date();
+  // 안전장치(연휴/장기휴무 대비): 최대 60일 뒤로만 탐색
+  for (let i = 0; out.length < count && i < 60; i++) {
+    const key8 = dateKey8Local(cur);
+    if (!isWeekend(cur) && !holidaySet.has(key8)) out.push(new Date(cur));
+    cur.setDate(cur.getDate() - 1);
+  }
+  return out.reverse();
 }
 
 async function loadRecentProducts() {
@@ -44,18 +92,37 @@ async function loadRecentProducts() {
     listEl.innerHTML = ""; // 기존 내용 초기화
 
     if (snapshot.empty) {
-      // [수정] 다크모드 텍스트 색상 적용
-      listEl.innerHTML =
-        '<li class="text-slate-400 dark:text-slate-500 text-sm py-4 text-center">최근 내역이 없습니다.</li>';
+      // ✅ Empty-state (match item card tone)
+      listEl.innerHTML = `
+        <li class="py-3 px-3.5 bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700 rounded-xl">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="flex items-center justify-center w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+                <i class="fas fa-box-open text-base"></i>
+              </div>
+              <div class="min-w-0 flex flex-col">
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">최근 추가/수정된 상품이 없습니다</span>
+                <span class="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">상품이 등록되면 여기에 최신 6개가 표시돼요</span>
+              </div>
+            </div>
+            <span class="text-xs font-medium text-slate-400 dark:text-slate-400 bg-white/70 dark:bg-slate-800/60 px-2 py-1 rounded-md border border-slate-100 dark:border-slate-600 whitespace-nowrap">
+              Empty
+            </span>
+          </div>
+        </li>
+      `;
       return;
     }
 
     snapshot.forEach((doc) => {
       const data = doc.data();
       const dataObj = data.lastestAt?.toDate?.();
-      const formatted = `${dataObj.getFullYear()}.${String(
-        dataObj.getMonth() + 1,
-      ).padStart(2, "0")}.${String(dataObj.getDate()).padStart(2, "0")}`;
+      const formatted = dataObj
+        ? `${dataObj.getFullYear()}.${String(dataObj.getMonth() + 1).padStart(
+            2,
+            "0",
+          )}.${String(dataObj.getDate()).padStart(2, "0")}`
+        : "업데이트 없음";
 
       const li = document.createElement("li");
       // [수정] 다크모드 배경, 보더, 호버 색상 적용
@@ -66,7 +133,7 @@ async function loadRecentProducts() {
       li.innerHTML = `
         <span class="font-medium text-slate-700 dark:text-slate-200 group-hover/item:text-blue-700 dark:group-hover/item:text-blue-400 truncate mr-2">${data.name}</span>
         <span class="text-xs font-medium text-slate-400 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-md border border-slate-100 dark:border-slate-600 whitespace-nowrap">${formatted}</span>
-      `;
+       `;
       listEl.appendChild(li);
     });
   } catch (e) {
@@ -177,26 +244,34 @@ async function loadDashboardData() {
 
 async function fetchProvisionStats() {
   const today = new Date();
-  const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - 9);
-  startDate.setHours(0, 0, 0, 0);
+  // ✅ 최근 10영업일(주말/공휴일/근로자의날 제외) 기반으로 방문 차트 구성
+  // - 연초(1월 초)에는 이전 연도까지 걸칠 수 있으니 year 2개를 합산
+  const y = today.getFullYear();
+  const holidayThisYear = await fetchHolidaySetForYear(String(y));
+  const holidayPrevYear =
+    today.getMonth() === 0 ? await fetchHolidaySetForYear(String(y - 1)) : null;
+  const holidaySet = holidayPrevYear
+    ? new Set([...holidayPrevYear, ...holidayThisYear])
+    : holidayThisYear;
 
-  const endDate = new Date(today);
-  endDate.setHours(23, 59, 59, 999);
+  const businessDates = recentBusinessDates(10, holidaySet);
+  const todayBusiness = businessDates[businessDates.length - 1] || today;
+  const prevBusiness =
+    businessDates[businessDates.length - 2] ||
+    new Date(todayBusiness.getTime() - 86400000);
 
   const countsByDate = {};
   const todayItemsMap = {};
   let prevItemsTotal = 0;
   let todayItemsTotal = 0;
 
-  const todayKey8 = dateKey8Local(today); // 'YYYYMMDD'
-  const yest = new Date(today);
-  yest.setDate(yest.getDate() - 1);
-  const yestKey8 = dateKey8Local(yest);
+  // ✅ 비교 기준 키(오늘 영업일 vs 이전 영업일)
+  const todayKey8 = dateKey8Local(todayBusiness); // 'YYYYMMDD'
+  const prevKey8 = dateKey8Local(prevBusiness);
 
   // ✅ itemsTotalQty가 "0"일 수도 있으니, 존재 여부를 flag로 따로 들고 간다
   let todayHasItemStats = false;
-  let yestHasItemStats = false;
+  let prevHasItemStats = false;
 
   // ✅ 보험(필요할 때만) 스캔 함수: 하루치 provisions만 읽어서 itemsTotalQty/topMap 계산
   const scanProvisionsItemStatsByDate = async (d) => {
@@ -233,15 +308,8 @@ async function fetchProvisionStats() {
   };
 
   try {
-    // 최근 10일(오늘 포함) stats_daily만 읽는다 (in: 최대 10개)
-    const dayIds = [];
-    for (
-      let d = new Date(startDate);
-      d <= endDate;
-      d.setDate(d.getDate() + 1)
-    ) {
-      dayIds.push(dateKey8Local(d));
-    }
+    // ✅ 최근 10영업일 stats_daily만 읽는다 (in: 최대 10개)
+    const dayIds = businessDates.map((d) => dateKey8Local(d));
 
     const dailySnap = await getDocs(
       query(collection(db, "stats_daily"), where(documentId(), "in", dayIds)),
@@ -283,9 +351,9 @@ async function fetchProvisionStats() {
       }
 
       // ✅ 어제 물품 통계(전일 대비)
-      if (id8 === yestKey8) {
+      if (id8 === prevKey8) {
         if (typeof data.itemsTotalQty === "number") {
-          yestHasItemStats = true;
+          prevHasItemStats = true;
           prevItemsTotal = Number(data.itemsTotalQty || 0);
         }
       }
@@ -293,7 +361,8 @@ async function fetchProvisionStats() {
 
     // ✅ 보험: stats_daily에 item 값이 없을 때만 provisions 하루치 스캔 (오늘/어제만)
     if (!todayHasItemStats) {
-      const { itemsTotalQty, map } = await scanProvisionsItemStatsByDate(today);
+      const { itemsTotalQty, map } =
+        await scanProvisionsItemStatsByDate(todayBusiness);
       todayItemsTotal = itemsTotalQty;
 
       // map을 todayItemsMap에 채워 넣기(기존에 일부 들어있어도 합산)
@@ -302,19 +371,18 @@ async function fetchProvisionStats() {
       });
     }
 
-    if (!yestHasItemStats) {
-      const { itemsTotalQty } = await scanProvisionsItemStatsByDate(yest);
+    if (!prevHasItemStats) {
+      const { itemsTotalQty } =
+        await scanProvisionsItemStatsByDate(prevBusiness);
       prevItemsTotal = itemsTotalQty;
     }
   } catch (err) {
     console.error(err);
   }
 
-  // 최근 10일 데이터(없는 날은 0)
+  // ✅ 최근 10영업일 데이터(없는 날은 0)
   const visitData = [];
-  for (let i = 0; i < 10; i++) {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() + i);
+  for (const d of businessDates) {
     const ds = dateKeyLocal(d);
     visitData.push({ date: ds, count: countsByDate[ds] || 0 });
   }
@@ -325,15 +393,11 @@ async function fetchProvisionStats() {
 function renderVisitSection(visitData) {
   const labels = visitData.map((d) => d.date.slice(5));
   const counts = visitData.map((d) => d.count);
+  const isEmptySeries = !counts.length || counts.every((n) => Number(n) === 0);
 
+  // ✅ 이전 영업일 대비: 최근 10영업일 중 마지막(오늘) vs 직전(이전 영업일)
   const todayCustomer = visitData[visitData.length - 1] || { count: 0 };
-  let prevCustomer = { count: 0 };
-  for (let i = visitData.length - 2; i >= 0; i--) {
-    if (visitData[i].count > 0) {
-      prevCustomer = visitData[i];
-      break;
-    }
-  }
+  const prevCustomer = visitData[visitData.length - 2] || { count: 0 };
 
   const customerDiff = todayCustomer.count - prevCustomer.count;
   const customerRate =
@@ -361,7 +425,63 @@ function renderVisitSection(visitData) {
   // Chart.js 스타일 TDS 최적화
   const ctx = document.getElementById("visit-chart");
   if (ctx) {
-    new Chart(ctx, {
+    // ✅ chart wrapper (for empty overlay)
+    const wrap = ctx.parentElement;
+    if (wrap) wrap.classList.add("relative");
+
+    // ✅ helper: empty overlay (matches TDS card tone)
+    const ensureEmptyOverlay = () => {
+      if (!wrap) return null;
+      let el = wrap.querySelector("#visit-chart-empty");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "visit-chart-empty";
+        el.className = "absolute inset-0 flex items-center justify-center";
+        el.innerHTML = `
+          <div class="w-full h-full flex items-center justify-center rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40">
+            <div class="flex items-center gap-3">
+              <div class="flex items-center justify-center w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <i class="fas fa-chart-line text-base"></i>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">표시할 방문 데이터가 없습니다</span>
+                <span class="text-xs mt-1 font-medium text-slate-500 dark:text-slate-400">최근 방문 기록이 없어요</span>
+              </div>
+            </div>
+          </div>
+        `;
+        wrap.appendChild(el);
+      }
+      el.classList.remove("hidden");
+      return el;
+    };
+
+    const hideEmptyOverlay = () => {
+      if (!wrap) return;
+      const el = wrap.querySelector("#visit-chart-empty");
+      if (el) el.classList.add("hidden");
+    };
+
+    // ✅ Always destroy previous chart to avoid duplicate rendering
+    try {
+      __visitChart?.destroy?.();
+    } catch {}
+    __visitChart = null;
+
+    // ✅ If empty, show overlay and skip chart render
+    if (isEmptySeries) {
+      ensureEmptyOverlay();
+      // canvas clear (prevents stale render in some browsers)
+      try {
+        const c = ctx;
+        c.width = c.width;
+      } catch {}
+      return;
+    }
+
+    hideEmptyOverlay();
+
+    __visitChart = new Chart(ctx, {
       type: "line",
       data: {
         labels,
@@ -429,12 +549,26 @@ function renderItemSection(todayItemsMap, todayItemsTotal, prevItemsTotal) {
     }));
     const topThree = entries.sort((a, b) => b.count - a.count).slice(0, 3);
     const medals = ["🥇", "🥈", "🥉"];
-    if (topThree.length === 0) {
-      // [수정] 다크모드 대응
+
+    // ✅ Empty-state: match item-card list tone
+    // - 조건: Top3가 없거나, 오늘 총 제공 수량이 0일 때
+    if (topThree.length === 0 || Number(todayItemsTotal || 0) <= 0) {
       const li = document.createElement("li");
       li.className =
-        "text-sm text-slate-400 dark:text-slate-500 text-center py-2";
-      li.textContent = "데이터 없음";
+        "p-4 rounded-2xl bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700 list-none min-h-[160px] flex items-center justify-center";
+      li.innerHTML = `
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="flex items-center justify-center w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0">
+              <i class="fas fa-boxes-stacked text-base"></i>
+            </div>
+            <div class="min-w-0 flex flex-col">
+              <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">오늘 제공된 물품이 없습니다</span>
+              <span class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">제공 등록이 생기면 Top 3가 표시돼요</span>
+            </div>
+          </div>
+        </div>
+      `;
       topList.appendChild(li);
     } else {
       topThree.forEach((item, index) => {
@@ -552,9 +686,16 @@ function openExpiryModal() {
   modal.classList.remove("hidden");
   modal.setAttribute("aria-hidden", "false");
 
+  // ✅ ESC 핸들러를 close()가 항상 제거할 수 있게 참조 유지
+  const escHandler = (e) => {
+    if (e.key === "Escape") close();
+  };
+
   const close = () => {
     modal.classList.add("hidden");
     modal.setAttribute("aria-hidden", "true");
+    // ✅ 어떤 경로로 닫혀도 리스너 정리
+    window.removeEventListener("keydown", escHandler);
   };
 
   closeBtn.onclick = close;
@@ -563,12 +704,7 @@ function openExpiryModal() {
     if (e.target === modal) close();
   };
 
-  window.addEventListener("keydown", function escHandler(e) {
-    if (e.key === "Escape") {
-      close();
-      window.removeEventListener("keydown", escHandler);
-    }
-  });
+  window.addEventListener("keydown", escHandler);
 
   function renderBaseResults(selectedDate) {
     const base = selectedDate || parseDateInput(baseEl.value);
