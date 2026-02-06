@@ -19,7 +19,6 @@
 
     <link rel="stylesheet" href="css/tw.css" />
     <link rel="stylesheet" href="css/tw-input.css" />
-    <link rel="stylesheet" href="css/common.css" />
     <link rel="stylesheet" href="css/customers.css" />
 
     <link
@@ -65,7 +64,29 @@
       <section id="customer-search-section" class="card space-y-6">
         <div class="flex flex-col md:flex-row gap-3 items-start">
           <div id="global-search-group" class="field-group flex-1">
-            <label class="field-label" for="global-search">통합 검색</label>
+            <label
+              class="field-label flex items-center gap-2"
+              for="global-search"
+            >
+              <span>통합 검색</span>
+              <span class="relative inline-flex group">
+                <button
+                  type="button"
+                  class="btn btn-ghost inline-flex items-center justify-center w-5 h-5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
+                  aria-label="통합검색 안내"
+                >
+                  <i class="fas fa-circle-info text-[13px]"></i>
+                </button>
+                <div
+                  id="global-search-tip"
+                  class="pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity absolute left-0 top-full mt-2 z-50 w-[280px] rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 text-xs text-slate-600 dark:text-slate-200"
+                >
+                  통합검색은 ‘지원’ 상태 이용자만 검색돼요. 다른 상태는
+                  고급검색에서 확인할 수 있어요.
+                </div>
+              </span>
+            </label>
+
             <div class="field-box">
               <div class="field-prefix"><i class="fas fa-search"></i></div>
               <input
@@ -107,10 +128,12 @@
                   <option value="">선택 안함</option>
                   <option value="name">이용자명</option>
                   <option value="birth">생년월일</option>
-                  <option value="phone">전화번호</option>
+                  <option value="status">상태</option>
+                  <option value="region1">행정구역</option>
                   <option value="address">주소</option>
-                  <option value="type">구분</option>
-                  <option value="category">분류</option>
+                  <option value="phone">전화번호</option>
+                  <option value="type">이용자구분</option>
+                  <option value="category">이용자분류</option>
                   <option value="note">비고</option>
                 </select>
               </div>
@@ -218,7 +241,7 @@
                 </th>
                 <th
                   data-label="상태"
-                  class="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
+                  class="th-admin-only px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
                 >
                   상태
                 </th>
@@ -242,13 +265,13 @@
                 </th>
                 <th
                   data-label="이용자구분"
-                  class="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
+                  class="th-admin-only px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
                 >
                   구분
                 </th>
                 <th
                   data-label="이용자분류"
-                  class="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
+                  class="th-admin-only px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
                 >
                   분류
                 </th>
@@ -595,7 +618,7 @@
         </div>
 
         <div class="modal-footer">
-          <div id="footer-direct" class="flex w-full gap-2">
+          <div class="flex w-full gap-2">
             <button
               type="button"
               id="create-modal-close"
@@ -605,27 +628,10 @@
             </button>
             <button
               type="button"
-              id="create-modal-save"
+              id="create-modal-primary"
               class="btn btn-primary btn-md flex-[2]"
             >
               저장하기
-            </button>
-          </div>
-
-          <div id="footer-upload" class="hidden w-full gap-2">
-            <button
-              type="button"
-              id="create-modal-close"
-              class="btn btn-light btn-md flex-1"
-            >
-              취소
-            </button>
-            <button
-              id="btn-upload-exec"
-              class="btn btn-primary btn-md flex-[2]"
-              disabled
-            >
-              실행
             </button>
           </div>
         </div>
@@ -746,7 +752,7 @@
               <div id="edit-phone-wrap" class="flex flex-col gap-2"></div>
             </div>
 
-            <div class="field-group">
+            <div class="field-group relative">
               <label class="field-label">이용자구분</label>
               <div class="field-box">
                 <input
@@ -756,9 +762,10 @@
                   placeholder="직접 입력"
                 />
               </div>
+              <div id="edit-type-list" class="autocomplete-list hidden"></div>
             </div>
 
-            <div class="field-group">
+            <div class="field-group relative">
               <label class="field-label">이용자분류</label>
               <div class="field-box">
                 <input
@@ -768,6 +775,10 @@
                   placeholder="직접 입력"
                 />
               </div>
+              <div
+                id="edit-category-list"
+                class="autocomplete-list hidden"
+              ></div>
             </div>
 
             <div class="field-group sm:col-span-2">

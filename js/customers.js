@@ -7,6 +7,7 @@ import {
   getDoc,
   query,
   Timestamp,
+  serverTimestamp,
   updateDoc,
   deleteDoc,
   where,
@@ -38,8 +39,10 @@ import {
 
 import { createApprovalRequest } from "./utils/approval.js";
 
-// 🔍 검색용 메모리 저장
-let customerData = [];
+// 🔍 렌더/검색용 메모리 역할 분리(B안)
+let renderRows = []; // 현재 테이블에 렌더된 rows (페이지 단위)
+let supportCacheSnapshot = []; // IndexedDB(지원-only) 전체 스냅샷(로컬 통합검색/로컬 fallback에 활용)
+let searchBaseRows = []; // “현재 검색 모드” 기준 rows(필요 시 fallback 대상)
 let pagesKnown = 1; // 렌더 직전 순간값으로 재계산해서 넣어줌
 
 let displaydData = [];
@@ -61,6 +64,40 @@ let buildBaseQuery = null; // () => limit/startAfter 제외한 쿼리 제약 (co
 let __totalPages = 1; // count() 기반 총 페이지 수
 let __currentFirstDoc = null; // 현재 페이지 첫 문서 스냅샷
 let __currentLastDoc = null; // 현재 페이지 마지막 문서 스냅샷
+
+// ===== 로컬(통합검색) 페이지네이션 상태 =====
+let __localMode = false;
+let __localAllRows = [];
+
+function isLocalMode() {
+  return __localMode === true;
+}
+
+function setLocalMode(rows) {
+  __localMode = true;
+  __localAllRows = Array.isArray(rows) ? rows : [];
+  __totalPages = Math.max(
+    1,
+    Math.ceil(__localAllRows.length / Math.max(1, pageSize)),
+  );
+  pagesKnown = __totalPages;
+  currentPageIndex = 0;
+}
+
+function clearLocalMode() {
+  __localMode = false;
+  __localAllRows = [];
+}
+
+function renderLocalPage() {
+  const start = currentPageIndex * pageSize;
+  const end = start + pageSize;
+  const slice = __localAllRows.slice(start, end);
+  displaydData = slice;
+  searchBaseRows = slice;
+  renderTable(slice);
+  updatePagerUI();
+}
 
 function roleConstraint() {
   return isAdmin ? [] : [where("status", "==", "지원")];
@@ -117,6 +154,7 @@ async function fetchAndRenderPage() {
     });
 
     displaydData = rows;
+    searchBaseRows = rows; // ✅ 현재 검색 모드 기준 rows로 저장(최소 범위라도 명시적으로 관리)
     renderTable(rows);
     updatePagerUI();
 
@@ -145,11 +183,55 @@ async function fetchAndRenderPage() {
 
 function updatePagerUI() {
   const pagEl = document.getElementById("pagination");
-  // A안: 페이지 상태 계산
+  // ✅ 로컬(통합검색) 모드: __localAllRows 기준으로 클라이언트 페이지네이션
+  if (isLocalMode()) {
+    __totalPages = Math.max(
+      1,
+      Math.ceil(__localAllRows.length / Math.max(1, pageSize)),
+    );
+    pagesKnown = __totalPages;
+    const current = currentPageIndex + 1;
+    const hasPrev = currentPageIndex > 0;
+    const hasNext = current < __totalPages;
+    renderCursorPager(
+      pagEl,
+      { current, pagesKnown, hasPrev, hasNext },
+      {
+        goFirst: () => {
+          if (!hasPrev) return;
+          currentPageIndex = 0;
+          renderLocalPage();
+        },
+        goPrev: () => {
+          if (!hasPrev) return;
+          currentPageIndex = Math.max(0, currentPageIndex - 1);
+          renderLocalPage();
+        },
+        goPage: async (n) => {
+          n = Math.max(1, Math.min(n, __totalPages));
+          if (n === current) return;
+          currentPageIndex = n - 1;
+          renderLocalPage();
+        },
+        goNext: () => {
+          if (!hasNext) return;
+          currentPageIndex = Math.min(__totalPages - 1, currentPageIndex + 1);
+          renderLocalPage();
+        },
+        goLast: () => {
+          if (!hasNext) return;
+          currentPageIndex = __totalPages - 1;
+          renderLocalPage();
+        },
+      },
+    );
+    return;
+  }
+
+  // A안: 서버 페이지네이션 상태 계산
   const current = currentPageIndex + 1;
   const hasPrev = currentPageIndex > 0;
   const hasNext = current < (__totalPages || 1); // 총 페이지 수 기준
-  // 처음부터 정확한 전체 페이지 기반으로 버튼 노출
   pagesKnown = __totalPages || current + (__hasNextPage ? 1 : 0);
   renderCursorPager(
     pagEl,
@@ -179,12 +261,10 @@ function updatePagerUI() {
         if (!hasNext) return;
         goNextPage();
       },
-      // '끝(>>)' 버튼: 단일 쿼리로 마지막 페이지 로드
       goLast: () => {
         goLastDirect().catch(console.warn);
       },
     },
-    { window: 5 },
   );
 }
 
@@ -240,6 +320,21 @@ async function refreshAfterMutation() {
 /* ============================
  * 직접 등록 폼 초기화
  * ============================ */
+let createModalActiveTab = "direct"; // "direct" | "upload"
+let runCreateModalUploadExec = null; // bindUploadTab에서 주입(실행 로직)
+
+function setCreateModalPrimaryMode(mode) {
+  const btn = document.getElementById("create-modal-primary");
+  if (!btn) return;
+  if (mode === "upload") {
+    btn.textContent = "실행";
+    // 업로드는 미리보기 완료 전까지 disabled (bindUploadTab에서 제어)
+  } else {
+    btn.textContent = "저장하기";
+    btn.disabled = false;
+  }
+}
+
 // [수정] 폼 초기화 (입력값/탭 리셋 + 엑셀 UI 초기화 추가)
 function resetCreateForm() {
   const set = (id, v = "") => {
@@ -292,13 +387,9 @@ function resetCreateForm() {
     modal.querySelector("#tab-direct")?.classList.remove("hidden");
     modal.querySelector("#tab-upload")?.classList.add("hidden");
 
-    // 푸터 버튼 초기화
-    modal.querySelector("#footer-direct")?.classList.remove("hidden");
-    const footerUpload = modal.querySelector("#footer-upload");
-    if (footerUpload) {
-      footerUpload.classList.add("hidden");
-      footerUpload.classList.remove("flex");
-    }
+    // ✅ 단일 푸터: primary 버튼만 direct 모드로 초기화
+    createModalActiveTab = "direct";
+    setCreateModalPrimaryMode("direct");
   }
 
   // 3. [추가] 엑셀 업로드 탭 UI 완전 초기화
@@ -312,7 +403,7 @@ function resetCreateForm() {
   const uiTextMain = document.getElementById("upload-ui-text-main");
   const uiTextSub = document.getElementById("upload-ui-text-sub");
   const preview = document.getElementById("upload-preview");
-  const execBtn = document.getElementById("btn-upload-exec");
+  const execBtn = document.getElementById("create-modal-primary");
 
   if (uploaderBox) {
     uploaderBox.classList.add(
@@ -354,6 +445,7 @@ function resetCreateForm() {
     preview.className =
       "p-4 bg-blue-50/50 dark:bg-slate-800 border border-blue-100 dark:border-slate-700 rounded-xl text-sm text-blue-800 dark:text-blue-300 text-center font-medium";
   }
+  // 업로드 탭에서만 의미 있음: 초기에는 disabled 유지(미리보기 후 활성화)
   if (execBtn) execBtn.disabled = true;
 }
 
@@ -393,6 +485,7 @@ async function goPrevPage() {
       return data;
     });
     displaydData = rows;
+    searchBaseRows = rows; // ✅ 현재 검색 모드 기준 rows로 저장(최소 범위라도 명시적으로 관리)
     renderTable(rows);
     // 인덱스/커서 상태 갱신(이후 '다음' 이동을 위해 현재 페이지의 마지막 문서를 저장)
     currentPageIndex = Math.max(0, currentPageIndex - 1);
@@ -428,6 +521,7 @@ async function goLastDirect() {
       return data;
     });
     displaydData = rows;
+    searchBaseRows = rows; // ✅ 현재 검색 모드 기준 rows로 저장(최소 범위라도 명시적으로 관리)
     renderTable(rows);
     // 인덱스를 맨 끝으로, '다음'은 없음
     currentPageIndex = Math.max(0, (__totalPages || 1) - 1);
@@ -538,13 +632,110 @@ function toCacheShape(c) {
     phoneLast4,
   };
 }
-async function syncSupportCache() {
+async function syncSupportCacheFull() {
   // 관리자/일반 공통: status=="지원"만 로컬 캐시
   const base = collection(db, "customers");
   const snap = await getDocs(query(base, where("status", "==", "지원")));
   const rows = snap.docs.map((d) => toCacheShape({ id: d.id, ...d.data() }));
   await idbClear();
   await idbPutAll(rows);
+  return { count: rows.length };
+}
+
+// ✅ 지원 캐시 TTL(24h)
+const SUPPORT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const SUPPORT_CACHE_SYNC_KEY = "customers_support_cache_synced_at";
+const SUPPORT_CACHE_LAST_UPDATED_AT_KEY =
+  "customers_support_cache_last_updated_at_ms";
+
+async function syncSupportCacheIncremental() {
+  const base = collection(db, "customers");
+  const lastMs = Number(
+    localStorage.getItem(SUPPORT_CACHE_LAST_UPDATED_AT_KEY) || 0,
+  );
+  const lastTs = lastMs ? Timestamp.fromMillis(lastMs) : null;
+
+  // lastTs가 없으면 full로 시작
+  if (!lastTs) {
+    const res = await syncSupportCacheFull();
+    localStorage.setItem(SUPPORT_CACHE_SYNC_KEY, String(Date.now()));
+    // full sync 후엔 "현재 시각"이 아니라 "가져온 문서들의 updatedAt 최대값"이 이상적이지만
+    // (updatedAt 없는 문서가 있을 수 있어) 우선 now-1ms로 저장해 중복 upsert 허용
+    localStorage.setItem(
+      SUPPORT_CACHE_LAST_UPDATED_AT_KEY,
+      String(Date.now() - 1),
+    );
+    return res;
+  }
+
+  // 증분: updatedAt > lastTs 이면서 status == '지원'
+  // (where + orderBy updatedAt 필요)
+  let qy = query(
+    base,
+    where("status", "==", "지원"),
+    where("updatedAt", ">", lastTs),
+    orderBy("updatedAt"),
+    orderBy(documentId()),
+    limit(500),
+  );
+
+  let maxMs = lastMs;
+  let totalUpsert = 0;
+
+  while (true) {
+    const snap = await getDocs(qy);
+    if (snap.empty) break;
+
+    const rows = snap.docs.map((d) => {
+      const data = d.data() || {};
+      // updatedAt이 Timestamp가 아닐 수도 있어 방어
+      const ua = data.updatedAt;
+      const ms = ua && typeof ua.toMillis === "function" ? ua.toMillis() : 0;
+      if (ms && ms > maxMs) maxMs = ms;
+      return toCacheShape({ id: d.id, ...data });
+    });
+
+    await idbPutAll(rows);
+    totalUpsert += rows.length;
+
+    // 다음 페이지
+    const lastDoc = snap.docs[snap.docs.length - 1];
+    if (!lastDoc || snap.size < 500) break;
+    qy = query(
+      base,
+      where("status", "==", "지원"),
+      where("updatedAt", ">", lastTs),
+      orderBy("updatedAt"),
+      orderBy(documentId()),
+      startAfter(lastDoc),
+      limit(500),
+    );
+  }
+
+  // 마지막 updatedAt 갱신
+  if (maxMs > lastMs) {
+    localStorage.setItem(SUPPORT_CACHE_LAST_UPDATED_AT_KEY, String(maxMs));
+  }
+  localStorage.setItem(SUPPORT_CACHE_SYNC_KEY, String(Date.now()));
+  return { upsert: totalUpsert };
+}
+
+async function syncSupportCacheWithTTL() {
+  const lastFullOrSync = Number(
+    localStorage.getItem(SUPPORT_CACHE_SYNC_KEY) || 0,
+  );
+  const needsFull =
+    !lastFullOrSync || Date.now() - lastFullOrSync >= SUPPORT_CACHE_TTL_MS;
+  if (needsFull) {
+    const res = await syncSupportCacheFull();
+    localStorage.setItem(SUPPORT_CACHE_SYNC_KEY, String(Date.now()));
+    localStorage.setItem(
+      SUPPORT_CACHE_LAST_UPDATED_AT_KEY,
+      String(Date.now() - 1),
+    );
+    return res;
+  }
+  return await syncSupportCacheIncremental();
 }
 
 // 통합검색(로컬 캐시 전필드 OR, 규칙 없이 부분 포함/숫자 포함)
@@ -552,27 +743,46 @@ async function localUnifiedSearch(keyword) {
   const key = normalize(keyword || "");
   if (!key) return [];
   const rows = await idbGetAll();
+  supportCacheSnapshot = rows; // ✅ 지원-only 전체를 메모리에도 유지(로컬 fallback에 활용)
   const digits = key.replace(/\D/g, "");
-  return rows
-    .filter((r) => {
-      // 숫자: 전화 토큰/끝 4자리/생년월일 숫자에 포함되면 매칭
-      const numHit =
-        !!digits &&
-        ((r.phoneTokens || []).some((t) => t.includes(digits)) ||
-          (r.phoneLast4 || "") === digits ||
-          (r.birthDigits || "").includes(digits));
-      // 텍스트: 모든 인덱스 필드에 부분 포함이면 매칭
-      const txtHit =
-        (r.nameLower || "").includes(key) ||
-        (r.regionLower || "").includes(key) ||
-        (r.addressLower || "").includes(key) ||
-        (r.typeLower || "").includes(key) ||
-        (r.categoryLower || "").includes(key) ||
-        (r.noteLower || "").includes(key) ||
-        (r.genderLower || "").includes(key);
-      return numHit || txtHit;
-    })
-    .slice(0, 200); // 안전 상한
+  return rows.filter((r) => {
+    // 숫자: 전화 토큰/끝 4자리/생년월일 숫자에 포함되면 매칭
+    const numHit =
+      !!digits &&
+      ((r.phoneTokens || []).some((t) => t.includes(digits)) ||
+        (r.phoneLast4 || "") === digits ||
+        (r.birthDigits || "").includes(digits));
+    // 텍스트: 모든 인덱스 필드에 부분 포함이면 매칭
+    const txtHit =
+      (r.nameLower || "").includes(key) ||
+      (r.regionLower || "").includes(key) ||
+      (r.addressLower || "").includes(key) ||
+      (r.typeLower || "").includes(key) ||
+      (r.categoryLower || "").includes(key) ||
+      (r.noteLower || "").includes(key) ||
+      (r.genderLower || "").includes(key);
+    return numHit || txtHit;
+  });
+}
+
+// ✅ (P1-6) admin 업로드 비교 최적화: docId 목록만 in-chunks로 조회
+function chunkArray(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+async function fetchCustomersByDocIds(ids) {
+  const base = collection(db, "customers");
+  const uniq = Array.from(new Set((ids || []).filter(Boolean)));
+  if (uniq.length === 0) return [];
+  const chunks = chunkArray(uniq, 30); // Firestore IN 제한(30)
+  const results = [];
+  for (const ch of chunks) {
+    const snap = await getDocs(query(base, where(documentId(), "in", ch)));
+    results.push(...snap.docs);
+  }
+  return results;
 }
 
 // ===== 권한/역할 감지 & UI 토글 =====
@@ -586,6 +796,14 @@ async function applyRoleFromUser(user) {
     isAdmin = role === "admin";
   }
   document.documentElement.classList.toggle("is-admin", isAdmin);
+
+  // ✅ 통합검색 툴팁 문구는 권한별로 다르게
+  const tip = document.getElementById("global-search-tip");
+  if (tip) {
+    tip.textContent = isAdmin
+      ? "통합검색은 ‘지원’ 상태 이용자만 검색돼요. 다른 상태는 고급검색에서 확인할 수 있어요."
+      : "통합검색은 ‘지원’ 상태 이용자만 검색돼요. 전체 이용자 조회는 관리자 권한이 필요해요.";
+  }
 }
 
 // ===== 등록하기 모달 바인딩 =====
@@ -666,16 +884,17 @@ function bindToolbarAndCreateModal() {
   };
 
   document
-    .querySelectorAll("#create-modal-close")
-    .forEach((el) => el.addEventListener("click", closeAll));
+    .getElementById("create-modal-close")
+    ?.addEventListener("click", closeAll);
 
   // ============================
-  // 4. 탭 전환 (디자인 + 푸터 버튼 토글)
+  // 4. 탭 전환 (디자인 + primary 버튼 모드 전환)
   // ============================
   modal.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       const targetTab = tab.dataset.tab;
       const isUpload = targetTab === "upload";
+      createModalActiveTab = isUpload ? "upload" : "direct";
 
       // (1) 탭 스타일 업데이트 (Segmented Control)
       modal.querySelectorAll(".tab").forEach((t) => {
@@ -706,88 +925,25 @@ function bindToolbarAndCreateModal() {
       const targetPanel = modal.querySelector("#tab-" + targetTab);
       if (targetPanel) targetPanel.classList.remove("hidden");
 
-      // (3) 푸터 버튼 전환 (직접입력 vs 엑셀업로드)
-      const directFooter = modal.querySelector("#footer-direct");
-      const uploadFooter = modal.querySelector("#footer-upload");
-
-      if (isUpload) {
-        directFooter.classList.add("hidden");
-        uploadFooter.classList.remove("hidden");
-        uploadFooter.classList.add("flex");
-      } else {
-        directFooter.classList.remove("hidden");
-        uploadFooter.classList.add("hidden");
-        uploadFooter.classList.remove("flex");
-      }
+      // ✅ 단일 푸터: primary 버튼 텍스트만 전환
+      setCreateModalPrimaryMode(isUpload ? "upload" : "direct");
     });
   });
 
   // ============================
-  // 5. 엑셀 양식 다운로드 (ExcelJS 즉석 생성)
-  // ============================
-  document
-    .getElementById("btn-download-template")
-    ?.addEventListener("click", async () => {
-      try {
-        const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet("업로드양식");
-
-        // 헤더 설정
-        sheet.columns = [
-          { header: "이용자명", key: "name", width: 15 },
-          { header: "생년월일", key: "birth", width: 15 },
-          { header: "성별", key: "gender", width: 8 },
-          { header: "전화번호", key: "phone", width: 20 },
-          { header: "주소", key: "address", width: 40 },
-          { header: "행정구역", key: "region1", width: 15 },
-          { header: "이용자구분", key: "type", width: 15 },
-          { header: "이용자분류", key: "category", width: 15 },
-          { header: "상태", key: "status", width: 10 },
-          { header: "비고", key: "note", width: 30 },
-        ];
-
-        // 헤더 스타일링
-        const headerRow = sheet.getRow(1);
-        headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
-        headerRow.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FF4B5563" },
-        };
-        headerRow.alignment = { vertical: "middle", horizontal: "center" };
-
-        // 예시 데이터
-        sheet.addRow({
-          name: "홍길동",
-          birth: "1980.01.01",
-          gender: "남",
-          phone: "010-1234-5678",
-          address: "대구광역시 달서구...",
-          region1: "두류동",
-          type: "기초생활수급자",
-          category: "독거노인",
-          status: "지원",
-          note: "예시 데이터입니다.",
-        });
-
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        });
-        saveAs(blob, "이용자등록_양식.xlsx");
-      } catch (e) {
-        console.error(e);
-        showToast("양식 생성 중 오류가 발생했습니다.", true);
-      }
-    });
-
-  // ============================
   // 6. 저장 및 업로드 실행 바인딩
   // ============================
-  // 직접 저장 버튼
+  // ✅ 단일 primary 버튼: direct=저장, upload=실행
   document
-    .getElementById("create-modal-save")
-    .addEventListener("click", saveCreateDirect);
+    .getElementById("create-modal-primary")
+    ?.addEventListener("click", async () => {
+      if (createModalActiveTab === "upload") {
+        if (typeof runCreateModalUploadExec === "function")
+          return await runCreateModalUploadExec();
+        return;
+      }
+      return await saveCreateDirect();
+    });
 
   // 업로드 탭 기능 바인딩 (파일 선택, 미리보기, 실행)
   bindUploadTab();
@@ -863,7 +1019,7 @@ async function saveCreateDirect() {
     type: val("#create-type"),
     category: val("#create-category"),
     note: val("#create-note"),
-    updatedAt: new Date().toISOString(),
+    updatedAt: serverTimestamp(),
     updatedBy: email,
     // 🔎 인덱스 필드
     nameLower: normalize(val("#create-name")),
@@ -973,14 +1129,14 @@ async function loadCustomers() {
   });
   updateSortIcons();
   try {
-    await syncSupportCache();
+    await syncSupportCacheWithTTL();
   } catch {}
 }
 
 function renderTable(data) {
   const tbody = document.querySelector("#customer-table tbody");
   tbody.innerHTML = "";
-  customerData = data;
+  renderRows = data;
 
   // 1. [수정] 변수 선언을 if 밖으로 꺼냄 (함수 전체에서 사용 가능하도록)
   let sorted = [...data];
@@ -1048,7 +1204,7 @@ function renderTable(data) {
       <td class="px-6 py-3.5 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
         ${c.gender || "-"}
       </td>
-      <td class="px-6 py-3.5 whitespace-nowrap">
+      <td class="td-admin-only px-6 py-3.5 whitespace-nowrap">
         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${statusClass}">
           ${c.status || "미지정"}
         </span>
@@ -1062,10 +1218,10 @@ function renderTable(data) {
       <td class="px-6 py-3.5 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 tracking-tight">
         ${c.phone || "-"}
       </td>
-      <td class="px-6 py-3.5 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+      <td class="td-admin-only px-6 py-3.5 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
         ${c.type || "-"}
       </td>
-      <td class="px-6 py-3.5 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+      <td class="td-admin-only px-6 py-3.5 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
         ${c.category || "-"}
       </td>
       <td class="px-6 py-3.5 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
@@ -1324,7 +1480,7 @@ document
       category: document.getElementById("edit-category").value,
       note: document.getElementById("edit-note").value,
 
-      updatedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
       updatedBy: email,
 
       nameLower: normalize(nameInput.value),
@@ -1497,6 +1653,7 @@ async function runServerSearch() {
 
   // 검색 조건이 아예 없으면 -> 기본 목록으로 초기화
   if (!globalKeyword && (!field || !fieldValue)) {
+    clearLocalMode();
     resetPager("list:nameLower:asc", () => [
       ...roleConstraint(),
       orderBy("nameLower"),
@@ -1508,25 +1665,28 @@ async function runServerSearch() {
   // 2. [통합 검색] (로컬 캐시 사용)
   if (globalKeyword) {
     const localRows = await localUnifiedSearch(globalKeyword);
-    displaydData = localRows;
-    renderTable(localRows);
-
-    // 페이저 등 초기화
-    buildCurrentQuery = null;
-    currentPageIndex = 0;
-    lastPageCount = 0;
-    pagesKnown = 1;
-    updatePagerUI();
+    // ✅ 로컬(통합검색)도 페이지네이션 적용
+    setLocalMode(localRows);
+    buildCurrentQuery = null; // 서버 페이저 비활성
+    lastPageCount = Math.min(pageSize, localRows.length);
+    renderLocalPage();
 
     // [핵심] 결과가 0건이면 통합 검색창에 에러 표시
     if (localRows.length === 0) {
-      toggleSearchError("global-search-group", true, "검색 결과가 없습니다.");
+      toggleSearchError(
+        "global-search-group",
+        true,
+        isAdmin
+          ? "통합검색은 ‘지원’ 상태 이용자만 검색돼요. 다른 상태는 고급검색에서 확인할 수 있어요."
+          : '검색 결과가 없습니다. 검색은 "지원" 상태인 이용자만 검색돼요.',
+      );
     }
     return; // 로컬 검색 종료
   }
 
   // 3. [상세(필드) 검색] (서버 페이지네이션)
   else if (field && fieldValue) {
+    clearLocalMode();
     const identityParts = [];
     if (!isAdmin) identityParts.push("role:user");
     identityParts.push(`field:${field}`, `value:${fieldValue}`);
@@ -1546,8 +1706,10 @@ async function runServerSearch() {
           cons2.push(orderBy(documentId()));
           break;
         case "region1":
-          cons2.push(where("region1", "==", fieldRaw));
-          cons2.push(orderBy(documentId()));
+          // 행정구역: 정규화 필드(regionLower)로 정확 매칭
+          // (인덱스 필요: customers [status, regionLower] 또는 [regionLower] 등)
+          cons2.push(where("regionLower", "==", normalize(fieldRaw)));
+          cons2.push(orderBy(documentId())); // 커서 안정성
           break;
         case "status":
           cons2.push(where("status", "==", fieldRaw || "지원"));
@@ -1576,7 +1738,18 @@ async function runServerSearch() {
         default:
           // 인덱스 없는 필드 (로컬 필터링)
           buildCurrentQuery = null;
-          const filtered = customerData.filter((c) =>
+          // ✅ B안: fallback은 “현재 화면(rows)”가 아니라 가능한 범위의 base에서 수행
+          // - 우선: 지원-only 전체 캐시 스냅샷(가장 넓은 범위, but 지원만)
+          // - 없으면: 현재 검색모드 기준 rows (searchBaseRows)
+          // - 그것도 없으면: 현재 화면 rows(renderRows)
+          const base =
+            (supportCacheSnapshot && supportCacheSnapshot.length
+              ? supportCacheSnapshot
+              : searchBaseRows && searchBaseRows.length
+                ? searchBaseRows
+                : renderRows) || [];
+
+          const filtered = base.filter((c) =>
             normalize(c[field] || "").includes(fieldValue),
           );
           renderTable(filtered);
@@ -1657,7 +1830,19 @@ document.addEventListener("DOMContentLoaded", () => {
   // 페이지 사이즈 공통 초기화(A안)
   initPageSizeSelect(document.getElementById("page-size"), (n) => {
     pageSize = n;
-    // 커서 초기화 및 첫 페이지 로드 (집계 없이)
+    // ✅ 현재 모드에 맞춰 다시 로드/렌더
+    if (isLocalMode()) {
+      // 통합검색: 로컬 전체 결과를 새 pageSize로 재페이지
+      __totalPages = Math.max(
+        1,
+        Math.ceil(__localAllRows.length / Math.max(1, pageSize)),
+      );
+      pagesKnown = __totalPages;
+      currentPageIndex = Math.min(currentPageIndex, __totalPages - 1);
+      renderLocalPage();
+      return;
+    }
+    // 서버모드(기본/상세검색): 커서 초기화 및 첫 페이지 로드
     const id = currentQueryIdentity || "list:nameLower:asc";
     const baseBuilder =
       buildBaseQuery ||
@@ -1695,7 +1880,7 @@ document.addEventListener("click", async (e) => {
   const editBtn = e.target.closest("[data-edit]");
   if (editBtn) {
     const id = editBtn.getAttribute("data-edit");
-    const row = (customerData || []).find((x) => x.id === id);
+    const row = (renderRows || []).find((x) => x.id === id);
     if (row) openEditModal(row);
     return;
   }
@@ -1748,7 +1933,7 @@ function bindUploadTab() {
   const fileEl = modal.querySelector("#upload-file");
   const preview = modal.querySelector("#upload-preview");
   const dryBtn = modal.querySelector("#btn-upload-dryrun");
-  const execBtn = modal.querySelector("#btn-upload-exec");
+  const execBtn = modal.querySelector("#create-modal-primary");
 
   // UI 제어용 엘리먼트 가져오기
   const uploaderBox = modal.querySelector(".uploader");
@@ -1927,25 +2112,31 @@ function bindUploadTab() {
 
       // DB 조회 (비교용)
       const base = collection(db, "customers");
-      const q = isAdmin
-        ? query(base)
-        : query(base, where("status", "==", "지원"));
-      const existingSnap = await getDocs(q);
+      const existingMap = new Map(); // key(docId) -> {id, ...data}
 
-      // 비교 맵 생성 (Key: 이름+생년월일 -> Value: 기존 데이터 객체)
-      const existingMap = new Map();
-      existingSnap.docs.forEach((d) => {
-        const data = d.data();
-        const key = slugId(data.name, data.birth);
-        existingMap.set(key, { id: d.id, ...data });
-      });
+      if (isAdmin) {
+        // ✅ admin: 업로드 대상(docId)만 조회하여 read 최소화
+        const excelIds = Array.from(
+          new Set(dryRows.map((r) => slugId(r.name, r.birth)).filter(Boolean)),
+        );
+        const docs = await fetchCustomersByDocIds(excelIds);
+        docs.forEach((d) => existingMap.set(d.id, { id: d.id, ...d.data() }));
+      } else {
+        // ✅ user: 규칙상 지원만 read 가능 → 기존 방식 유지(지원 전체 기준 비교)
+        const existingSnap = await getDocs(
+          query(base, where("status", "==", "지원")),
+        );
+        existingSnap.docs.forEach((d) =>
+          existingMap.set(d.id, { id: d.id, ...d.data() }),
+        );
+      }
 
       const newRows = [];
       const updateRows = [];
 
       dryRows.forEach((r) => {
-        const key = slugId(r.name, r.birth);
-        const exist = existingMap.get(key);
+        const id = slugId(r.name, r.birth);
+        const exist = existingMap.get(id);
 
         if (!exist) {
           // 신규: DB에 키가 없음
@@ -1979,13 +2170,18 @@ function bindUploadTab() {
       lastDeactivateTargets = [];
       if (lastOptions.statusMode === "all-support-stop-others") {
         const excelKeys = new Set(dryRows.map((r) => slugId(r.name, r.birth)));
-        lastDeactivateTargets = existingSnap.docs
-          .filter(
-            (d) =>
-              d.data().status === "지원" &&
-              !excelKeys.has(slugId(d.data().name, d.data().birth)),
-          )
-          .map((d) => d.id);
+        // ✅ 이 모드에서만 '지원 전체' 스캔이 필요 (admin 최적화 방침 유지)
+        const supportSnap = await getDocs(
+          query(base, where("status", "==", "지원")),
+        );
+        lastDeactivateTargets = supportSnap.docs
+          .filter((d) => !excelKeys.has(d.id))
+          .map((d) => ({
+            id: d.id,
+            name: d.data().name,
+            birth: d.data().birth,
+            status: d.data().status,
+          }));
       }
       const stopCnt = lastDeactivateTargets.length;
 
@@ -2092,8 +2288,8 @@ function bindUploadTab() {
     }
   });
 
-  // [수정] 2. 실행 버튼 (ID 매핑 로직 추가)
-  execBtn.addEventListener("click", async () => {
+  // ✅ 실행 로직을 “단일 primary 버튼”에서 호출할 수 있게 주입
+  runCreateModalUploadExec = async () => {
     if (!dryRows) return;
 
     if (isAdmin) {
@@ -2130,7 +2326,7 @@ function bindUploadTab() {
             docRef,
             {
               ...r,
-              updatedAt: new Date().toISOString(),
+              updatedAt: serverTimestamp(),
               updatedBy: email,
             },
             { merge: true },
@@ -2218,7 +2414,7 @@ function bindUploadTab() {
         hideLoading();
       }
     }
-  });
+  };
 }
 
 async function parseAndNormalizeExcel(file, opts) {
@@ -2497,16 +2693,45 @@ async function exportXlsx() {
   try {
     let rowsToExport = [];
 
-    // 1. [데이터 확보]
-    if (typeof buildBaseQuery === "function" && buildBaseQuery) {
-      showToast("전체 데이터를 다운로드 중입니다...", false);
-      const base = collection(db, "customers");
-      const constraints = buildBaseQuery();
-      const q = query(base, ...constraints);
-      const snap = await getDocs(q);
-      rowsToExport = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // 1) [현재 검색 상태 판단]
+    // 요구사항:
+    // - 통합검색/고급검색: 검색 결과 "전체" 다운로드(페이지네이션 무시)
+    // - 검색 상태가 아니면: 전체 데이터 다운로드(권한 범위 내)
+    const gInput = document.getElementById("global-search");
+    const fSelect = document.getElementById("field-select");
+    const fInput = document.getElementById("field-search");
+    const globalKeyword = normalize(gInput?.value || "");
+    const field = (fSelect?.value || "").trim();
+    const fieldValue = normalize((fInput?.value || "").trim());
+    const isGlobalSearching = !!globalKeyword;
+    const isFieldSearching = !!field && !!fieldValue;
+    const isSearching = isGlobalSearching || isFieldSearching;
+
+    // 2) [데이터 확보]
+    if (isGlobalSearching) {
+      // ✅ 통합검색: "검색 결과 전체" = 로컬 캐시 전체에서 다시 계산(페이지네이션/렌더링과 무관)
+      showToast("통합검색 결과(전체)를 다운로드 중입니다...", false);
+      rowsToExport = await localUnifiedSearch(globalKeyword);
     } else {
-      rowsToExport = displaydData;
+      // ✅ 고급검색 또는 검색 아님: 서버에서 "전체"를 가져옴(권한 범위 내)
+      // - 고급검색: buildBaseQuery가 현재 검색 조건(=limit 없는 전체 조건)을 담고 있어야 함
+      // - 검색 아님(초기 로드): buildBaseQuery는 기본 목록 조건(권한/정렬) -> 전체 다운로드
+      if (typeof buildBaseQuery === "function" && buildBaseQuery) {
+        showToast(
+          isSearching
+            ? "고급검색 결과(전체)를 다운로드 중입니다..."
+            : "전체 데이터를 다운로드 중입니다...",
+          false,
+        );
+        const base = collection(db, "customers");
+        const constraints = buildBaseQuery(); // limit/startAfter 없음
+        const q = query(base, ...constraints);
+        const snap = await getDocs(q);
+        rowsToExport = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      } else {
+        // 예외 fallback: buildBaseQuery가 없으면 현재 표시 데이터라도 사용
+        rowsToExport = displaydData || [];
+      }
     }
 
     if (!rowsToExport.length) {
@@ -2794,7 +3019,7 @@ function initPhoneList(wrapSel, addBtnSel, initial = []) {
   if (!wrap) return;
   wrap.innerHTML = "";
 
-  const addRow = (val = "") => {
+  const addRow = (val = "", canDelete = true) => {
     // 1. 겉을 감싸는 div 생성 (기존 phone-row 대신 field-box 스타일 적용을 위한 래퍼)
     // 모달 디자인 통일성을 위해 margin-bottom(mb-2) 추가
     const row = document.createElement("div");
@@ -2802,14 +3027,27 @@ function initPhoneList(wrapSel, addBtnSel, initial = []) {
 
     // 2. 내부 HTML 구조 변경: .field-box > .field-input
     row.innerHTML = `
-      <div class="field-box"> <input 
-          type="text" 
-          class="field-input phone-item" 
-          placeholder="예) 01012345678" 
-          value="${
-            val ? formatPhoneDigits(String(val).replace(/\D/g, "")) : ""
-          }"
+      <div class="field-box">
+        <input 
+          type="text"
+          class="field-input phone-item"
+          placeholder="예) 01012345678"
+          value="${val ? formatPhoneDigits(String(val).replace(/\D/g, "")) : ""}"
         >
+        ${
+          canDelete
+            ? `
+        <div class="field-right">
+          <button type="button"
+            class="btn btn-ghost btn-xs w-8 h-8 rounded-lg p-0 text-rose-500 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20 transition-colors"
+            title="삭제"
+            data-phone-remove="1"
+          >
+            <i class="fas fa-times text-[12px]"></i>
+          </button>
+        </div>`
+            : ""
+        }
       </div>
     `;
 
@@ -2825,20 +3063,43 @@ function initPhoneList(wrapSel, addBtnSel, initial = []) {
       "blur",
       () => (input.value = formatPhoneDigits(input.value.replace(/\D/g, ""))),
     );
+
+    // 삭제 버튼
+    const rm = row.querySelector("[data-phone-remove]");
+    if (rm) {
+      rm.addEventListener("click", () => {
+        row.remove();
+        // 안전장치: 최소 1개는 남기기 (혹시 전부 삭제된 경우 자동 1줄 추가)
+        const left = wrap.querySelectorAll(".phone-row").length;
+        if (left === 0) addRow("", false);
+        // 첫 번째 줄은 항상 삭제 불가로 강제
+        enforceFirstUndeletable(wrap);
+      });
+    }
+  };
+
+  const enforceFirstUndeletable = (wrapEl) => {
+    const rows = [...wrapEl.querySelectorAll(".phone-row")];
+    rows.forEach((r, idx) => {
+      const rm = r.querySelector("[data-phone-remove]");
+      if (idx === 0) rm?.remove(); // 첫 줄은 삭제 버튼 제거
+    });
   };
 
   if (initial.length) {
-    initial.forEach((v) => addRow(v));
+    initial.forEach((v, idx) => addRow(v, idx !== 0));
   } else {
-    addRow(); // 기본 한 줄 생성
+    addRow("", false); // 기본 한 줄(삭제 불가)
   }
 
   // 추가 버튼 이벤트 연결
   if (addBtn) {
     const newBtn = addBtn.cloneNode(true);
     addBtn.parentNode.replaceChild(newBtn, addBtn);
-    newBtn.addEventListener("click", () => addRow());
+    newBtn.addEventListener("click", () => addRow("", true));
   }
+
+  enforceFirstUndeletable(wrap);
 }
 
 function getPhonesFromList(wrapSel) {
@@ -2866,7 +3127,7 @@ async function batchUpdateStatus(ids = [], nextStatus = "중단", email = "") {
       const ref = doc(db, "customers", id);
       batch.update(ref, {
         status: nextStatus,
-        updatedAt: new Date().toISOString(),
+        updatedAt: serverTimestamp(),
         updatedBy: email || auth.currentUser?.email || "unknown",
       });
     });
@@ -2967,20 +3228,30 @@ function setupAutocomplete(inputId, listId, options) {
 
   // [수정] 스크롤 이벤트 개선
   // "목록 자체"를 스크롤할 때는 닫지 않고, "화면/모달"을 스크롤할 때만 닫음
-  window.addEventListener(
-    "scroll",
-    (e) => {
-      // 스크롤된 요소(e.target)가 리스트 자신이거나 리스트 안에 있는 요소면 무시
-      if (e.target === list || list.contains(e.target)) {
-        return;
-      }
-      // 그 외(배경, 모달 등) 스크롤이면 리스트 닫기 (위치 틀어짐 방지)
-      list.classList.add("hidden");
-    },
-    true,
-  ); // true: 캡처링 모드 사용
-
-  window.addEventListener("resize", () => list.classList.add("hidden"));
+  // ✅ 전역 리스너는 1회만 등록하고, 등록된 모든 자동완성 리스트를 관리
+  window.__acLists ||= new Set();
+  window.__acLists.add(list);
+  if (!window.__acBoundOnce) {
+    window.__acBoundOnce = true;
+    window.addEventListener(
+      "scroll",
+      (e) => {
+        const lists = window.__acLists;
+        if (!lists) return;
+        lists.forEach((l) => {
+          if (l.classList.contains("hidden")) return;
+          if (e.target === l || l.contains(e.target)) return;
+          l.classList.add("hidden");
+        });
+      },
+      true,
+    );
+    window.addEventListener("resize", () => {
+      const lists = window.__acLists;
+      if (!lists) return;
+      lists.forEach((l) => l.classList.add("hidden"));
+    });
+  }
 
   // 포커스 잃으면 숨김
   input.addEventListener("blur", () => {
