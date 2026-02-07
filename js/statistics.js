@@ -108,6 +108,156 @@ function getCurrentProvisionRange() {
   return { start: s || today, end: e || s || today };
 }
 
+/**
+ * 통합 검색 UI 초기화
+ * - 탭/기간/연도/분기 변경 시 검색어가 남아있으면 "데이터가 없다고 오해"하기 쉬움
+ * - 검색 에러 UI도 같이 내려서 UX 일관성 유지
+ */
+function clearUnifiedSearchInputs() {
+  const g = document.getElementById("global-search");
+  const f = document.getElementById("field-search");
+  if (g) g.value = "";
+  if (f) f.value = "";
+
+  // 에러 UI/상태도 함께 초기화
+ try {
+    toggleSearchError("global-search-group", false);
+    toggleSearchError("field-search-group", false);
+  } catch (_) {}
+}
+
+/* =====================================================
+ * KST / Business Day Helpers
+ * - KST로 날짜 키(YYYYMMDD) 및 start/end 경계를 통일
+ * - 영업일: 주말 + 공휴일 + 근로자의날(5/1) 제외
+ *   공휴일은 Nager.Date API (KR) 사용 + localStorage 캐시(30일)
+ * ===================================================== */
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const WORKERS_DAY_MMDD = "05-01";
+const HOLIDAY_CACHE_PREFIX = "kr_holidays_";
+
+function toKstDateParts(date) {
+  const k = new Date(date.getTime() + KST_OFFSET_MS);
+  return {
+    y: k.getUTCFullYear(),
+    m: k.getUTCMonth() + 1,
+    d: k.getUTCDate(),
+    dow: k.getUTCDay(), // 0=Sun..6=Sat (KST 기준)
+  };
+}
+
+function kstStartOfDay(date) {
+  const { y, m, d } = toKstDateParts(date);
+  // KST 00:00:00.000 => UTC ms
+  const utcMs = Date.UTC(y, m - 1, d, 0, 0, 0, 0) - KST_OFFSET_MS;
+  return new Date(utcMs);
+}
+
+function kstEndOfDay(date) {
+  const start = kstStartOfDay(date);
+  return new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+}
+
+function addDaysKst(date, deltaDays) {
+  // KST 날짜 단위 이동(정오 기준으로 안전 이동)
+  const { y, m, d } = toKstDateParts(date);
+  const utcBase = Date.UTC(y, m - 1, d, 12, 0, 0, 0) - KST_OFFSET_MS;
+  return new Date(utcBase + deltaDays * 24 * 60 * 60 * 1000);
+}
+
+function toDayNumberKst(date) {
+  const { y, m, d } = toKstDateParts(date);
+  return y * 10000 + m * 100 + d;
+}
+
+function isWeekendKst(date) {
+  const { dow } = toKstDateParts(date);
+  return dow === 0 || dow === 6;
+}
+
+function isWorkersDayKst(date) {
+  const { m, d } = toKstDateParts(date);
+  const mmdd = `${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  return mmdd === WORKERS_DAY_MMDD;
+}
+
+function ymd8FromParts({ y, m, d }) {
+  return `${y}${String(m).padStart(2, "0")}${String(d).padStart(2, "0")}`;
+}
+
+async function fetchHolidaySetKr(year) {
+  const key = `${HOLIDAY_CACHE_PREFIX}${year}`;
+  const cached = (() => {
+    try {
+      return JSON.parse(localStorage.getItem(key) || "null");
+    } catch {
+      return null;
+    }
+  })();
+
+  const now = Date.now();
+  if (
+    cached &&
+    Array.isArray(cached.set) &&
+    now - Number(cached.fetchedAt || 0) < 30 * 24 * 60 * 60 * 1000
+  ) {
+    return new Set(cached.set);
+  }
+
+  const url = `https://date.nager.at/api/v3/PublicHolidays/${year}/KR`;
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(`holiday api ${res.status}`);
+    const arr = await res.json();
+    const set = (Array.isArray(arr) ? arr : [])
+      .map((x) => String(x?.date || "").replace(/-/g, ""))
+      .filter((s) => /^\d{8}$/.test(s));
+
+    // 근로자의 날은 공휴일 API에 없을 수 있으므로 강제 포함
+    const merged = Array.from(new Set([...set, `${year}0501`]));
+    try {
+      localStorage.setItem(
+        key,
+        JSON.stringify({ fetchedAt: now, set: merged }),
+      );
+    } catch {}
+    return new Set(merged);
+  } catch (e) {
+    if (cached && Array.isArray(cached.set)) return new Set(cached.set);
+    return new Set([`${year}0501`]); // 마지막 fallback
+  }
+}
+
+async function isBusinessDayKst(date) {
+  if (isWeekendKst(date)) return false;
+  if (isWorkersDayKst(date)) return false;
+  const { y } = toKstDateParts(date);
+  const holidays = await fetchHolidaySetKr(y);
+  const ymd8 = ymd8FromParts(toKstDateParts(date));
+  return !holidays.has(ymd8);
+}
+
+async function nearestPrevBusinessDayKst(date) {
+  // date가 비영업일이면 가장 가까운 이전 영업일을 반환(비영업일이면 포함X)
+  let cur = new Date(date);
+  if (await isBusinessDayKst(cur)) return cur;
+  for (let i = 0; i < 370; i++) {
+    cur = addDaysKst(cur, -1);
+    if (await isBusinessDayKst(cur)) return cur;
+  }
+  return cur;
+}
+
+async function prevBusinessDayKst(date) {
+  // date 이전(포함X) 가장 가까운 이전 영업일
+  let cur = new Date(date);
+  for (let i = 0; i < 370; i++) {
+    cur = addDaysKst(cur, -1);
+    if (await isBusinessDayKst(cur)) return cur;
+  }
+  return cur;
+}
+
 /* =====================================================
  * State & Config
  * ===================================================== */
@@ -153,10 +303,8 @@ function normalize(str) {
 
 // ===== Provision/Visit Key Helpers (same rule as provision.js) =====
 function toDayNumber(d) {
-  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  return (
-    base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate()
-  );
+  // ✅ KST 기준 YYYYMMDD로 통일
+  return toDayNumberKst(d);
 }
 function toDateKey(dayNum) {
   const y = Math.floor(dayNum / 10000);
@@ -165,8 +313,7 @@ function toDateKey(dayNum) {
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 function toPeriodKey(date) {
-  const y = date.getFullYear();
-  const m = date.getMonth() + 1;
+  const { y, m } = toKstDateParts(date);
   const startY = m >= 3 ? y : y - 1;
   const endY = startY + 1;
   return `${String(startY).slice(2)}-${String(endY).slice(2)}`;
@@ -201,8 +348,7 @@ function lastVisitDisplay(data) {
 
 function getCurrentPeriodKey() {
   const date = new Date();
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
+  const { y: year, m: month } = toKstDateParts(date);
   let startYear = month >= 3 ? year : year - 1;
   let endYear = startYear + 1;
   return `${String(startYear).slice(2)}-${String(endYear).slice(2)}`;
@@ -212,8 +358,9 @@ function getFiscalPeriodKeys(n = 6) {
   const out = [];
   const today = new Date();
   for (let i = 0; i < n; i++) {
-    const year = today.getFullYear() - i;
-    const startYear = today.getMonth() + 1 >= 3 ? year : year - 1;
+    const { y, m } = toKstDateParts(today);
+    const year = y - i;
+    const startYear = m >= 3 ? year : year - 1;
     const endYear = startYear + 1;
     out.push(`${String(startYear).slice(2)}-${String(endYear).slice(2)}`);
   }
@@ -718,6 +865,103 @@ let provCursor = {
   hasNext: false,
 };
 
+// ===== Provision Search Mode (A안) =====
+// - 기본: serverMode=true (현재 페이지에서만 렌더/정렬)
+// - 검색 버튼/Enter 실행 시: 기간 내 데이터를 1000개 단위로 로드하면서(더보기) client filtering
+// - Export는 제한 없이 기간 내 전체를 끝까지 로드 후(검색이면 검색결과 전체) 저장
+const PROV_SEARCH_BATCH = 1000;
+let __provRangeKey = "";
+let __provSearchMode = false;
+let __provAllLoaded = false;
+let __provLastDocForRange = null;
+let __provLoadMorePromise = null;
+
+function getProvRangeKey() {
+  const s = provCursor?.startTs?.toMillis?.() || "";
+  const e = provCursor?.endTs?.toMillis?.() || "";
+  return `${s}_${e}`;
+}
+
+function resetProvisionRangeCache() {
+  __provRangeKey = getProvRangeKey();
+  __provSearchMode = false;
+  __provAllLoaded = false;
+  __provLastDocForRange = null;
+  __provLoadMorePromise = null;
+  allProvisionData = [];
+  provisionData = [];
+  provisionCurrentPage = 1;
+}
+
+function ensureProvLoadMoreUI(show) {
+  const section = document.getElementById("provision-section");
+  if (!section) return;
+
+  let wrap = document.getElementById("prov-load-more-wrap");
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.id = "prov-load-more-wrap";
+    wrap.className = "mt-3 flex justify-center";
+    section.appendChild(wrap);
+  }
+
+  if (!show) {
+    wrap.innerHTML = "";
+    return;
+  }
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className =
+    "btn btn-light px-4 py-2 rounded-xl";
+  btn.innerHTML = `<i class="fas fa-plus mr-2 text-xs"></i>더 불러오기 (1000건)`;
+  btn.addEventListener("click", async () => {
+    await withLoading(async () => {
+      await loadMoreProvisionRange(PROV_SEARCH_BATCH);
+      filterAndRender();
+    }, "제공 내역 추가 로딩 중…");
+  });
+  wrap.replaceChildren(btn);
+}
+
+async function loadMoreProvisionRange(batch = PROV_SEARCH_BATCH) {
+  if (__provAllLoaded) return;
+  if (__provLoadMorePromise) return __provLoadMorePromise;
+
+  __provLoadMorePromise = (async () => {
+    const base = [
+      where("timestamp", ">=", provCursor.startTs),
+      where("timestamp", "<=", provCursor.endTs),
+      orderBy("timestamp", "asc"),
+      limit(batch),
+    ];
+    const qy = __provLastDocForRange
+      ? query(
+          collection(db, "provisions"),
+          ...base,
+          startAfter(__provLastDocForRange),
+        )
+      : query(collection(db, "provisions"), ...base);
+
+    const snap = await getDocs(qy);
+    if (snap.empty) {
+      __provAllLoaded = true;
+      return;
+    }
+
+    const docs = snap.docs;
+    allProvisionData.push(...docs.map(processProvisionDoc));
+    __provLastDocForRange = docs[docs.length - 1];
+    if (docs.length < batch) __provAllLoaded = true;
+  })();
+
+  try {
+    await __provLoadMorePromise;
+  } finally {
+    __provLoadMorePromise = null;
+  }
+}
+
 function isProvisionClientFilteringOn() {
   const g = document.getElementById("global-search")?.value?.trim();
   const f = document.getElementById("field-search")?.value?.trim();
@@ -791,17 +1035,18 @@ async function loadProvisionHistoryByRange(startDate, endDate) {
   provCursor.totalPages = 1;
   provCursor.hasNext = false;
 
-  // 날짜 범위 → Timestamp 변환
-  const start = new Date(startDate);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
-  end.setHours(23, 59, 59, 999);
+  // ✅ 날짜 범위 → KST day boundary로 Timestamp 변환
+  const start = kstStartOfDay(new Date(startDate));
+  const end = kstEndOfDay(new Date(endDate));
 
   provCursor.startTs = Timestamp.fromDate(start);
   provCursor.endTs = Timestamp.fromDate(end);
 
-  // ✅ A안: 제공내역은 기본적으로 서버 페이징 모드로 동작
+   // ✅ 기본은 서버 페이징 모드
   provCursor.serverMode = true;
+
+  // ✅ 기간 변경 시 검색 모드/캐시 리셋
+  resetProvisionRangeCache();
 
   // 스켈레톤
   const tbody = document.querySelector("#provision-table tbody");
@@ -1461,6 +1706,8 @@ function renderProvisionTable(data) {
     } else {
       renderSimplePager("provision-pagination", 1, 1, () => {});
     }
+    // 검색 모드 더보기 버튼 상태
+    ensureProvLoadMoreUI(__provSearchMode && !__provAllLoaded);
     return;
   }
 
@@ -1600,6 +1847,9 @@ function renderProvisionTable(data) {
       },
     );
   }
+
+  // 검색 모드 더보기 버튼 상태
+  ensureProvLoadMoreUI(__provSearchMode && !__provAllLoaded);
 }
 
 function renderVisitTable(data) {
@@ -1991,6 +2241,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const e = picker.endDate.format("YYYY.MM.DD");
     startDateInput.val(s);
     endDateInput.val(e);
+
+    // ✅ 기간 변경 시 검색창 초기화(검색어 때문에 "0건"으로 오해 방지)
+    clearUnifiedSearchInputs();
     loadProvisionHistoryByRange(
       picker.startDate.toDate(),
       picker.endDate.toDate(),
@@ -2073,7 +2326,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       fiscalSel.appendChild(o);
     });
     fiscalSel.addEventListener("change", () =>
-      loadVisitLogTable(fiscalSel.value),
+      {
+        // ✅ 조회기간 변경 시 검색창 초기화
+        clearUnifiedSearchInputs();
+        loadVisitLogTable(fiscalSel.value);
+      },
+
     );
   }
 
@@ -2092,8 +2350,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     const q = m <= 3 ? "Q1" : m <= 6 ? "Q2" : m <= 9 ? "Q3" : "Q4";
     if (lifeQuarterSel) lifeQuarterSel.value = q;
 
-    lifeYearSel.addEventListener("change", loadLifeTable);
-    lifeQuarterSel.addEventListener("change", loadLifeTable);
+   // ✅ 연도/분기 변경 시 검색창 초기화(남아있는 검색어로 0건 오해 방지)
+    lifeYearSel.addEventListener("change", () => {
+      clearUnifiedSearchInputs();
+      loadLifeTable();
+    });
+    lifeQuarterSel.addEventListener("change", () => {
+      clearUnifiedSearchInputs();
+      loadLifeTable();
+    });
   }
 
   // Page Size
@@ -2134,16 +2399,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   document
     .getElementById("btn-run-search")
-    ?.addEventListener("click", filterAndRender);
+    ?.addEventListener("click", runProvisionSearchIfNeeded);
   document
     .getElementById("btn-run-field-search")
-    ?.addEventListener("click", filterAndRender);
+    ?.addEventListener("click", runProvisionSearchIfNeeded);
   document
     .getElementById("exact-match")
     ?.addEventListener("change", filterAndRender);
   document
     .getElementById("field-select")
     ?.addEventListener("change", filterAndRender);
+
+  // ✅ Enter로 검색 실행(Provision 탭은 기간 내 검색 A안 적용)
+  const onSearchEnter = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runProvisionSearchIfNeeded();
+    }
+  };
+  document
+    .getElementById("global-search")
+    ?.addEventListener("keydown", onSearchEnter);
+  document
+    .getElementById("field-search")
+    ?.addEventListener("keydown", onSearchEnter);
 
   document
     .getElementById("toggle-advanced-search")
@@ -2159,7 +2438,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Export & Modal
   document
     .getElementById("export-provision")
-    ?.addEventListener("click", () => exportProvisionExcel(provisionData));
+    ?.addEventListener("click", exportProvisionRangeExcel);
   document
     .getElementById("export-visit")
     ?.addEventListener("click", () => exportVisitExcel(visitData));
@@ -2193,6 +2472,128 @@ document.addEventListener("DOMContentLoaded", async () => {
   bindLifeEvents();
 });
 
+// ===== Provision Search (A안): 기간 내 검색 실행/복귀 =====
+async function runProvisionSearchIfNeeded() {
+  const activeTab =
+    document.querySelector(".tab-item.is-active")?.dataset.tab || "provision";
+  if (activeTab !== "provision") {
+    filterAndRender();
+    return;
+  }
+
+  const globalQ = normalize(document.getElementById("global-search")?.value);
+  const fieldQ = normalize(document.getElementById("field-search")?.value);
+  const hasSearch = !!(globalQ || fieldQ);
+
+  // 기간이 바뀌었는데 rangeKey가 안 맞으면 리셋
+  const key = getProvRangeKey();
+  if (__provRangeKey && __provRangeKey !== key) {
+    resetProvisionRangeCache();
+  }
+
+  // 검색 없음: serverMode로 복귀(기존 페이지 기준)
+  if (!hasSearch) {
+    __provSearchMode = false;
+    __provAllLoaded = false;
+    __provLastDocForRange = null;
+    allProvisionData = [];
+    provCursor.serverMode = true;
+    ensureProvLoadMoreUI(false);
+    // 현재 페이지 기준 렌더
+    filterAndRender();
+    return;
+  }
+
+  // 검색 있음: 기간 내 로드(1000건) 후 client filtering 모드로 전환
+  await withLoading(async () => {
+    // 최초 진입 시 1000건 로드
+    if (!__provSearchMode) {
+      __provSearchMode = true;
+      provCursor.serverMode = false; // 메모리(로드된 범위) 기반 렌더
+      __provRangeKey = key;
+      __provAllLoaded = false;
+      __provLastDocForRange = null;
+      allProvisionData = [];
+      provisionCurrentPage = 1;
+      await loadMoreProvisionRange(PROV_SEARCH_BATCH);
+    }
+  }, "선택 기간 내 제공 내역 불러오는 중…");
+
+  provisionCurrentPage = 1;
+  filterAndRender();
+}
+
+function getProvisionFilteredSorted(list) {
+  const globalQ = normalize(document.getElementById("global-search")?.value);
+  const fieldQ = normalize(document.getElementById("field-search")?.value);
+  const field = document.getElementById("field-select")?.value;
+  const exact = document.getElementById("exact-match")?.checked;
+
+  let filtered = (list || []).filter((item) => {
+    // Global Search
+    const allValues = Object.values(item).flatMap((v) =>
+      Array.isArray(v) ? v.map((i) => `${i.name}${i.quantity}`) : String(v),
+    );
+    const matchGlobal =
+      !globalQ || allValues.some((v) => normalize(v).includes(globalQ));
+
+    // Field Search
+    let matchField = true;
+    if (fieldQ && field) {
+      const val = item[field];
+      if (val == null) matchField = false;
+      else {
+        const normalized = normalize(val);
+        matchField = exact
+          ? normalized === fieldQ
+          : normalized.includes(fieldQ);
+      }
+    }
+    return matchGlobal && matchField;
+  });
+
+  filtered = sortProvisionData(filtered);
+  return filtered;
+}
+
+async function exportProvisionRangeExcel() {
+  // 기본: 기간 내 전체 데이터 / 검색 중: 기간 내 검색결과 전체
+  await withLoading(async () => {
+    // 1) 기간 전체를 끝까지 로드(1000 제한 없음)
+    const batch = 1000;
+    const out = [];
+    let lastDoc = null;
+
+    while (true) {
+      const base = [
+        where("timestamp", ">=", provCursor.startTs),
+        where("timestamp", "<=", provCursor.endTs),
+        orderBy("timestamp", "asc"),
+        limit(batch),
+      ];
+      const qy = lastDoc
+        ? query(collection(db, "provisions"), ...base, startAfter(lastDoc))
+        : query(collection(db, "provisions"), ...base);
+
+      const snap = await getDocs(qy);
+      if (snap.empty) break;
+      const docs = snap.docs;
+      out.push(...docs.map(processProvisionDoc));
+      lastDoc = docs[docs.length - 1];
+      if (docs.length < batch) break;
+    }
+
+    // 2) 현재 검색 조건이 있으면 필터 적용
+    const hasSearch = isProvisionClientFilteringOn();
+    const rows = hasSearch
+      ? getProvisionFilteredSorted(out)
+      : sortProvisionData(out);
+
+    // 3) 엑셀 생성
+    await exportProvisionExcel(rows);
+  }, "엑셀 파일 생성 중…");
+}
+
 // Core Filter & Sort Logic
 function filterAndRender() {
   // 1. 탭 확인
@@ -2216,7 +2617,26 @@ function filterAndRender() {
   if (activeTab === "provision") {
     const isServer = !!provCursor.serverMode;
 
-    // ✅ 서버 페이징 모드: 현재 페이지(provisionPageRaw)만 대상으로 필터/정렬
+    // ✅ 검색 모드(A안): 기간 내(로드된 범위) 데이터에서 필터/정렬
+    if (__provSearchMode && !isServer) {
+      const filteredSorted = getProvisionFilteredSorted(allProvisionData);
+      provisionData = filteredSorted;
+      const totalPages = Math.max(
+        1,
+        Math.ceil(provisionData.length / itemsPerPage),
+      );
+      if (provisionCurrentPage > totalPages) provisionCurrentPage = 1;
+      renderProvisionTable(provisionData);
+      updateProvSortIcons();
+
+      // 빈 결과 에러 UI(기존 UX 유지)
+      if (provisionData.length === 0 && globalQ) {
+        toggleSearchError("global-search-group", true);
+      }
+      return;
+    }
+
+    // ✅ 서버 페이징 모드(기본): 현재 페이지(provisionPageRaw)만 대상으로 필터/정렬
     if (isServer) {
       let filtered = (provisionPageRaw || []).filter((item) => {
         // Global Search
@@ -2384,20 +2804,21 @@ async function renderTopStatistics() {
   );
 
   try {
-    const today = new Date();
-    const yest = new Date(today);
-    yest.setDate(yest.getDate() - 1);
+    const now = new Date();
+    // ✅ 영업일 기준: 오늘이 비영업일이면 가장 가까운 이전 영업일 데이터를 "기준일"로 표시
+    const refDay = await nearestPrevBusinessDayKst(now);
+    const prevDay = await prevBusinessDayKst(refDay);
 
-    const todayKey = String(toDayNumber(today)); // YYYYMMDD
-    const yestKey = String(toDayNumber(yest)); // YYYYMMDD
+    const refKey = String(toDayNumber(refDay)); // YYYYMMDD (KST)
+    const prevKey = String(toDayNumber(prevDay)); // YYYYMMDD (KST)
 
     // 1) 방문자(기존 캐시/로직 유지) + 2) 월합계(기존) + 3) stats_daily(오늘/어제) 단건 읽기
     const [tCnt, yCnt, mCnt, tStatsSnap, yStatsSnap] = await Promise.all([
-      getDailyVisitorsCount(db, today),
-      getDailyVisitorsCount(db, yest),
-      getMonthlyVisitorsFromStatsDaily(today),
-      getDoc(doc(db, "stats_daily", todayKey)),
-      getDoc(doc(db, "stats_daily", yestKey)),
+      getDailyVisitorsCount(db, refDay),
+      getDailyVisitorsCount(db, prevDay),
+      getMonthlyVisitorsFromStatsDaily(refDay),
+      getDoc(doc(db, "stats_daily", refKey)),
+      getDoc(doc(db, "stats_daily", prevKey)),
     ]);
 
     // 방문자 카드
@@ -2422,10 +2843,8 @@ async function renderTopStatistics() {
 
     // fallback 스캔(오늘/어제 중 누락된 쪽만) - provision.js 누적 저장 적용 후엔 거의 실행되지 않음
     const scanItemsTotalQtyByDate = async (d) => {
-      const start = new Date(d);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(d);
-      end.setHours(23, 59, 59, 999);
+      const start = kstStartOfDay(d);
+      const end = kstEndOfDay(d);
 
       const snap = await getDocs(
         query(
@@ -2444,8 +2863,9 @@ async function renderTopStatistics() {
     };
 
     try {
-      if (tItems === null) tItems = await scanItemsTotalQtyByDate(today);
-      if (yItems === null) yItems = await scanItemsTotalQtyByDate(yest);
+      // ✅ undefined 변수(today/yest) 대신 refDay/prevDay 사용
+      if (tItems === null) tItems = await scanItemsTotalQtyByDate(refDay);
+      if (yItems === null) yItems = await scanItemsTotalQtyByDate(prevDay);
     } catch (e) {
       // fallback도 실패하면 0으로라도 표시
       if (tItems === null) tItems = 0;
@@ -2454,33 +2874,6 @@ async function renderTopStatistics() {
 
     // 물품 카드(총 수량 + 전일 대비)
     updateCard("#daily-items", tItems, yItems, "개");
-
-    // (선택) daily-items 카드 내부에 top 리스트 영역이 있으면 렌더링
-    // - HTML이 어떤 구조인지 확정이 아니라 "있으면 채우고 없으면 무시" 방식으로 안전하게 처리
-    const dailyItemsCard = document.querySelector("#daily-items");
-    if (dailyItemsCard) {
-      const topHost =
-        dailyItemsCard.querySelector("[data-top-items]") ||
-        dailyItemsCard.querySelector(".top-items") ||
-        dailyItemsCard.querySelector(".top-items-list");
-
-      if (topHost) {
-        const top3 = (tTop20 || []).slice(0, 3);
-        topHost.innerHTML =
-          top3.length === 0
-            ? `<div class="text-slate-400">TOP 품목 없음</div>`
-            : top3
-                .map(
-                  (x, idx) =>
-                    `<div class="top-item-row">
-                      <span class="rank">${idx + 1}</span>
-                      <span class="name">${(x.name ?? "").toString()}</span>
-                      <span class="qty">${Number(x.qty ?? 0).toLocaleString()}개</span>
-                    </div>`,
-                )
-                .join("");
-      }
-    }
   } catch (e) {
     console.error("Top stats error:", e);
   } finally {
@@ -2489,8 +2882,7 @@ async function renderTopStatistics() {
 }
 
 async function getDailyVisitorsCount(db, date) {
-  const day =
-    date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate();
+  const day = toDayNumber(date); // ✅ KST 기준
   try {
     const s = await getDoc(doc(db, "stats_daily", String(day)));
     if (s.exists()) return s.data().uniqueVisitors || 0;
@@ -2514,25 +2906,24 @@ async function getMonthlyVisitorsFromStatsDaily(baseDate = new Date()) {
   ) {
     return __statsDailyMonthCache.sum;
   }
-  const s = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
-  const e = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 1);
-  const ids = [];
-  for (let d = new Date(s); d < e; d.setDate(d.getDate() + 1)) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    ids.push(`${y}${m}${day}`);
-  }
+  // ✅ KST 기준 월 범위: docId(YYYYMMDD) range query로 합산 (in 10개 반복 제거)
+  const { y, m } = toKstDateParts(baseDate);
+  const start = toDayNumberKst(
+    new Date(Date.UTC(y, m - 1, 1, 12) - KST_OFFSET_MS),
+  );
+  const next = m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 };
+  const endDate = new Date(Date.UTC(next.y, next.m - 1, 1, 12) - KST_OFFSET_MS);
+  const end = toDayNumberKst(addDaysKst(endDate, -1));
+
+  const snap = await getDocs(
+    query(
+      collection(db, "stats_daily"),
+      where(documentId(), ">=", String(start)),
+      where(documentId(), "<=", String(end)),
+    ),
+  );
   let sum = 0;
-  for (let i = 0; i < ids.length; i += 10) {
-    const batch = ids.slice(i, i + 10);
-    const snap = await getDocs(
-      query(collection(db, "stats_daily"), where(documentId(), "in", batch)),
-    );
-    snap.forEach((ds) => {
-      sum += Number(ds.data()?.uniqueVisitors || 0);
-    });
-  }
+  snap.forEach((ds) => (sum += Number(ds.data()?.uniqueVisitors || 0)));
   __statsDailyMonthCache.key = mkey;
   __statsDailyMonthCache.sum = sum;
   return sum;

@@ -1,8 +1,0 @@
-/* Dashboard-only CSS kept for details marker removal. */
-.expiry-details summary {
-  list-style: none;
-}
-
-.expiry-details summary::-webkit-details-marker {
-  display: none;
-}
