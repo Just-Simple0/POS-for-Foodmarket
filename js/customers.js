@@ -868,7 +868,7 @@ function bindToolbarAndCreateModal() {
     if (isDirty) {
       const ok = await openConfirm({
         title: "작성 취소",
-        message: "작성 중인 내용이 있습니다. 정말 닫으시겠습니까?",
+        message: "작성 중인 내용이 있어요. 정말 닫을까요?",
         variant: "warn",
         confirmText: "닫기",
         cancelText: "계속 작성",
@@ -1027,7 +1027,7 @@ async function saveCreateDirect() {
     ...buildPhoneIndexFields(picked.display),
   };
   if (!payload.name || !payload.birth) {
-    return showToast("이용자명/생년월일은 필수입니다.", true);
+    return showToast("이용자명/생년월일은 필수에요.", true);
   }
   // 동명이인 검사: 같은 name+birth 문서 존재 시 선택 모달
   const id = slugId(payload.name, payload.birth);
@@ -1045,7 +1045,7 @@ async function saveCreateDirect() {
   // 중복 없음 → 권한에 따라 바로 저장/승인요청
   if (isAdmin) {
     await setDoc(ref, payload, { merge: true });
-    showToast("등록되었습니다");
+    showToast("등록되었어요.");
     try {
       if (payload.status === "지원")
         await idbPutAll([toCacheShape({ id, ...payload })]);
@@ -1059,14 +1059,14 @@ async function saveCreateDirect() {
   } else {
     const ok = await openConfirm({
       title: "등록 승인 요청",
-      message: "관리자 승인이 필요합니다. 등록 승인을 요청할까요?",
+      message: "관리자 승인이 필요해요. 등록 승인을 요청할까요?",
       variant: "warn",
       defaultFocus: "cancel",
     });
     if (!ok) return;
     await createApprovalRequest({ type: "customer_add", payload });
 
-    showToast("등록 승인 요청이 전송되었습니다");
+    showToast("등록 승인 요청이 전송되었어요.");
     await logEvent("approval_request", {
       approvalType: "customer_add",
       name: payload.name,
@@ -1428,7 +1428,7 @@ document
     const birthInput = document.getElementById("edit-birth");
 
     if (!nameInput.value.trim() || !birthInput.value.trim()) {
-      showToast("이름과 생년월일은 필수 입력 항목입니다.", true);
+      showToast("이름과 생년월일은 필수 입력 항목이에요.", true);
       // 빈 칸으로 포커스 이동
       if (!nameInput.value.trim()) nameInput.focus();
       else birthInput.focus();
@@ -1493,14 +1493,14 @@ document
       updateData,
     );
     if (Object.keys(changesDiff).length === 0) {
-      showToast("변경 내용이 없습니다.", true);
+      showToast("변경 내용이 없어요.", true);
       return;
     }
 
     try {
       if (isAdmin) {
         await updateDoc(doc(db, "customers", id), updateData);
-        showToast("수정되었습니다");
+        showToast("수정되었어요.");
 
         // 로컬 캐시 갱신 (지원 상태 변경에 따른 처리)
         try {
@@ -1519,7 +1519,7 @@ document
         // 비관리자 승인 요청
         const ok = await openConfirm({
           title: "수정 승인 요청",
-          message: "관리자 승인이 필요합니다. 수정 승인을 요청할까요?",
+          message: "관리자 승인이 필요해요. 수정 승인을 요청할까요?",
           variant: "warn",
           defaultFocus: "cancel",
         });
@@ -1531,7 +1531,7 @@ document
           targetId: id,
           changes: changesDiff,
         });
-        showToast("수정 요청이 전송되었습니다");
+        showToast("수정 요청이 전송되었어요.");
       }
 
       // 모달 닫기 및 목록 새로고침
@@ -1539,7 +1539,7 @@ document
       await refreshAfterMutation();
     } catch (err) {
       console.error(err);
-      showToast("수정 실패: " + err.message, true);
+      showToast("수정을 실패했어요. : " + err.message, true);
     }
   });
 
@@ -1890,14 +1890,14 @@ document.addEventListener("click", async (e) => {
   if (isAdmin) {
     const ok = await openConfirm({
       title: "삭제 확인",
-      message: "이 이용자를 삭제하시겠습니까?",
+      message: "이 이용자를 삭제할까요?",
       variant: "danger",
       confirmText: "삭제",
       cancelText: "취소",
     });
     if (!ok) return;
     await deleteDoc(doc(db, "customers", del.dataset.del));
-    showToast("삭제되었습니다");
+    showToast("삭제되었어요.");
     // 캐시 제거
     try {
       const dbi = await openIDB();
@@ -1909,7 +1909,7 @@ document.addEventListener("click", async (e) => {
   } else {
     const ok = await openConfirm({
       title: "삭제 승인 요청",
-      message: "관리자 승인이 필요합니다. 삭제 승인을 요청할까요?",
+      message: "관리자 승인이 필요해요. 삭제 승인을 요청할까요?",
       variant: "warn",
       defaultFocus: "cancel",
     });
@@ -1919,7 +1919,7 @@ document.addEventListener("click", async (e) => {
       targetId: del.dataset.del,
     });
 
-    showToast("삭제 승인 요청이 전송되었습니다");
+    showToast("삭제 승인 요청이 전송되었어요.");
     await logEvent("approval_request", {
       approvalType: "customer_delete",
       targetId: del.dataset.del,
@@ -2000,7 +2000,7 @@ function bindUploadTab() {
         saveAs(blob, "이용자등록 양식.xlsx");
       } catch (e) {
         console.error(e);
-        showToast("양식 생성 중 오류가 발생했습니다.", true);
+        showToast("양식 생성 중 오류가 발생했어요.", true);
       }
     });
 
@@ -2284,7 +2284,7 @@ function bindUploadTab() {
       execBtn.disabled = false;
     } catch (e) {
       console.error(e);
-      showToast("엑셀 파싱 실패. 형식을 확인해주세요.", true);
+      showToast("엑셀 파싱을 실패했어요. 형식을 확인해주세요.", true);
     }
   });
 
@@ -2293,7 +2293,7 @@ function bindUploadTab() {
     if (!dryRows) return;
 
     if (isAdmin) {
-      showLoading("데이터를 업로드하고 있습니다...");
+      showLoading("데이터를 업로드하고 있어요...");
 
       try {
         const email = auth.currentUser?.email || "unknown";
@@ -2355,7 +2355,7 @@ function bindUploadTab() {
           });
         }
 
-        showToast("업로드가 완료되었습니다");
+        showToast("업로드가 완료되었어요.");
         await logEvent("customer_add", { mode: "bulk", count: dryRows.length });
 
         resetUploaderUI();
@@ -2366,7 +2366,7 @@ function bindUploadTab() {
         await loadCustomers();
       } catch (e) {
         console.error(e);
-        showToast("업로드 중 오류가 발생했습니다.", true);
+        showToast("업로드 중 오류가 발생했어요.", true);
       } finally {
         hideLoading();
       }
@@ -2375,7 +2375,7 @@ function bindUploadTab() {
       // 일단 현재 구조상 비관리자는 '요청'만 보내므로 기존 코드 유지
       const ok = await openConfirm({
         title: "일괄 등록 승인 요청",
-        message: "관리자 승인이 필요합니다. 일괄 등록 승인을 요청할까요?",
+        message: "관리자 승인이 필요해요. 일괄 등록 승인을 요청할까요?",
         variant: "warn",
         defaultFocus: "cancel",
       });
@@ -2396,7 +2396,7 @@ function bindUploadTab() {
           },
         });
 
-        showToast("일괄 등록 승인 요청이 전송되었습니다");
+        showToast("일괄 등록 승인 요청이 전송되었어요.");
         await logEvent("approval_request", {
           approvalType: "customer_bulk_upload",
           count: dryRows.length,
@@ -2409,7 +2409,7 @@ function bindUploadTab() {
         resetCreateForm();
       } catch (e) {
         console.error(e);
-        showToast("요청 전송 실패.", true);
+        showToast("요청 전송을 실패했어요.", true);
       } finally {
         hideLoading();
       }
@@ -2710,7 +2710,7 @@ async function exportXlsx() {
     // 2) [데이터 확보]
     if (isGlobalSearching) {
       // ✅ 통합검색: "검색 결과 전체" = 로컬 캐시 전체에서 다시 계산(페이지네이션/렌더링과 무관)
-      showToast("통합검색 결과(전체)를 다운로드 중입니다...", false);
+      showToast("통합검색 결과(전체)를 다운로드 중이에요.", false);
       rowsToExport = await localUnifiedSearch(globalKeyword);
     } else {
       // ✅ 고급검색 또는 검색 아님: 서버에서 "전체"를 가져옴(권한 범위 내)
@@ -2719,8 +2719,8 @@ async function exportXlsx() {
       if (typeof buildBaseQuery === "function" && buildBaseQuery) {
         showToast(
           isSearching
-            ? "고급검색 결과(전체)를 다운로드 중입니다..."
-            : "전체 데이터를 다운로드 중입니다...",
+            ? "고급검색 결과(전체)를 다운로드 중이에요."
+            : "전체 데이터를 다운로드 중이에요.",
           false,
         );
         const base = collection(db, "customers");
@@ -2735,7 +2735,7 @@ async function exportXlsx() {
     }
 
     if (!rowsToExport.length) {
-      showToast("내보낼 데이터가 없습니다.", true);
+      showToast("내보낼 데이터가 없어요.", true);
       return;
     }
 
@@ -2827,10 +2827,10 @@ async function exportXlsx() {
     });
     saveAs(blob, `customers_${dateStamp()}.xlsx`);
 
-    showToast(`총 ${rowsToExport.length}건 다운로드 완료`);
+    showToast(`총 ${rowsToExport.length}건을 다운로드 완료했어요`);
   } catch (e) {
     console.error(e);
-    showToast("엑셀 다운로드 중 오류가 발생했습니다.", true);
+    showToast("엑셀 다운로드 중 오류가 발생했어요.", true);
   } finally {
     setBusy(btn, false);
     btn.innerHTML = originalBtnText;
@@ -2854,7 +2854,7 @@ async function onDupUpdate() {
   if (!payload || !ref) return;
   if (isAdmin) {
     await updateDoc(ref, payload);
-    showToast("기존 정보가 업데이트되었습니다");
+    showToast("기존 정보가 업데이트되었어요.");
     const changes = buildCustomerChangesDiff(before, payload);
     await logEvent("customer_update", {
       targetId: ref.id,
@@ -2866,7 +2866,7 @@ async function onDupUpdate() {
     const changes = buildCustomerChangesDiff(before, payload);
     const ok = await openConfirm({
       title: "수정 승인 요청",
-      message: "관리자 승인이 필요합니다. 수정 승인을 요청할까요?",
+      message: "관리자 승인이 필요해요. 수정 승인을 요청할까요?",
       variant: "warn",
       defaultFocus: "cancel",
     });
@@ -2876,7 +2876,7 @@ async function onDupUpdate() {
       targetId: ref.id,
       changes,
     });
-    showToast("수정 승인 요청이 전송되었습니다");
+    showToast("수정 승인 요청이 전송되었어요.");
     await logEvent("approval_request", {
       approvalType: "customer_update",
       targetId: ref.id,
@@ -2894,7 +2894,7 @@ async function onDupNew() {
   if (!payload) return;
   if (isAdmin) {
     await setDoc(doc(collection(db, "customers")), payload);
-    showToast("동명이인 신규로 등록되었습니다");
+    showToast("동명이인 신규로 등록되었어요.");
     await logEvent("customer_add", {
       name: payload.name,
       birth: payload.birth,
@@ -2903,7 +2903,7 @@ async function onDupNew() {
   } else {
     const ok = await openConfirm({
       title: "등록 승인 요청",
-      message: "관리자 승인이 필요합니다. 등록 승인을 요청할까요?",
+      message: "관리자 승인이 필요해요. 등록 승인을 요청할까요?",
       variant: "warn",
       defaultFocus: "cancel",
     });
@@ -2913,7 +2913,7 @@ async function onDupNew() {
       payload,
       extra: { mode: "create_new" },
     });
-    showToast("등록 승인 요청이 전송되었습니다");
+    showToast("등록 승인 요청이 전송되었어요.");
     await logEvent("approval_request", {
       approvalType: "customer_add",
       name: payload.name,

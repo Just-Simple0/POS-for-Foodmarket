@@ -196,7 +196,7 @@ async function loadAllProducts(opts = {}) {
     applyFilters();
   } catch (e) {
     console.error("데이터 로드 실패:", e);
-    showToast("데이터를 불러오지 못했습니다.", true);
+    showToast("데이터를 불러오지 못했어요.", true);
   } finally {
     cleanup();
   }
@@ -951,7 +951,7 @@ async function handleSyncCategories() {
   const ok = await openConfirm({
     title: "카테고리 및 정책 정리",
     message:
-      "현재 사용되지 않는 분류와<br>상품이 없는 유령 정책을 모두 삭제합니다.",
+      "현재 사용되지 않는 분류와<br>상품이 없는 유령 정책을 모두 삭제할게요.",
     variant: "info",
     confirmText: "정리 시작",
   });
@@ -1096,7 +1096,7 @@ async function attemptCloseCreate() {
   if (isCreateDirty()) {
     const ok = await openConfirm({
       title: "변경사항 경고",
-      message: "입력 중인 내용이 있습니다. 닫을까요?",
+      message: "입력 중인 내용이 있어요. 닫을까요?",
       variant: "warn",
       confirmText: "닫기",
       cancelText: "계속 작성",
@@ -1235,7 +1235,7 @@ async function attemptCloseEdit() {
   if (isDirty) {
     const ok = await openConfirm({
       title: "변경사항 경고",
-      message: "저장하지 않고 닫으시겠습니까?",
+      message: "저장하지 않고 닫으시겠어요?",
       variant: "warn",
       confirmText: "닫기",
       cancelText: "계속",
@@ -1308,7 +1308,7 @@ productList.addEventListener("click", async (e) => {
   if (btn.classList.contains("delete-btn")) {
     const ok = await openConfirm({
       title: "삭제 확인",
-      message: "정말 삭제하시겠습니까?",
+      message: "정말 삭제하시겠어요?",
       variant: "danger",
       confirmText: "삭제",
       cancelText: "취소",

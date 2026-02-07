@@ -477,7 +477,7 @@ async function loadExchangeAutoSave() {
     }
 
     console.log(`교환 작업 자동 복구 완료 (Step ${data.step})`);
-    if (data.step >= 2) showToast("작업 중이던 교환 내역을 복구했습니다.");
+    if (data.step >= 2) showToast("작업 중이던 교환 내역을 복구했어요.");
   } catch (e) {
     console.warn("Auto-load failed:", e);
     localStorage.removeItem(getExAutoSaveKey());
@@ -647,7 +647,7 @@ async function tryRestoreDrafts() {
     renderVisitorList();
     __restoredVisitors = true;
     if (typeof showToast === "function")
-      showToast(`방문자 ${visitorList.length}명이 복구되었습니다.`);
+      showToast(`방문자 ${visitorList.length}명이 복구되었어요.`);
   }
   // 제공
   const prov = loadProvisionDraft();
@@ -668,7 +668,7 @@ async function tryRestoreDrafts() {
     renderVisitorList();
     __restoredProvision = true;
     if (typeof showToast === "function")
-      showToast("임시 장바구니가 복구되었습니다.");
+      showToast("임시 장바구니가 복구되었어요.");
   }
   await loadExchangeAutoSave();
 }
@@ -981,7 +981,7 @@ async function ensureSupportCacheFresh() {
       const total = await syncSupportCacheFromServerOnce();
       // 캐시가 비어있던 첫 동기화만 안내(원치 않으면 주석 처리)
       if (count === 0 && total > 0 && typeof showToast === "function") {
-        showToast(`이용자 캐시 ${total}명 동기화 완료`);
+        showToast(`이용자 캐시 ${total}명을 동기화 완료했어요.`);
       }
     } catch (e) {
       console.warn("ensureSupportCacheFresh sync failed:", e);
@@ -1070,11 +1070,11 @@ exLookupBtn?.addEventListener("click", async () => {
     let rows = await searchCacheByNamePrefix(key, 20);
     if (!rows || rows.length === 0)
       rows = await serverSearchByNamePrefix(key, 20);
-    if (!rows.length) return showToast("해당 이용자를 찾을 수 없습니다.", true);
+    if (!rows.length) return showToast("해당 이용자를 찾을 수 없어요.", true);
     showDuplicateSelection(rows);
   } catch (err) {
     console.error(err);
-    showToast("이용자 조회 중 오류 발생", true);
+    showToast("이용자 조회 중 오류가 발생했어요.", true);
   }
 });
 
@@ -1446,28 +1446,28 @@ document
         loadRecentProvisionsForCustomer(exchangeSelectedCustomer.id);
         document.dispatchEvent(new Event("exchange_customer_switched"));
         saveExchangeAutoSave();
-        showToast("교환 대상자가 선택되었습니다.");
+        showToast("교환 대상자가 선택되었어요.");
         // 이용자 선택이 끝났으므로 교환 섹션 표시
         if (exchangeSection) exchangeSection.classList.remove("hidden");
         exchangeHistorySection?.classList.remove("hidden");
       } else {
         // 제공: 기존 로직 유지(이번 달 방문 시 차단)
         if (alreadyThisMonth) {
-          showToast("이미 이번 달 방문 처리된 이용자입니다.", true);
+          showToast("이미 이번 달 방문 처리된 이용자에요.", true);
         } else {
           if (!visitorList.some((v) => v.id === candidate.id)) {
             visitorList.push(candidate);
             renderVisitorList();
             saveVisitorDraft(visitorList);
-            showToast("방문자 리스트에 추가되었습니다.");
+            showToast("방문자 리스트에 추가되었어요.");
           } else {
-            showToast("이미 리스트에 있는 이용자입니다.", true);
+            showToast("이미 리스트에 있는 이용자에요.", true);
           }
         }
       }
     } catch (err) {
       console.error(err);
-      showToast("이용자 정보 확인 중 오류가 발생했습니다.", true);
+      showToast("이용자 정보 확인 중 오류가 발생했어요.", true);
     } finally {
       // 모달/검색창 초기화
       duplicateModal.classList.add("hidden");
@@ -1589,7 +1589,7 @@ undoBtn.addEventListener("click", () => {
     selectedItems = undoStack.pop();
     renderSelectedList();
   } else {
-    showToast("되돌릴 작업이 없습니다.", true);
+    showToast("되돌릴 작업이 없어요.", true);
   }
 });
 
@@ -1599,7 +1599,7 @@ redoBtn.addEventListener("click", () => {
     selectedItems = redoStack.pop();
     renderSelectedList();
   } else {
-    showToast("다시 실행할 작업이 없습니다.", true);
+    showToast("다시 실행할 작업이 없어요.", true);
   }
 });
 
@@ -1611,13 +1611,13 @@ resetProductsBtn.addEventListener("click", () => {
   redoStack = [];
   selectedItems = [];
   renderSelectedList();
-  showToast("물품 목록이 초기화되었습니다.");
+  showToast("물품 목록이 초기화되었어요.");
 });
 
 resetAllBtn.addEventListener("click", async () => {
   const ok = await openConfirm({
     title: "전체 초기화",
-    message: "전체 초기화하시겠습니까?",
+    message: "전체 초기화를 진행할까요?",
     variant: "warn",
     confirmText: "초기화",
     cancelText: "취소",
@@ -1626,7 +1626,7 @@ resetAllBtn.addEventListener("click", async () => {
   resetForm({ resetVisitors: true }); // 고객/상품 전체 초기화
   undoStack = [];
   redoStack = [];
-  showToast("전체 초기화 완료");
+  showToast("전체 초기화를 완료했어요.");
 });
 
 document.addEventListener("keydown", (e) => {
@@ -1743,7 +1743,7 @@ visitorListEl?.addEventListener("click", async (e) => {
     if (selectedCustomer?.id === targetId && selectedItems.length > 0) {
       const ok = await openConfirm({
         title: "선택 해제",
-        message: "현재 장바구니가 있습니다. 이 방문자를 리스트에서 제거할까요?",
+        message: "현재 장바구니가 있어요. 이 방문자를 리스트에서 제거할까요?",
         variant: "warn",
         confirmText: "제거",
         cancelText: "취소",
@@ -1778,7 +1778,7 @@ visitorListEl?.addEventListener("click", async (e) => {
       const ok = await openConfirm({
         title: "선택 해제",
         message:
-          "작성 중인 장바구니가 있습니다. 선택을 해제하시겠습니까? (내용은 유지됩니다)",
+          "작성 중인 장바구니가 있어요. 선택을 해제할까요? (내용은 유지됩니다)",
         confirmText: "해제",
         cancelText: "취소",
       });
@@ -1808,7 +1808,7 @@ visitorListEl?.addEventListener("click", async (e) => {
       const ok = await openConfirm({
         title: "방문자 전환",
         message:
-          "현재 장바구니가 있습니다. 전환하시겠습니까? (보류 저장을 권장)",
+          "현재 장바구니가 있어요. 전환할까요? (보류 저장을 권장해요)",
         variant: "warn",
         confirmText: "전환",
         cancelText: "취소",
@@ -1835,7 +1835,7 @@ visitorListEl?.addEventListener("click", async (e) => {
       if (holdRaw) {
         const okLoad = await openConfirm({
           title: "보류 불러오기",
-          message: "이 방문자에 저장된 보류 장바구니가 있습니다. 불러올까요?",
+          message: "이 방문자에 저장된 보류 장바구니가 있어요. 불러올까요?",
           variant: "warn",
           confirmText: "불러오기",
           cancelText: "새로 시작",
@@ -1847,7 +1847,7 @@ visitorListEl?.addEventListener("click", async (e) => {
             const parsed = JSON.parse(holdRaw);
             if (Array.isArray(parsed)) {
               selectedItems = parsed;
-              showToast("보류 장바구니를 불러왔습니다.");
+              showToast("보류 장바구니를 불러왔어요.");
             }
           } catch {}
         } else {
@@ -1915,7 +1915,7 @@ barcodeInput.addEventListener("keydown", async (e) => {
   if (!isValidEAN13(code)) {
     barcodeInput.value = "";
     barcodeInput.focus();
-    return showToast("유효한 바코드가 아닙니다.", true);
+    return showToast("유효한 바코드가 아니에요.", true);
   }
   // 전량 선로딩 제거: 단건 조회로 대체
   const hit = await findProductByBarcode(code);
@@ -1926,7 +1926,7 @@ barcodeInput.addEventListener("keydown", async (e) => {
   }
   const ok = await openConfirm({
     title: "미등록 바코드",
-    message: "해당 바코드의 상품이 없습니다. 등록하시겠습니까?",
+    message: "해당 바코드의 상품이 없어요. 등록할까요?",
     confirmText: "등록",
     cancelText: "취소",
     variant: "warn",
@@ -1963,13 +1963,13 @@ addProductBtn.addEventListener("click", async () => {
       if (!isValidEAN13(code)) {
         barcodeInput.value = "";
         barcodeInput.focus();
-        return showToast("유효한 바코드가 아닙니다.", true);
+        return showToast("유효한 바코드가 아니에요.", true);
       }
       const byCode = await findProductByBarcode(code);
       if (!byCode) {
         const ok = await openConfirm({
           title: "미등록 바코드",
-          message: "해당 바코드의 상품이 없습니다. 등록하시겠습니까?",
+          message: "해당 바코드의 상품이 없어요. 등록할까요?",
           confirmText: "등록",
           cancelText: "취소",
           variant: "warn",
@@ -1987,12 +1987,12 @@ addProductBtn.addEventListener("click", async () => {
       rows.find(
         (p) => (p.name || "").toLowerCase() === nameKey.toLowerCase(),
       ) || rows[0];
-    if (!picked) return showToast("해당 상품을 찾을 수 없습니다.", true);
+    if (!picked) return showToast("해당 상품을 찾을 수 없어요.", true);
     addToSelected(picked, q);
     afterAddCleanup();
   } catch (err) {
     console.error(err);
-    showToast("상품 추가 중 오류", true);
+    showToast("상품 추가 중 오류가 발생했어요.", true);
   }
 });
 
@@ -2048,7 +2048,7 @@ function addToSelected(prod, qty) {
   const ex = selectedItems.find((it) => it.id === prod.id);
   if (ex) {
     ex.quantity = ex.quantity + qty;
-    showToast(`${prod.name}의 수량이 ${qty}개 증가했습니다.`);
+    showToast(`${prod.name}의 수량이 ${qty}개 증가했어요.`);
   } else {
     selectedItems.push({
       id: prod.id,
@@ -2119,7 +2119,7 @@ qcSaveBtn?.addEventListener("click", async () => {
   if (!isValidEAN13(barcode)) {
     barcodeInput.value = "";
     barcodeInput.focus();
-    return showToast("유효한 바코드가 아닙니다.", true);
+    return showToast("유효한 바코드가 아니에요.", true);
   }
   // 0.5 단위 체크(선택)
   if (Math.round(price * 2) !== price * 2)
@@ -2129,7 +2129,7 @@ qcSaveBtn?.addEventListener("click", async () => {
     const exist = await findProductByBarcode(barcode);
     if (exist) {
       addToSelected(exist, parseInt(quantityInput.value) || 1);
-      showToast("이미 존재하는 상품입니다. 장바구니에 추가했습니다.");
+      showToast("이미 존재하는 상품이에요. 장바구니에 추가할게요.");
       closeQuickCreateModal();
       afterAddCleanup();
       return;
@@ -2150,12 +2150,12 @@ qcSaveBtn?.addEventListener("click", async () => {
       _allProductsCache.push(prod);
     }
     addToSelected(prod, parseInt(quantityInput.value) || 1); // 장바구니에도 바로 추가
-    showToast("상품이 등록되었습니다.");
+    showToast("상품이 등록되었어요.");
     closeQuickCreateModal();
     afterAddCleanup();
   } catch (e) {
     console.error(e);
-    showToast("상품 등록 실패", true);
+    showToast("상품 등록을 실패했어요.", true);
   }
 });
 
@@ -2369,7 +2369,7 @@ document.querySelector("#selected-table tbody").addEventListener(
 
       if (isNaN(val) || val < 1) {
         e.target.value = 1;
-        showToast("수량은 1 이상이어야 합니다.");
+        showToast("수량은 1 이상이어야 해요.");
       }
     }
   },
@@ -2391,7 +2391,7 @@ selectedTableBody.addEventListener("click", (e) => {
 
     selectedItems.splice(Number(idx), 1);
     renderSelectedList(); // 삭제는 리스트가 줄어드니 전체 렌더링 필요
-    showToast("상품이 삭제되었습니다.");
+    showToast("상품이 삭제되었어요.");
     return;
   }
 
@@ -2455,21 +2455,21 @@ holdSaveBtn?.addEventListener("click", () => {
   renderVisitorList(); // active 표시 해제
   clearProvisionDraft();
 
-  showToast("보류 처리되었습니다.");
+  showToast("보류 처리되었어요.");
 });
 
 holdLoadBtn?.addEventListener("click", () => {
   if (!selectedCustomer) return showToast("먼저 방문자를 선택하세요.", true);
   const raw = localStorage.getItem(HOLD_PREFIX + selectedCustomer.id);
-  if (!raw) return showToast("저장된 보류 데이터가 없습니다.", true);
+  if (!raw) return showToast("저장된 보류 데이터가 없어요.", true);
   try {
     selectedItems = JSON.parse(raw) || [];
     undoStack = [];
     redoStack = [];
     renderSelectedList();
-    showToast("보류된 데이터를 불러왔습니다.");
+    showToast("보류된 데이터를 불러왔어요.");
   } catch {
-    showToast("보류 데이터가 손상되었습니다.", true);
+    showToast("보류 데이터가 손상되었어요.", true);
   }
 });
 
@@ -2482,12 +2482,12 @@ submitBtn.addEventListener("click", async () => {
     (acc, item) => acc + item.quantity * item.price,
     0,
   );
-  if (total > 30) return showToast("포인트가 초과되었습니다.", true);
+  if (total > 30) return showToast("포인트가 초과되었어요.", true);
 
   // ✅ 현재 로그인한 사용자 확인
   const currentUser = auth.currentUser;
   if (!currentUser) {
-    showToast("로그인된 사용자를 확인할 수 없습니다.", true);
+    showToast("로그인된 사용자를 확인할 수 없어요.", true);
     return;
   }
 
@@ -2502,7 +2502,7 @@ submitBtn.addEventListener("click", async () => {
     const okLife = await openConfirm({
       title: "생명사랑 중복 제공",
       message:
-        "이 이용자는 이번 분기에 이미 생명사랑을 제공받았습니다. 계속 진행하시겠습니까?",
+        "이 이용자는 이번 분기에 이미 생명사랑을 제공받았어요. 계속 진행할까요?",
       variant: "warn",
       confirmText: "계속",
       cancelText: "취소",
@@ -2516,13 +2516,13 @@ submitBtn.addEventListener("click", async () => {
     const msg = vios
       .map((v) =>
         v.mode === "price"
-          ? `<b>• ${v.category} - 가격 ${v.price}은(는) ${v.limit}개까지 가능합니다.</b>`
-          : `<b>• ${v.category} - 이 분류는 총 ${v.limit}개까지 가능합니다.</b>`,
+          ? `<b>• ${v.category} - 가격 ${v.price}은(는) ${v.limit}개까지 가능해요.</b>`
+          : `<b>• ${v.category} - 이 분류는 총 ${v.limit}개까지 가능해요.</b>`,
       )
       .join("<br>");
     const ok = await openConfirm({
       title: "제한 상품 중복",
-      message: `현재 아래 분류의 제한 수량을 초과했습니다.<br>${msg}<br>계속 진행하시겠습니까?`,
+      message: `현재 아래 분류의 제한 수량을 초과했어요.<br>${msg}<br>계속 진행할까요?`,
       variant: "warn",
       confirmText: "계속",
       cancelText: "취소",
@@ -2582,12 +2582,12 @@ submitBtn.addEventListener("click", async () => {
       } catch {}
     }
 
-    showToast("제공 등록 완료!");
+    showToast("제공 등록이 완료되었어요.");
     localStorage.removeItem(HOLD_PREFIX + processedCustomerID);
     resetForm();
   } catch (err) {
     console.error(err);
-    showToast("제공 등록 실패", true);
+    showToast("제공 등록을 실패했어요.", true);
   } finally {
     window.__submitting = false;
     submitBtn.disabled = false;
@@ -2818,7 +2818,7 @@ exchangeHistoryTbody?.addEventListener("click", async (e) => {
   if (!e.target.classList.contains("ex-pick")) return;
   const id = e.target.dataset.id;
   const snap = await getDoc(doc(db, "provisions", id));
-  if (!snap.exists()) return showToast("내역을 불러올 수 없습니다.", true);
+  if (!snap.exists()) return showToast("내역을 불러올 수 없어요.", true);
 
   const data = snap.data();
   exchangeProvision = { id, ...data };
@@ -2829,7 +2829,7 @@ exchangeHistoryTbody?.addEventListener("click", async (e) => {
   exchangeOriginalTotal = Number(data.total || 0);
   renderExchangeList();
   exchangeBuilder.classList.remove("hidden");
-  showToast("교환 편집을 시작합니다.");
+  showToast("교환 편집을 시작할게요.");
 
   // 명시적 저장
   saveExchangeAutoSave();
@@ -3068,9 +3068,9 @@ exAddBtn?.addEventListener("click", async () => {
   try {
     if (code) {
       if (!isValidEAN13(code))
-        return showToast("유효한 바코드가 아닙니다.", true);
+        return showToast("유효한 바코드가 아니에요.", true);
       const byCode = await findProductByBarcode(code);
-      if (!byCode) return showToast("해당 바코드의 상품이 없습니다.", true);
+      if (!byCode) return showToast("해당 바코드의 상품이 없어요.", true);
       exchangeAdd(byCode, q);
       exchangeCleanup();
       return;
@@ -3081,12 +3081,12 @@ exAddBtn?.addEventListener("click", async () => {
       rows.find(
         (p) => (p.name || "").toLowerCase() === nameKey.toLowerCase(),
       ) || rows[0];
-    if (!picked) return showToast("해당 상품을 찾을 수 없습니다.", true);
+    if (!picked) return showToast("해당 상품을 찾을 수 없어요.", true);
     exchangeAdd(picked, q);
     exchangeCleanup();
   } catch (e) {
     console.error(e);
-    showToast("교환 항목 추가 중 오류", true);
+    showToast("교환 항목 추가 중 오류가 발생했어요.", true);
   }
 });
 function exchangeAdd(prod, qty) {
@@ -3181,13 +3181,13 @@ exSubmitBtn?.addEventListener("click", async () => {
 
   // 1. 30점 초과 차단
   if (newTotal > 30) {
-    return showToast("총 포인트는 30점을 초과할 수 없습니다.", true);
+    return showToast("총 포인트는 30점을 초과할 수 없어요.", true);
   }
 
   // 2. 기존 합계 미달 차단
   if (newTotal < exchangeOriginalTotal) {
     return showToast(
-      `최소 ${exchangeOriginalTotal}점 이상이어야 합니다. (기존 합계 미달)`,
+      `최소 ${exchangeOriginalTotal}점 이상이어야 해요. (기존 합계 미달)`,
       true,
     );
   }
@@ -3199,7 +3199,7 @@ exSubmitBtn?.addEventListener("click", async () => {
               <span class="text-xs text-slate-500">(차액 ${
                 newTotal - exchangeOriginalTotal
               }p 추가 사용)</span><br>
-              교환을 진행하시겠습니까?`,
+              교환을 진행할까요?`,
     confirmText: "교환",
     cancelText: "취소",
   });
@@ -3343,7 +3343,7 @@ exSubmitBtn?.addEventListener("click", async () => {
       }
     });
 
-    showToast("교환이 완료되었습니다.");
+    showToast("교환이 완료되었어요.");
     resetExchangeUI();
 
     localStorage.removeItem(getExAutoSaveKey());
@@ -3355,7 +3355,7 @@ exSubmitBtn?.addEventListener("click", async () => {
     if (exLookupInput) exLookupInput.value = "";
   } catch (e) {
     console.error(e);
-    showToast("교환 실패", true);
+    showToast("교환을 실패했어요.", true);
   }
 });
 
@@ -3413,7 +3413,7 @@ function saveExchangeAutoSave() {
 // 1. 되돌리기 (Undo)
 document.getElementById("ex-undo-btn")?.addEventListener("click", () => {
   if (exUndoStack.length === 0)
-    return showToast("되돌릴 작업이 없습니다.", true);
+    return showToast("되돌릴 작업이 없어요.", true);
 
   // 현재 상태를 Redo로 보냄 (스냅샷 X, 그냥 이동)
   exRedoStack.push(JSON.parse(JSON.stringify(exchangeItems)));
@@ -3425,7 +3425,7 @@ document.getElementById("ex-undo-btn")?.addEventListener("click", () => {
 // 2. 다시 실행 (Redo)
 document.getElementById("ex-redo-btn")?.addEventListener("click", () => {
   if (exRedoStack.length === 0)
-    return showToast("다시 실행할 작업이 없습니다.", true);
+    return showToast("다시 실행할 작업이 없어요.", true);
 
   // 현재 상태를 Undo로 보냄
   exUndoStack.push(JSON.parse(JSON.stringify(exchangeItems)));
@@ -3438,11 +3438,11 @@ document.getElementById("ex-redo-btn")?.addEventListener("click", () => {
 document
   .getElementById("ex-reset-initial-btn")
   ?.addEventListener("click", async () => {
-    if (!exchangeProvision) return showToast("선택된 내역이 없습니다.", true);
+    if (!exchangeProvision) return showToast("선택된 내역이 없어요.", true);
 
     const ok = await openConfirm({
       title: "초기화",
-      message: "처음 불러온 상태로 되돌리시겠습니까?",
+      message: "처음 불러온 상태로 되돌릴까요?",
       confirmText: "되돌리기",
       cancelText: "취소",
       variant: "warn",
@@ -3453,7 +3453,7 @@ document
       // 원본 깊은 복사로 복구
       exchangeItems = JSON.parse(JSON.stringify(exchangeOriginalItems));
       renderExchangeList();
-      showToast("초기 상태로 복구되었습니다.");
+      showToast("초기 상태로 복구되었어요.");
     }
   });
 
@@ -3463,7 +3463,7 @@ document
   ?.addEventListener("click", async () => {
     const ok = await openConfirm({
       title: "전체 비우기",
-      message: "교환 작업을 완전히 종료하고 초기화하시겠습니까?",
+      message: "교환 작업을 완전히 종료하고 초기화할까요?",
       confirmText: "비우기",
       cancelText: "취소",
       variant: "warn",
@@ -3485,7 +3485,7 @@ document
       // 4. 검색창 초기화
       if (exLookupInput) exLookupInput.value = "";
 
-      showToast("모든 내역이 초기화되었습니다.");
+      showToast("모든 내역이 초기화되었어요.");
     }
   });
 
