@@ -12,6 +12,7 @@ import {
   writeBatch,
   arrayUnion,
   query,
+  where,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   showToast,
@@ -54,6 +55,82 @@ function normalizeCategory(c) {
     .replace(/\s+/g, " ");
 }
 
+// ===== 상품 캐시(영속) : provision과 동일 키/스토어 사용 =====
+// provision.js 와 동일하게 맞춰야 "공유 캐시"가 됨
+const PRODUCT_IDB_NAME = "pos_products";
+const PRODUCT_IDB_STORE = "products_cache";
+const PRODUCT_CACHE_SYNC_KEY = "products_cache_synced_at";
+const PRODUCT_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+function openProductIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PRODUCT_IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const dbi = req.result;
+      if (!dbi.objectStoreNames.contains(PRODUCT_IDB_STORE)) {
+        dbi.createObjectStore(PRODUCT_IDB_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbReadAllProducts() {
+  const dbi = await openProductIDB();
+  return await new Promise((resolve, reject) => {
+    const tx = dbi.transaction(PRODUCT_IDB_STORE, "readonly");
+    const st = tx.objectStore(PRODUCT_IDB_STORE);
+    const req = st.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbWriteAllProducts(products) {
+  const dbi = await openProductIDB();
+  return await new Promise((resolve, reject) => {
+    const tx = dbi.transaction(PRODUCT_IDB_STORE, "readwrite");
+    const st = tx.objectStore(PRODUCT_IDB_STORE);
+    const clearReq = st.clear();
+    clearReq.onsuccess = () => {
+      for (const p of products) st.put(p);
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("idb write failed"));
+  });
+}
+
+function shapeProductForUI(p) {
+  const data = p || {};
+  return {
+    ...data,
+    _searchName: (data.name || "").toLowerCase().replace(/\s+/g, ""),
+    _searchBarcode: (data.barcode || "").trim(),
+    _createdAt: data.createdAt?.seconds || 0,
+  };
+}
+
+// ===== 캐시 즉시 갱신 유틸 =====
+// allProducts(화면 상태) → IndexedDB에 즉시 반영하고, TTL 키도 갱신
+function stripProductForCache(p) {
+  const x = p || {};
+  const { _searchName, _searchBarcode, _createdAt, ...rest } = x;
+  return rest;
+}
+
+async function persistProductsCacheNow() {
+  try {
+    const raw = Array.isArray(allProducts)
+      ? allProducts.map(stripProductForCache)
+      : [];
+    await idbWriteAllProducts(raw);
+    localStorage.setItem(PRODUCT_CACHE_SYNC_KEY, String(Date.now()));
+  } catch (e) {
+    console.warn("persistProductsCacheNow failed:", e);
+  }
+}
+
 /* ---------------------------
   [핵심 기능] 검색창 에러 메시지 제어
 ---------------------------- */
@@ -82,23 +159,40 @@ function toggleSearchError(inputId, show) {
 /* ---------------------------
   1. 전체 데이터 로드
 ---------------------------- */
-async function loadAllProducts() {
+async function loadAllProducts(opts = {}) {
   const cleanup = makeGridSkeleton(productList, 12);
   try {
+    // ✅ provision과 캐시 공유: TTL 이내면 IndexedDB → 아니면 서버 전수 로드 후 캐시 갱신
+    const forceServer = !!opts.forceServer;
+    const lastSynced = forceServer
+      ? 0
+      : Number(localStorage.getItem(PRODUCT_CACHE_SYNC_KEY) || 0);
+    const fresh = lastSynced && Date.now() - lastSynced < PRODUCT_CACHE_TTL_MS;
+
+    if (fresh) {
+      const cached = await idbReadAllProducts();
+      if (cached && cached.length) {
+        allProducts = cached.map((p) => shapeProductForUI(p));
+        console.log(`📦 상품 캐시 로드(IndexedDB): ${allProducts.length}건`);
+        applyFilters();
+        return;
+      }
+    }
+
     const q = query(productsCol);
     const snap = await getDocs(q);
 
-    allProducts = snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        ...data,
-        _searchName: (data.name || "").toLowerCase().replace(/\s+/g, ""),
-        _searchBarcode: (data.barcode || "").trim(),
-        _createdAt: data.createdAt?.seconds || 0,
-      };
-    });
-    console.log(`📦 전체 상품 로드 완료: ${allProducts.length}건`);
+    const raw = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    allProducts = raw.map((p) => shapeProductForUI(p));
+    console.log(`📦 전체 상품 로드(서버): ${allProducts.length}건`);
+
+    // 캐시 갱신
+    try {
+      await idbWriteAllProducts(raw);
+      localStorage.setItem(PRODUCT_CACHE_SYNC_KEY, String(Date.now()));
+    } catch (e) {
+      console.warn("product cache write failed:", e);
+    }
     applyFilters();
   } catch (e) {
     console.error("데이터 로드 실패:", e);
@@ -181,10 +275,8 @@ function formatDate(ts) {
 }
 
 function renderList(rows) {
-  // [수정] 빈 상태일 때 Grid 레이아웃 해제 (Empty State 중앙 정렬)
+  // ✅ 빈 상태도 Grid 유지 (col-span-full 의미 살리기)
   if (rows.length === 0) {
-    productList.style.display = "block"; // Grid 해제
-
     renderEmptyState(
       productList,
       "조건에 맞는 상품이 없습니다.",
@@ -200,9 +292,6 @@ function renderList(rows) {
     }
     return;
   }
-
-  // 데이터가 있을 때는 Grid 복구
-  productList.style.display = "";
 
   productList.innerHTML = rows
     .map(
@@ -292,7 +381,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("filter-category").value = "";
     document.getElementById("sort-select").value = "date";
     applyFilters();
-    showToast(`초기화 완료 <i class='fas fa-check'></i>`);
+    showToast(`초기화가 완료되었어요.`);
   });
 
   // [추가] 입력 중 에러 메시지 숨기기 & 엔터키 검색
@@ -368,10 +457,42 @@ function ensurePolicySectionVisible() {
 // 카테고리 로드 및 자동완성
 async function loadCategoryIndex({ ttlMs = 86400000 } = {}) {
   try {
+    // ✅ P2-9: updatedAt 기반 캐시(변경 없으면 로컬 캐시 재사용)
+    const LS_KEY = "products:categories_products_cache";
+    const cached = (() => {
+      try {
+        return JSON.parse(localStorage.getItem(LS_KEY) || "null");
+      } catch {
+        return null;
+      }
+    })();
+
     const snap = await getDoc(CAT_DOC);
-    const list =
-      snap.exists() && Array.isArray(snap.data().list) ? snap.data().list : [];
+    const data = snap.exists() ? snap.data() : null;
+    const list = data && Array.isArray(data.list) ? data.list : [];
+    const updatedAtMs =
+      data?.updatedAt?.toMillis?.() ||
+      (typeof data?.updatedAt === "number" ? data.updatedAt : 0) ||
+      0;
+
+    // 캐시가 있고, updatedAt이 동일하면 캐시 사용
+    if (
+      cached &&
+      Array.isArray(cached.list) &&
+      Number(cached.updatedAtMs || 0) === Number(updatedAtMs || 0)
+    ) {
+      categoriesCache = cached.list;
+      refreshAllAutocompletes();
+      return categoriesCache;
+    }
+
     categoriesCache = list;
+    try {
+      localStorage.setItem(
+        LS_KEY,
+        JSON.stringify({ updatedAtMs: updatedAtMs || Date.now(), list }),
+      );
+    } catch {}
     refreshAllAutocompletes();
     return list;
   } catch (e) {
@@ -398,6 +519,15 @@ async function addCategoriesToIndex(cats) {
   }
   categoriesCache = Array.from(new Set([...categoriesCache, ...norm]));
   refreshAllAutocompletes();
+
+  // ✅ P2-9: 로컬 캐시 즉시 갱신(optimistic)
+  try {
+    const LS_KEY = "products:categories_products_cache";
+    localStorage.setItem(
+      LS_KEY,
+      JSON.stringify({ updatedAtMs: Date.now(), list: categoriesCache }),
+    );
+  } catch {}
 }
 
 function refreshAllAutocompletes() {
@@ -420,7 +550,9 @@ function setupAutocomplete(inputId, listId, options, onSelect = null) {
 
   if (newList.parentNode !== document.body) document.body.appendChild(newList);
   newList.style.position = "fixed";
-  newList.style.zIndex = "9999";
+  // ✅ tw-input.css z-index 계층(모달 위로) 기준: dropdown(5000) < modal(7000)
+  // 모달 내부에서도 보이도록 modal보다 1 크게
+  newList.style.zIndex = "calc(var(--z-modal) + 1)";
   newList.style.width = "";
 
   const updatePosition = () => {
@@ -478,9 +610,42 @@ function setupAutocomplete(inputId, listId, options, onSelect = null) {
 // 정책(Policy) 관련
 async function loadPolicies() {
   try {
+    // ✅ P2-9: updatedAt 기반 캐시(변경 없으면 로컬 캐시 재사용)
+    const LS_KEY = "products:categoryPolicies_cache";
+    const cached = (() => {
+      try {
+        return JSON.parse(localStorage.getItem(LS_KEY) || "null");
+      } catch {
+        return null;
+      }
+    })();
+
     const snap = await getDoc(POLICY_DOC);
     const data = snap.exists() ? snap.data() : null;
+    const updatedAtMs =
+      data?.updatedAt?.toMillis?.() ||
+      (typeof data?.updatedAt === "number" ? data.updatedAt : 0) ||
+      0;
+
+    if (
+      cached &&
+      cached.policies &&
+      Number(cached.updatedAtMs || 0) === Number(updatedAtMs || 0)
+    ) {
+      policiesCache = cached.policies || {};
+      return;
+    }
+
     policiesCache = data && data.policies ? data.policies : {};
+    try {
+      localStorage.setItem(
+        LS_KEY,
+        JSON.stringify({
+          updatedAtMs: updatedAtMs || Date.now(),
+          policies: policiesCache,
+        }),
+      );
+    } catch {}
   } catch (e) {
     policiesCache = {};
   }
@@ -518,7 +683,7 @@ function renderPolicyEditor() {
       }
       policyDirty = false;
       renderPolicyList(""); // 전체 리로드
-      showToast("변경 사항을 취소했습니다.");
+      showToast("변경 사항을 취소했어요.");
     };
   }
 
@@ -768,9 +933,17 @@ async function savePolicies() {
     policiesCache = policies;
     policyDirty = false;
     document.getElementById("policy-save-btn").disabled = true;
-    showToast("제한 규칙이 저장되었습니다.");
+    // ✅ P2-9: 로컬 캐시 즉시 갱신(optimistic)
+    try {
+      const LS_KEY = "products:categoryPolicies_cache";
+      localStorage.setItem(
+        LS_KEY,
+        JSON.stringify({ updatedAtMs: Date.now(), policies: policiesCache }),
+      );
+    } catch {}
+    showToast("제한 규칙이 저장되었어요.");
   } catch (e) {
-    showToast("제한 규칙 저장 중 오류가 발생했습니다.", true);
+    showToast("제한 규칙 저장 중 오류가 발생했어요.", true);
   }
 }
 
@@ -799,6 +972,15 @@ async function handleSyncCategories() {
     await updateDoc(CAT_DOC, { list: newList, updatedAt: serverTimestamp() });
     categoriesCache = newList;
     refreshAllAutocompletes();
+
+    // ✅ P2-9: 카테고리 로컬 캐시 즉시 갱신(optimistic)
+    try {
+      const LS_KEY = "products:categories_products_cache";
+      localStorage.setItem(
+        LS_KEY,
+        JSON.stringify({ updatedAtMs: Date.now(), list: categoriesCache }),
+      );
+    } catch {}
 
     // 3. [추가] 정책(Policies) 데이터도 청소
     // 현재 저장된 정책들을 불러와서, realCats에 없는 키(Key)는 삭제
@@ -830,6 +1012,15 @@ async function handleSyncCategories() {
         { merge: false },
       );
       policiesCache = cleanPolicies;
+
+      // ✅ P2-9: 정책 로컬 캐시 즉시 갱신(optimistic)
+      try {
+        const LS_KEY = "products:categoryPolicies_cache";
+        localStorage.setItem(
+          LS_KEY,
+          JSON.stringify({ updatedAtMs: Date.now(), policies: policiesCache }),
+        );
+      } catch {}
     }
 
     // 5. UI 리로드
@@ -972,10 +1163,10 @@ document
     if (!name || !barcode || !isValidPrice(price))
       return showToast("입력값을 확인하세요.", true);
     if (!isValidBarcode13(barcode))
-      return showToast("유효한 바코드가 아닙니다.", true);
+      return showToast("유효한 바코드가 아니에요.", true);
 
     if (allProducts.some((p) => p.barcode === barcode))
-      return showToast("이미 등록된 바코드입니다.", true);
+      return showToast("이미 등록된 바코드에요.", true);
 
     try {
       const ts = serverTimestamp();
@@ -1000,13 +1191,15 @@ document
       };
       allProducts.unshift(localProd);
       if (normCat) await addCategoriesToIndex([normCat]);
+      // ✅ 캐시 즉시 갱신
+      await persistProductsCacheNow();
 
-      showToast("등록되었습니다");
+      showToast("등록되었어요.");
       closeCreate();
       applyFilters();
     } catch (e) {
       console.error(e);
-      showToast("등록 실패", true);
+      showToast("등록을 실패했어요.", true);
     }
   });
 
@@ -1070,7 +1263,7 @@ document
     if (!name || !barcode || !isValidPrice(price))
       return showToast("입력값을 확인하세요.", true);
     if (!isValidBarcode13(barcode))
-      return showToast("유효한 바코드가 아닙니다.", true);
+      return showToast("유효한 바코드가 아니에요.", true);
 
     try {
       await updateDoc(doc(db, "products", editingProductId), {
@@ -1098,9 +1291,11 @@ document
       document.getElementById("edit-modal").classList.add("hidden");
       editingProductId = null;
       applyFilters();
-      showToast("수정되었습니다.");
+      // ✅ 캐시 즉시 갱신
+      await persistProductsCacheNow();
+      showToast("수정되었어요.");
     } catch (e) {
-      showToast("수정 실패", true);
+      showToast("수정을 실패했어요.", true);
     }
   });
 
@@ -1122,10 +1317,12 @@ productList.addEventListener("click", async (e) => {
     try {
       await deleteDoc(doc(db, "products", id));
       allProducts = allProducts.filter((p) => p.id !== id);
+      // ✅ 캐시 즉시 갱신
+      await persistProductsCacheNow();
       applyFilters();
-      showToast("삭제되었습니다");
+      showToast("삭제되었어요.");
     } catch (e) {
-      showToast("삭제 실패", true);
+      showToast("삭제를 실패했어요.", true);
     }
   } else if (btn.classList.contains("edit")) {
     const product = allProducts.find((p) => p.id === id);
@@ -1290,7 +1487,7 @@ async function handleParse() {
         </div>
       </div>`;
     $importBtn.disabled = parsedRows.length === 0;
-    showToast("엑셀 파싱 완료");
+    showToast("엑셀 파싱이 완료되었어요.");
   } catch (e) {
     console.error(e);
     renderEmptyState($preview, "오류가 발생했습니다.", "fa-times-circle");
@@ -1364,11 +1561,18 @@ async function handleImport() {
 
       showToast(`완료: ${created}건 추가, ${updated}건 업데이트`);
       closeCreate();
-      // 전체 리로드로 데이터 싱크
-      loadAllProducts();
+      // ✅ 업로드 직후 stale 캐시 재사용 방지: 서버에서 최신 강제 로드 → IndexedDB 캐시도 최신으로 덮어씀
+      await loadAllProducts({ forceServer: true });
+
+      // ✅ 업로드 후 카테고리/정책도 최신으로 재로드 + 정책 UI 갱신
+      // - 엑셀 업로드로 카테고리가 새로 추가될 수 있음
+      // - 정책 탭이 열려있거나, 이후 이동 시 최신 상태 보장
+      await loadCategoryIndex();
+      await loadPolicies();
+      renderPolicyEditor();
     } catch (e) {
       console.error(e);
-      showToast("업로드 실패", true);
+      showToast("업로드를 실패했어요.", true);
     } finally {
       $importBtn.disabled = false;
       $parseBtn.disabled = false;
