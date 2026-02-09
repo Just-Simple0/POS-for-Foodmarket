@@ -17,12 +17,15 @@
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
 
-    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/moment/min/moment.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+    <!-- Flowbite Datepicker (순정 로딩: 디자인은 나중에 수정) -->
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"
+      href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/1.5.5/flowbite.min.css"
+    />
+    <!-- ✅ flowbite-datepicker 전용 CSS (이게 빠지면 달력 레이아웃이 깨짐) -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/flowbite-datepicker@2.0.0/dist/css/datepicker.min.css"
     />
 
     <link rel="stylesheet" href="css/tw.css" />
@@ -213,12 +216,15 @@
             <div class="flex gap-2">
               <div class="field-box flex-1">
                 <i class="fas fa-calendar-alt ml-4 text-slate-400"></i>
-                <input
-                  type="text"
-                  id="expiry-base-date"
-                  class="field-input font-sans !pl-2"
-                  readonly
-                />
+                <!-- ✅ datepicker dropdown이 "항상 input 밑"에 뜨도록 래퍼를 컨테이너로 사용 -->
+                <div id="expiry-date-wrap" class="dp-wrap">
+                  <input
+                    type="text"
+                    id="expiry-base-date"
+                    class="field-input font-sans !pl-2"
+                    readonly
+                  />
+                </div>
               </div>
               <button
                 id="expiry-today-btn"

@@ -16,6 +16,35 @@ import {
   makeWidgetSkeleton,
 } from "./components/comp.js";
 
+import Datepicker from "https://cdn.jsdelivr.net/npm/flowbite-datepicker@2.0.0/dist/Datepicker.esm.js";
+// ✅ Flowbite Datepicker i18n (Korean)
+// - Datepicker.esm.js만 import하면 ko locale이 자동 등록되지 않음
+// - ko locale을 로드한 뒤 Datepicker.locales에 주입해야 language:"ko"가 동작
+import koLocaleModule from "https://cdn.jsdelivr.net/npm/flowbite-datepicker@2.0.0/js/i18n/locales/ko.js";
+
+// ✅ locale register + small customization (titleFormat spacing)
+// - 기본: "y년mm월"  → 원하는 값: "y년 mm월"
+try {
+  const koDef =
+    koLocaleModule?.ko ??
+    koLocaleModule?.default?.ko ??
+    koLocaleModule?.default ??
+    koLocaleModule;
+  if (!koDef) throw new Error("ko locale module loaded but empty");
+  if (!Datepicker?.locales)
+    throw new Error("Datepicker.locales is not available");
+
+  // ✅ locales는 getter-only일 수 있으므로 '재할당' 금지. ko 객체만 병합/패치한다.
+  Datepicker.locales.ko ??= {};
+  Object.assign(Datepicker.locales.ko, koDef);
+  // titleFormat에 "년"과 "mm" 사이 공백 강제: "y년mm월" -> "y년 mm월"
+  Datepicker.locales.ko.titleFormat = String(
+    Datepicker.locales.ko.titleFormat || "y년mm월",
+  ).replace(/년\s*mm/g, "년 mm");
+} catch (e) {
+  console.warn("[dashboard] Flowbite Datepicker ko locale 주입/패치 실패", e);
+}
+
 // Chart.js instance holder (avoid duplicate chart creation)
 let __visitChart = null;
 
@@ -615,6 +644,8 @@ function setExpiryInfo() {
 
 function openExpiryModal() {
   const modal = document.getElementById("expiry-modal");
+  const modalContent = modal?.querySelector?.(".modal-content");
+  const wrapSel = "#expiry-date-wrap";
   const baseEl = document.getElementById("expiry-base-date");
   const todayBtn = document.getElementById("expiry-today-btn");
   const closeBtn = document.getElementById("expiry-modal-close");
@@ -626,46 +657,42 @@ function openExpiryModal() {
   const customBtn = document.getElementById("expiry-calc-btn");
   const customOut = document.getElementById("expiry-custom-result");
 
-  // daterangepicker 초기화 (jQuery 사용)
-  const $base = $(baseEl);
-  if (!$base.data("daterangepicker")) {
-    $base.daterangepicker(
-      {
-        singleDatePicker: true,
-        showDropdowns: true,
-        autoApply: true,
-        locale: {
-          format: "YYYY-MM-DD",
-          monthNames: [
-            "1월",
-            "2월",
-            "3월",
-            "4월",
-            "5월",
-            "6월",
-            "7월",
-            "8월",
-            "9월",
-            "10월",
-            "11월",
-            "12월",
-          ],
-          daysOfWeek: ["일", "월", "화", "수", "목", "금", "토"],
-        },
-      },
-      function (start) {
-        renderBaseResults(start.toDate());
-      },
-    );
+  // ✅ "진짜로" 바로 아래에 붙게: Datepicker 인스턴스를 직접 생성 + container를 모달 overlay로 고정
+  // - dropdown이 body가 아니라 modal 내부에 렌더링되어 z-index/좌표 점프 문제 제거
+  if (!baseEl.__expiryDatepicker) {
+    baseEl.__expiryDatepicker = new Datepicker(baseEl, {
+      autohide: true,
+      language: "ko",
+      format: "yyyy-mm-dd",
+      // ✅ 핵심: dropdown을 input 래퍼 안에 렌더링 → 무조건 input 밑에서 시작
+      container: wrapSel,
+      // 아래쪽 고정(자동 뒤집힘 방지)
+      orientation: "bottom",
+      todayHighlight: true,
+    });
+
+    // 날짜 선택/변경 시 결과 갱신
+    // (라이브러리 버전에 따라 이벤트명이 다를 수 있어 change + input을 같이 둠)
+    const onValueChange = () => renderBaseResults(parseDateInput(baseEl.value));
+    baseEl.addEventListener("change", onValueChange);
+    baseEl.addEventListener("input", onValueChange);
   }
 
   // 오늘 날짜로 세팅
-  $base.data("daterangepicker").setStartDate(new Date());
-  renderBaseResults(new Date());
+  const initToday = new Date();
+  // datepicker 인스턴스에도 세팅 (input.value만 세팅해도 되지만 동기화 차원)
+  try {
+    baseEl.__expiryDatepicker?.setDate?.(initToday);
+  } catch {}
+  baseEl.value = formatDateInput(initToday);
+  renderBaseResults(initToday);
 
   todayBtn.onclick = () => {
     const today = new Date();
-    $base.data("daterangepicker").setStartDate(today);
+    try {
+      baseEl.__expiryDatepicker?.setDate?.(today);
+    } catch {}
+    baseEl.value = formatDateInput(today);
     renderBaseResults(today);
   };
 

@@ -3,6 +3,65 @@
 @tailwind utilities;
 
 /* =========================================
+   Flowbite Datepicker (GLOBAL)
+   - 전역 .btn/.table 스타일과 충돌 방지(레이아웃만 최소 보호)
+   - 모달 위 z-index 보장
+   - "항상 input 밑" 배치를 위한 래퍼 클래스 제공(.dp-wrap)
+   ========================================= */
+@layer base {
+  /* 1) datepicker 기본 레이어 */
+  .datepicker,
+  .datepicker-dropdown {
+    z-index: var(--z-dropdown) !important;
+  }
+
+  /* 2) 모달/다이얼로그 내부에서는 모달 위로 */
+  .modal .datepicker,
+  .modal .datepicker-dropdown,
+  [role="dialog"] .datepicker,
+  [role="dialog"] .datepicker-dropdown {
+    z-index: calc(var(--z-modal) + 5) !important;
+  }
+
+  /* 3) input 아래 고정 배치: 래퍼를 컨테이너로 쓰면 무조건 아래에 붙음 */
+  .dp-wrap {
+    position: relative;
+    overflow: visible;
+  }
+  .dp-wrap .datepicker-dropdown {
+    top: calc(100% + 8px) !important;
+    left: 0 !important;
+    z-index: calc(var(--z-modal) + 10) !important; /* 모달 안에서도 안전 */
+  }
+
+  /* 4) 전역 테이블 스타일 오염 방지(달력 그리드 보호) */
+  .datepicker table,
+  .datepicker-dropdown table {
+    width: 100%;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    table-layout: fixed !important;
+  }
+  .datepicker th,
+  .datepicker td,
+  .datepicker-dropdown th,
+  .datepicker-dropdown td {
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+  }
+
+  /* 5) 전역 버튼 스타일 오염 방지(datepicker 내부 버튼만) */
+  .datepicker button,
+  .datepicker-dropdown button {
+    all: unset;
+    cursor: pointer;
+  }
+}
+
+/* =========================================
    1. Base Styles & Animations
    ========================================= */
 @layer base {
@@ -68,7 +127,6 @@
   input[type="number"] {
     -moz-appearance: textfield;
   }
-
 }
 
 @keyframes fadeIn {
@@ -644,7 +702,9 @@
 
   /* [2] 모달 컨텐츠: 배경색을 900으로 유지하되 내부 요소와의 대비 준비 */
   .modal-content {
-    @apply w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[28px] shadow-floating overflow-hidden flex flex-col;
+    /* ✅ 전역: dropdown/datepicker가 모달 밖으로 나가도 잘리지 않게 */
+    @apply w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[28px] shadow-floating overflow-visible flex flex-col;
+    position: relative; /* ✅ dropdown stacking/anchor 안정화 */
     animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
@@ -871,54 +931,97 @@
   }
 
   /* =========================================
-   daterangepicker TDS 최종 정밀 보정
+   jQuery DateRangePicker (Range) Fix
    ========================================= */
 
-  /* [1] 캘린더 메인 컨테이너 */
   .daterangepicker {
-    @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lifted rounded-[24px] font-sans p-2 mt-2 !important;
-    z-index: 10000 !important;
+    /* 배경, 테두리 통합 (다크모드 포함) */
+    @apply !border-none !rounded-[24px] !font-sans !mt-2 !p-0 !overflow-hidden;
+    @apply !bg-white dark:!bg-slate-800;
+    @apply !shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)];
+    /* 다크모드일 때 미세한 테두리 추가 */
+    @apply dark:!border dark:!border-slate-700;
   }
 
-  /* [2] 상단 헤더: 순서 역전 (float 방식 유지) */
+  /* [핵심] Ranges (프리셋 버튼) 가로 배치 */
+  .daterangepicker .ranges {
+    @apply !float-none !m-0 !p-3 !flex !flex-wrap !gap-1.5 !w-full;
+    @apply !border-b !border-slate-100 dark:!border-slate-700;
+    @apply !bg-[#F2F4F6] dark:!bg-slate-900;
+  }
+
+  .daterangepicker .ranges ul {
+    @apply !contents !w-full; /* ul 태그 무시하고 li를 flex 아이템으로 */
+  }
+
+  .daterangepicker .ranges li {
+    @apply !text-[13px] !font-semibold !px-3 !py-1.5 !rounded-lg !m-0 !float-none !cursor-pointer !transition-all !duration-200;
+    /* 기본 색상 */
+    @apply !bg-white !border !border-slate-200 !text-slate-500;
+    /* 다크모드 색상 */
+    @apply dark:!bg-slate-800 dark:!border-slate-700 dark:!text-slate-300;
+    /* 호버 효과 */
+    @apply hover:!bg-slate-100 dark:hover:!bg-slate-700;
+  }
+
+  .daterangepicker .ranges li.active {
+    /* 활성 상태는 다크모드 상관없이 동일 강조색 사용 */
+    @apply !bg-[#3182f6] !border-[#3182f6] !text-white;
+  }
+
+  /* 달력 영역 컨테이너 */
+  .daterangepicker .drp-calendar {
+    @apply !max-w-none !p-3;
+  }
+
+  .daterangepicker .drp-calendar.left {
+    @apply !border-none !border-r !border-slate-100 dark:!border-slate-700;
+  }
+
+  /* 테이블 리셋 */
+  .daterangepicker .calendar-table {
+    @apply !bg-transparent !border-none;
+  }
+
+  .daterangepicker .calendar-table table {
+    @apply !w-full !border-collapse !border-spacing-0;
+  }
+
+  /* 상단 헤더: 순서 역전 (float 방식 유지) */
   .daterangepicker .calendar-table th.month {
-    display: table-cell !important;
-    text-align: center !important;
-    white-space: nowrap !important;
+    @apply !table-cell !text-center !whitespace-nowrap;
   }
 
   /* 연도를 왼쪽으로 밀기 */
   .daterangepicker select.yearselect {
-    float: left !important;
-    width: fit-content;
-    margin-left: 20px !important;
-    @apply bg-transparent border-none font-semibold text-[15px] text-slate-900 dark:text-white cursor-pointer outline-none !important;
-    appearance: none;
-    -webkit-appearance: none;
-    padding-right: 14px !important;
+    @apply !float-left !w-fit !ml-5 !pr-3.5;
+    @apply !bg-transparent !border-none !font-semibold !text-[16px] !cursor-pointer !outline-none !appearance-none;
+    @apply !text-slate-900 dark:!text-white;
+
+    /* 배경 이미지는 Tailwind @apply로 처리하기 복잡하므로 표준 CSS 유지 */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right center;
     background-size: 10px;
   }
+
+  /* 다크모드 아이콘 교체 (복잡한 SVG Data URI는 별도 규칙 유지 권장) */
   .dark .daterangepicker select.yearselect {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
   }
 
   /* 월을 오른쪽으로 밀기 */
   .daterangepicker select.monthselect {
-    width: fit-content;
-    float: right !important;
-    margin-right: 20px !important;
-    @apply bg-transparent border-none font-semibold text-[15px] text-slate-900 dark:text-white cursor-pointer outline-none !important;
-    appearance: none;
-    -webkit-appearance: none;
-    padding-right: 14px !important;
+    @apply !w-fit !float-right !mr-5 !pr-3.5;
+    @apply !bg-transparent !border-none !font-semibold !text-[16px] !cursor-pointer !outline-none !appearance-none;
+    @apply !text-slate-900 dark:!text-white;
+
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right center;
     background-size: 10px;
   }
+
   .dark .daterangepicker select.monthselect {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
   }
@@ -926,88 +1029,86 @@
   /* float 해제 */
   .daterangepicker .calendar-table th.month::after {
     content: "";
-    display: block;
-    clear: both;
+    @apply block clear-both;
   }
 
-  /* [3] 가독성 해결: 선택된 날짜 글자색 강제 지정 */
-  /* 오늘 날짜이든 아니든, 선택된 날짜(.active)는 무조건 흰색 글자로 고정 */
-  .daterangepicker td.active,
-  .daterangepicker td.active:hover {
-    @apply bg-primary text-white !important;
-    color: #ffffff !important; /* CSS 변수 충돌 방지용 강제 지정 */
-    border-radius: 12px !important;
-  }
-
-  /* 오늘 날짜인데 선택되지 않았을 때 (강조만) */
-  .daterangepicker td.today:not(.active) {
-    @apply text-primary font-semibold bg-transparent !important;
-  }
-
-  /* [4] 날짜 기본 스타일 (레이아웃 보호) */
+  /* 날짜 셀 */
   .daterangepicker td.available {
-    @apply text-slate-700 dark:text-slate-300 font-medium text-[14px] transition-all !important;
-    border: none !important;
+    @apply !w-8 !h-8 !rounded-lg !text-[13px] !font-medium !transition-all !duration-150;
+    @apply !text-slate-700 dark:!text-slate-300;
   }
 
   .daterangepicker td.available:hover {
-    @apply bg-slate-100 dark:bg-slate-700 rounded-xl !important;
+    @apply !bg-slate-100 dark:!bg-slate-700;
   }
 
-  /* 다크모드 드롭다운 옵션 보정 */
-  .dark .daterangepicker select option {
-    @apply bg-slate-800 text-white !important;
+  /* 이전 달 및 다음 달 날짜 (off) */
+  .daterangepicker td.off,
+  .daterangepicker td.off.in-range,
+  .daterangepicker td.off.start-date,
+  .daterangepicker td.off.end-date {
+    @apply !bg-transparent dark:!bg-transparent !opacity-40;
+    @apply !text-slate-400 dark:!text-slate-600;
   }
 
-  /* 다크모드 날짜 텍스트 보정 */
-  .dark .daterangepicker td.available {
-    @apply text-slate-300 !important;
-  }
-  .dark .daterangepicker th.month {
-    @apply text-slate-400 !important;
-  }
-
-  /* [5] 이전 달 및 다음 달 날짜 (off) 처리: 연하게 투명도 조절 */
-  .daterangepicker td.off {
-    @apply text-slate-400 dark:text-slate-600 opacity-40 bg-transparent !important;
+  /* 범위 내 */
+  .daterangepicker td.in-range {
+    @apply !rounded-none;
+    @apply !bg-blue-50 !text-blue-700;
+    @apply dark:!bg-blue-900/40 dark:!text-blue-300;
   }
 
-  /* [6] 다크모드 및 기본 테이블 스타일 보정 (흰색 테두리/배경 제거) */
-  .daterangepicker .calendar-table {
-    /* [수정] 라이브러리 기본 흰색 테두리(1px solid #fff) 제거 */
-    border: none !important;
-    background-color: transparent !important;
+  /* 시작/끝 날짜 */
+  .daterangepicker td.active,
+  .daterangepicker td.active:hover {
+    @apply !bg-[#3182f6] !text-white !font-bold;
   }
 
-  .dark .daterangepicker .calendar-table,
-  .dark .daterangepicker table {
-    @apply bg-slate-800 !important;
+  .daterangepicker td.start-date,
+  .daterangepicker td.start-date.in-range,
+  .daterangepicker td.active.start-date {
+    @apply !rounded-l-lg !rounded-r-none;
+    @apply bg-[#3182f6] text-white font-bold;
   }
 
-  /* [추가] Ranges(왼쪽 프리셋 목록) 구분선 다크모드 최적화 */
-  .daterangepicker .ranges {
-    @apply border-r border-slate-200 dark:border-slate-700 !important;
-    background-color: transparent !important;
-  }
-
-  /* 다크 모드에서 선택된 날짜(.active) 가시성 강화 */
-  .dark .daterangepicker td.active,
-  .dark .daterangepicker td.active:hover {
-    background-color: #3182f6 !important; /* TDS Primary Blue */
-    color: #ffffff !important;
-    @apply shadow-[0_0_0_2px_rgba(49,130,246,0.5)] z-10 !important; /* 외곽 글로우 효과 */
-  }
-
-  /* 오늘 날짜가 active일 때 중복 스타일 제거 */
-  .dark .daterangepicker td.today.active {
-    @apply bg-primary !important;
+  .daterangepicker td.end-date,
+  .daterangepicker td.end-date.in-range,
+  .daterangepicker td.active.end-date {
+    @apply !rounded-r-lg !rounded-l-none;
+    @apply bg-[#3182f6] text-white font-bold;
   }
 
   /* [7] 오늘(Today) 날짜 강조: 선택되지 않았을 때도 Primary 컬러 유지 */
-  .daterangepicker td.today,
-  .dark .daterangepicker td.today {
+  .daterangepicker td.today {
     @apply text-primary font-semibold !important;
     position: relative;
+  }
+
+  .daterangepicker td.today.active {
+    @apply text-white !important;
+  }
+
+  /* 하단 버튼 영역 */
+  .daterangepicker .drp-buttons {
+    @apply !p-3 !flex !justify-end !gap-2;
+    @apply !border-t !border-slate-100 dark:!border-slate-700;
+  }
+
+  /* 선택된 날짜 텍스트 숨김 */
+  .daterangepicker .drp-selected {
+    @apply !hidden;
+  }
+
+  /* 취소 버튼 */
+  .daterangepicker .cancelBtn {
+    @apply !font-semibold !rounded-lg !px-4 !py-2 !text-[13px];
+    @apply !bg-slate-100 !text-slate-500;
+    @apply dark:!bg-slate-700 dark:!text-slate-300;
+  }
+
+  /* 적용 버튼 */
+  .daterangepicker .applyBtn {
+    @apply !bg-[#3182f6] !text-white !font-semibold !rounded-lg !px-4 !py-2 !text-[13px] !border-none;
   }
 
   /* [TDS] Numeric Spinner - 캡슐형 배경 및 입체 숫자 박스 */
@@ -1076,6 +1177,141 @@
     height: 0;
     margin: 0;
   }
+}
 
-  
+/* =========================================
+   Flowbite Datepicker: TDS Visual Overrides
+   - Primary Color (#3182F6) 적용
+   - Compact Buttons with Spacing (버튼 작게, 간격 넓게)
+   - Today Style: Text Color Only (점 제거)
+   ========================================= */
+@layer components {
+  /* 1. 달력 메인 컨테이너 */
+  .datepicker-picker {
+    /* [수정] width와 min-width에 !important를 붙여 JS 인라인 스타일을 무시하고 강제 고정 */
+    min-width: 280px !important;
+
+    /* p-4(16px), rounded-20px 등 스타일 유지 */
+    @apply p-4 rounded-[20px] shadow-lifted border-none bg-white dark:bg-slate-800 font-sans;
+
+    /* 플렉스 부모 등에 의해 찌그러짐 방지 */
+    display: block !important;
+  }
+
+  /* 2. 상단 헤더 */
+  .datepicker-header .datepicker-controls {
+    @apply flex justify-between items-center mb-4 px-1 w-full !important;
+  }
+
+  /* 월/년 이동 버튼 */
+  .datepicker-header .datepicker-controls .btn {
+    @apply flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors !important;
+    @apply focus:ring-0 border-none shadow-none bg-transparent;
+  }
+
+  /* 년-월 텍스트 */
+  .datepicker-header .datepicker-controls .view-switch {
+    @apply text-[16px] rounded-lg font-bold text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 px-2 py-1 transition-colors !important;
+  }
+
+  /* 3. 요일 헤더 */
+  .datepicker-main .days .days-of-week {
+    @apply grid grid-cols-7 mb-1 !important;
+    width: 100% !important;
+  }
+  .datepicker-main .days .dow {
+    @apply h-8 flex items-center justify-center text-slate-400 dark:text-slate-500 font-bold text-[12px] uppercase tracking-wider !important;
+  }
+
+  /* 4. 날짜 그리드 (핵심: 버튼 크기는 줄이고 간격은 유지) */
+  .datepicker-grid {
+    @apply grid grid-cols-7 gap-y-2 !important; /* 줄 간격 */
+    width: 100% !important;
+  }
+
+  /* 5. 날짜 셀 (버튼 크기 축소 + 정중앙 정렬 보정) */
+  .datepicker-cell {
+    /* [수정] 
+       1. h-9 w-9: 크기 36px
+       2. inline-flex: 테이블 안에서 안정적인 배치를 위해 flex 대신 사용
+       3. pt-[2px]: 텍스트를 물리적으로 2px 아래로 내려서 시각적 정중앙을 맞춤 (Optical Correction) 
+    */
+    @apply h-9 w-9 inline-flex items-center justify-center mx-auto rounded-lg font-medium text-[13px] leading-none pt-[7px] text-slate-700 dark:text-slate-300 transition-all duration-200 !important;
+  }
+
+  /* 마우스 호버 */
+  .datepicker-cell:not(.selected):not(.range-start):not(.range-end):not(
+      .range
+    ):hover {
+    @apply bg-slate-100 dark:bg-slate-700 !important;
+  }
+
+  /* 6. 선택된 날짜 (Primary Color) */
+  .datepicker-cell.selected,
+  .datepicker-cell.range-start,
+  .datepicker-cell.range-end {
+    @apply bg-primary text-white font-bold shadow-md shadow-blue-500/30 !important;
+    @apply hover:bg-primary hover:text-white !important;
+  }
+
+  /* 7. [수정] 오늘(Today) 날짜 표시: 점 제거, 텍스트 색상만 변경 */
+
+  /* (A) 점(Dot) 제거 */
+  .datepicker-cell.today::after {
+    display: none !important;
+  }
+
+  /* (B) 선택되지 않은 오늘: 파란 글씨 + 굵게 + 배경 투명 */
+  .datepicker-cell.today:not(.selected):not(.range-start):not(.range-end) {
+    @apply text-primary font-extrabold bg-transparent !important;
+  }
+
+  /* (C) 선택된 오늘: 흰 글씨 (기본 selected 스타일 따름) */
+  .datepicker-cell.today.selected {
+    @apply text-white !important;
+  }
+
+  /* 8. 범위 선택 (Range) */
+  .datepicker-cell.range {
+    @apply bg-primary-50 dark:bg-primary/20 text-primary-600 dark:text-primary-300 rounded-none !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  /* 범위 시작/끝 보정 */
+  .datepicker-cell.range-start {
+    @apply rounded-r-none rounded-l-lg !important;
+  }
+  .datepicker-cell.range-end {
+    @apply rounded-l-none rounded-r-lg !important;
+  }
+
+  /* 9. 이전/다음 달 날짜 (연하게) */
+  .datepicker-cell.prev,
+  .datepicker-cell.next {
+    @apply text-slate-300 dark:text-slate-600 opacity-40 !important;
+  }
+
+  /* 10. 월/년 선택 뷰 (Grid 간격 확대 - 선택자 보강) */
+  .datepicker-view.view-months .datepicker-grid,
+  .datepicker-view.view-years .datepicker-grid,
+  /* 혹시 모를 구버전 대응 */
+  .datepicker-view.months .datepicker-grid,
+  .datepicker-view.years .datepicker-grid {
+    @apply grid grid-cols-4 gap-4 !important;
+  }
+
+  .datepicker-view.view-months .datepicker-cell,
+  .datepicker-view.view-years .datepicker-cell,
+  .datepicker-view.months .datepicker-cell,
+  .datepicker-view.years .datepicker-cell {
+    @apply h-14 w-14 text-[14px] pt-[17px] font-bold rounded-xl !important;
+  }
+
+  /* 11. 하단 버튼 */
+  .datepicker-footer .btn {
+    @apply btn-sm btn-light w-full justify-center !important;
+  }
+  .datepicker-footer .btn.today-btn {
+    @apply btn-primary-weak !important;
+  }
 }

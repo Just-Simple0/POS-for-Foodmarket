@@ -28,6 +28,35 @@ import {
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+import Datepicker from "https://cdn.jsdelivr.net/npm/flowbite-datepicker@2.0.0/dist/Datepicker.esm.js";
+// ✅ Flowbite Datepicker i18n (Korean)
+// - Datepicker.esm.js만 import하면 ko locale이 자동 등록되지 않음
+// - ko locale을 로드한 뒤 Datepicker.locales에 주입해야 language:"ko"가 동작
+import koLocaleModule from "https://cdn.jsdelivr.net/npm/flowbite-datepicker@2.0.0/js/i18n/locales/ko.js";
+
+// ✅ locale register + small customization (titleFormat spacing)
+// - 기본: "y년mm월"  → 원하는 값: "y년 mm월"
+try {
+  const koDef =
+    koLocaleModule?.ko ??
+    koLocaleModule?.default?.ko ??
+    koLocaleModule?.default ??
+    koLocaleModule;
+  if (!koDef) throw new Error("ko locale module loaded but empty");
+  if (!Datepicker?.locales)
+    throw new Error("Datepicker.locales is not available");
+
+  // ✅ locales는 getter-only일 수 있으므로 '재할당' 금지. ko 객체만 병합/패치한다.
+  Datepicker.locales.ko ??= {};
+  Object.assign(Datepicker.locales.ko, koDef);
+  // titleFormat에 "년"과 "mm" 사이 공백 강제: "y년mm월" -> "y년 mm월"
+  Datepicker.locales.ko.titleFormat = String(
+    Datepicker.locales.ko.titleFormat || "y년mm월",
+  ).replace(/년\s*mm/g, "년 mm");
+} catch (e) {
+  console.warn("[dashboard] Flowbite Datepicker ko locale 주입/패치 실패", e);
+}
 import {
   showToast,
   renderCursorPager,
@@ -120,7 +149,7 @@ function clearUnifiedSearchInputs() {
   if (f) f.value = "";
 
   // 에러 UI/상태도 함께 초기화
- try {
+  try {
     toggleSearchError("global-search-group", false);
     toggleSearchError("field-search-group", false);
   } catch (_) {}
@@ -912,8 +941,7 @@ function ensureProvLoadMoreUI(show) {
 
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className =
-    "btn btn-light px-4 py-2 rounded-xl";
+  btn.className = "btn btn-light px-4 py-2 rounded-xl";
   btn.innerHTML = `<i class="fas fa-plus mr-2 text-xs"></i>더 불러오기 (1000건)`;
   btn.addEventListener("click", async () => {
     await withLoading(async () => {
@@ -1042,7 +1070,7 @@ async function loadProvisionHistoryByRange(startDate, endDate) {
   provCursor.startTs = Timestamp.fromDate(start);
   provCursor.endTs = Timestamp.fromDate(end);
 
-   // ✅ 기본은 서버 페이징 모드
+  // ✅ 기본은 서버 페이징 모드
   provCursor.serverMode = true;
 
   // ✅ 기간 변경 시 검색 모드/캐시 리셋
@@ -2325,14 +2353,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       o.textContent = k;
       fiscalSel.appendChild(o);
     });
-    fiscalSel.addEventListener("change", () =>
-      {
-        // ✅ 조회기간 변경 시 검색창 초기화
-        clearUnifiedSearchInputs();
-        loadVisitLogTable(fiscalSel.value);
-      },
-
-    );
+    fiscalSel.addEventListener("change", () => {
+      // ✅ 조회기간 변경 시 검색창 초기화
+      clearUnifiedSearchInputs();
+      loadVisitLogTable(fiscalSel.value);
+    });
   }
 
   const lifeYearSel = document.getElementById("life-year-select");
@@ -2350,7 +2375,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const q = m <= 3 ? "Q1" : m <= 6 ? "Q2" : m <= 9 ? "Q3" : "Q4";
     if (lifeQuarterSel) lifeQuarterSel.value = q;
 
-   // ✅ 연도/분기 변경 시 검색창 초기화(남아있는 검색어로 0건 오해 방지)
+    // ✅ 연도/분기 변경 시 검색창 초기화(남아있는 검색어로 0건 오해 방지)
     lifeYearSel.addEventListener("change", () => {
       clearUnifiedSearchInputs();
       loadLifeTable();
@@ -2460,12 +2485,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   document
     .getElementById("monthly-daily-next")
     ?.addEventListener("click", () => moveModalMonth(1));
-  document
-    .getElementById("monthly-daily-input")
-    ?.addEventListener("change", (e) => {
-      const [y, m] = e.target.value.split("-");
-      openMonthlyDailyModal(new Date(y, m - 1, 1));
-    });
+  // month picker (Flowbite Datepicker)
+  initMonthlyDailyMonthPicker();
+
   bindProvisionEvents();
   bindProvisionEditCustomerLookup();
   bindVisitEvents();
@@ -2982,11 +3004,60 @@ async function calculateMonthlyVisitRate() {
 
 // Modal: Monthly Daily
 let __modalMonth = null;
+// Flowbite month picker instance for the modal
+let __monthlyDailyPicker = null;
+let __suppressMonthlyDailyPickerEvent = false;
+
+function initMonthlyDailyMonthPicker() {
+  const input = document.getElementById("monthly-daily-input");
+  if (!input) return;
+
+  // 이미 생성되어 있으면 중복 생성 방지
+  if (__monthlyDailyPicker) return;
+
+  // Flowbite Datepicker가 로드되지 않은 경우를 방어
+  if (typeof Datepicker !== "function") {
+    console.warn(
+      "[statistics] Flowbite Datepicker가 로드되지 않았습니다. Datepicker.esm.js import 경로/순서를 확인하세요.",
+    );
+    return;
+  }
+
+  // container는 "selector 문자열"만 허용 (HTMLElement 전달 시 querySelector 에러 발생)
+  __monthlyDailyPicker = new Datepicker(input, {
+    container: "#monthly-daily-dp-wrap",
+    autohide: true,
+    language: "ko",
+    format: "yyyy-mm",
+    startView: 1, // months view
+    pickLevel: 1, // month pick
+    orientation: "bottom auto",
+    todayHighlight: true,
+  });
+
+  // 달력에서 월 선택 시 1회만 로드되도록 changeDate만 사용
+  input.addEventListener("changeDate", (e) => {
+    if (__suppressMonthlyDailyPickerEvent) return;
+    const d = e?.detail?.date;
+    if (!(d instanceof Date)) return;
+    openMonthlyDailyModal(new Date(d.getFullYear(), d.getMonth(), 1));
+  });
+}
+
 async function openMonthlyDailyModal(date) {
   __modalMonth = new Date(date.getFullYear(), date.getMonth(), 1);
   const mInput = document.getElementById("monthly-daily-input");
-  if (mInput)
-    mInput.value = `${__modalMonth.getFullYear()}-${String(__modalMonth.getMonth() + 1).padStart(2, "0")}`;
+  if (mInput) {
+    const ym = `${__modalMonth.getFullYear()}-${String(__modalMonth.getMonth() + 1).padStart(2, "0")}`;
+    mInput.value = ym;
+
+    // Datepicker가 있을 때는 selection도 함께 동기화
+    if (__monthlyDailyPicker) {
+      __suppressMonthlyDailyPickerEvent = true;
+      __monthlyDailyPicker.setDate(__modalMonth, { clear: true, render: true });
+      __suppressMonthlyDailyPickerEvent = false;
+    }
+  }
   await refreshMonthlyModal();
   document.getElementById("monthly-daily-modal").classList.remove("hidden");
 }
@@ -2994,7 +3065,15 @@ async function openMonthlyDailyModal(date) {
 async function moveModalMonth(delta) {
   __modalMonth.setMonth(__modalMonth.getMonth() + delta);
   const mInput = document.getElementById("monthly-daily-input");
-  mInput.value = `${__modalMonth.getFullYear()}-${String(__modalMonth.getMonth() + 1).padStart(2, "0")}`;
+  if (mInput) {
+    const ym = `${__modalMonth.getFullYear()}-${String(__modalMonth.getMonth() + 1).padStart(2, "0")}`;
+    mInput.value = ym;
+    if (__monthlyDailyPicker) {
+      __suppressMonthlyDailyPickerEvent = true;
+      __monthlyDailyPicker.setDate(__modalMonth, { clear: true, render: true });
+      __suppressMonthlyDailyPickerEvent = false;
+    }
+  }
   await refreshMonthlyModal();
 }
 

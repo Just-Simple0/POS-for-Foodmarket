@@ -25,6 +25,18 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"
     />
+
+    <!-- Flowbite Datepicker (순정 로딩: 디자인은 나중에 수정) -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/1.5.5/flowbite.min.css"
+    />
+    <!-- ✅ flowbite-datepicker 전용 CSS (이게 빠지면 달력 레이아웃이 깨짐) -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/flowbite-datepicker@2.0.0/dist/css/datepicker.min.css"
+    />
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script>
@@ -571,7 +583,7 @@
       aria-hidden="true"
     >
       <div
-        class="modal-content max-w-sm h-[600px] max-h-[85vh] flex flex-col"
+        class="modal-content max-w-md h-[600px] max-h-[85vh] flex flex-col"
         role="dialog"
         aria-modal="true"
       >
@@ -593,28 +605,37 @@
 
         <div class="modal-body p-0 flex-1 flex flex-col overflow-hidden">
           <div
-            class="p-4 flex items-center justify-center gap-3"
+            class="p-5 flex items-center justify-center gap-3 bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50"
           >
             <button
               id="monthly-daily-prev"
-              class="btn btn-ghost w-9 h-9 rounded-full !p-0 text-slate-500 hover:text-primary dark:text-slate-400"
+              class="btn btn-white w-10 h-10 !p-0 rounded-full text-slate-500 hover:text-primary hover:bg-white dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-sm transition-transform active:scale-95"
             >
               <i class="fas fa-chevron-left"></i>
             </button>
 
-            <div
-              class="field-box !w-40 !h-10"
-            >
-              <input
-                type="month"
-                id="monthly-daily-input"
-                class="field-input text-center text-sm font-bold !p-0 cursor-pointer"
-              />
+            <div id="monthly-daily-dp-wrap" class="dp-wrap relative">
+              <div
+                class="field-box w-44"
+              >
+                <div class="field-prefix">
+                  <i class="fas fa-calendar-alt"></i>
+                </div>
+                <input
+                  type="text"
+                  id="monthly-daily-input"
+                  class="field-input cursor-pointer"
+                  inputmode="none"
+                  autocomplete="off"
+                  readonly
+                  placeholder="YYYY-MM"
+                />
+              </div>
             </div>
 
             <button
               id="monthly-daily-next"
-              class="btn btn-ghost w-9 h-9 rounded-full !p-0 text-slate-500 hover:text-primary dark:text-slate-400"
+              class="btn btn-white w-10 h-10 !p-0 rounded-full text-slate-500 hover:text-primary hover:bg-white dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-sm transition-transform active:scale-95"
             >
               <i class="fas fa-chevron-right"></i>
             </button>

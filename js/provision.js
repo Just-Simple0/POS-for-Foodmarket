@@ -1515,7 +1515,9 @@ async function ensureAllProductsLoaded() {
 
   try {
     // 1) IndexedDB 캐시 우선 로드 (TTL 이내면 서버 스킵)
-    const lastSynced = Number(localStorage.getItem(PRODUCT_CACHE_SYNC_KEY) || 0);
+    const lastSynced = Number(
+      localStorage.getItem(PRODUCT_CACHE_SYNC_KEY) || 0,
+    );
     const fresh = lastSynced && Date.now() - lastSynced < PRODUCT_CACHE_TTL_MS;
     if (fresh) {
       const cached = await idbReadAllProducts();
@@ -1807,8 +1809,7 @@ visitorListEl?.addEventListener("click", async (e) => {
     ) {
       const ok = await openConfirm({
         title: "방문자 전환",
-        message:
-          "현재 장바구니가 있어요. 전환할까요? (보류 저장을 권장해요)",
+        message: "현재 장바구니가 있어요. 전환할까요? (보류 저장을 권장해요)",
         variant: "warn",
         confirmText: "전환",
         cancelText: "취소",
@@ -3259,21 +3260,9 @@ exSubmitBtn?.addEventListener("click", async () => {
     const statsRef = doc(db, "stats_daily", String(dayNum));
 
     await runTransaction(db, async (tx) => {
-      // 1) 전표 교환 반영
-      tx.update(provRef, {
-        items: exchangeItems,
-        total: newTotal,
-        updatedAt: serverTimestamp(),
-        exchangeLog: arrayUnion({
-          at: Timestamp.now(),
-          by: auth.currentUser?.email || null,
-          from: exchangeOriginalItems,
-          to: exchangeItems,
-        }),
-      });
-
-      // 2) ✅ stats_daily delta 반영 (itemsTotalQty/top20)
-      //    qtyDeltaTotal이 0이어도 품목 구성 변화가 있을 수 있으니 deltaMap 기준으로 처리
+      // ✅ Firestore 트랜잭션 규칙: 모든 읽기(tx.get)를 모든 쓰기(tx.update/set)보다 먼저 수행해야 함
+      // 1) (필요 시) stats_daily 먼저 읽고, 쓸 payload를 미리 계산
+      let nextStatsPayload = null;
       if (deltaMap.size > 0) {
         const statsSnap = await tx.get(statsRef);
         const stats = statsSnap.exists() ? statsSnap.data() || {} : {};
@@ -3330,16 +3319,30 @@ exSubmitBtn?.addEventListener("click", async () => {
           .sort((a, b) => b.qty - a.qty)
           .slice(0, 20);
 
-        tx.set(
-          statsRef,
-          {
-            itemsTotalQty: nextItemsTotalQty,
-            itemStatsById: curMap,
-            topItems20,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
+        nextStatsPayload = {
+          itemsTotalQty: nextItemsTotalQty,
+          itemStatsById: curMap,
+          topItems20,
+          updatedAt: serverTimestamp(),
+        };
+      }
+
+      // 2) 전표 교환 반영 (쓰기)
+      tx.update(provRef, {
+        items: exchangeItems,
+        total: newTotal,
+        updatedAt: serverTimestamp(),
+        exchangeLog: arrayUnion({
+          at: Timestamp.now(),
+          by: auth.currentUser?.email || null,
+          from: exchangeOriginalItems,
+          to: exchangeItems,
+        }),
+      });
+
+      // 3) stats_daily 반영 (쓰기)
+      if (nextStatsPayload) {
+        tx.set(statsRef, nextStatsPayload, { merge: true });
       }
     });
 
@@ -3412,8 +3415,7 @@ function saveExchangeAutoSave() {
 
 // 1. 되돌리기 (Undo)
 document.getElementById("ex-undo-btn")?.addEventListener("click", () => {
-  if (exUndoStack.length === 0)
-    return showToast("되돌릴 작업이 없어요.", true);
+  if (exUndoStack.length === 0) return showToast("되돌릴 작업이 없어요.", true);
 
   // 현재 상태를 Redo로 보냄 (스냅샷 X, 그냥 이동)
   exRedoStack.push(JSON.parse(JSON.stringify(exchangeItems)));
